@@ -171,7 +171,7 @@ resource "pingone_davinci_flow" "simple_demo_flow" {
 ├── internal/              # Internal packages
 │   └── converter/         # Core conversion logic
 │       ├── converter.go   # Main conversion functions
-│       ├── converter_test.go  # Unit tests (25 tests)
+│       ├── converter_test.go  # Unit tests (26 tests)
 │       └── real_file_test.go  # Integration test
 ├── .github/
 │   └── prompts/           # Example flow files
@@ -202,10 +202,10 @@ go test ./internal/converter/... -v -run TestMultiFlowExport
 
 ```bash
 $ go test ./internal/converter/... -cover
-coverage: 91.6% of statements
+coverage: 91.3% of statements
 
 $ go test ./internal/converter/... -v 2>&1 | grep -c "^=== RUN"
-25
+26
 ```
 
 ### Building

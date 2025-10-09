@@ -344,9 +344,9 @@ func TestFlowWithSettings(t *testing.T) {
 		t.Fatalf("Convert() returned error: %v", err)
 	}
 
-	// Verify settings section is present
+	// Verify settings section is present with attribute assignment (=)
 	expectedElements := []string{
-		`settings {`,
+		`settings = {`,
 		`"csp"`,
 		`"logLevel"`,
 		`"flowHttpTimeoutInSeconds"`,
@@ -666,7 +666,7 @@ func TestCompleteFlowWithAllAttributes(t *testing.T) {
 		`elements {`,
 		`nodes = [`,
 		`edges = [`,
-		`settings {`,
+		`settings = {`,
 	}
 
 	for _, expected := range expectedSections {
@@ -773,7 +773,7 @@ func TestMultiFlowExport(t *testing.T) {
 		`graph_data {`,
 		`"nodeType": "CONNECTION"`,
 		`"connectionId": "conn-123"`,
-		`settings {`,
+		`settings = {`,
 		`"logLevel": 4`,
 	}
 
@@ -880,5 +880,54 @@ func TestEmptyFlowsArray(t *testing.T) {
 	// Should return empty array
 	if len(results) != 0 {
 		t.Errorf("ConvertMultiFlow() should return 0 flows for empty array, got %d", len(results))
+	}
+}
+
+// TestSettingsAttributeFormat tests that settings uses attribute assignment (=) not a block.
+// This test ensures the settings are formatted as: settings = { ... }
+// NOT as: settings { ... }
+// This is critical for proper HCL syntax compatibility with Terraform.
+func TestSettingsAttributeFormat(t *testing.T) {
+	flowJSON := []byte(`{
+		"name": "Settings Format Test",
+		"flowId": "settings-format-test",
+		"flowStatus": "enabled",
+		"graphData": {
+			"elements": {
+				"nodes": [],
+				"edges": []
+			}
+		},
+		"settings": {
+			"csp": "worker-src 'self' blob:;",
+			"logLevel": 2,
+			"flowHttpTimeoutInSeconds": 300
+		}
+	}`)
+
+	result, err := Convert(flowJSON)
+	if err != nil {
+		t.Fatalf("Convert() returned error: %v", err)
+	}
+
+	// Verify settings uses attribute assignment (=) not a block
+	if !strings.Contains(result, "settings = {") {
+		t.Errorf("Convert() output should use 'settings = {' (attribute assignment), not 'settings {' (block)")
+		t.Logf("Full output:\n%s", result)
+	}
+
+	// Verify the JSON content is properly formatted
+	if !strings.Contains(result, `"csp"`) {
+		t.Error("Convert() output missing csp field in settings")
+	}
+	if !strings.Contains(result, `"logLevel"`) {
+		t.Error("Convert() output missing logLevel field in settings")
+	}
+
+	// Ensure there's no extra nested braces
+	// The pattern "settings = {\n    {" would indicate nested braces
+	if strings.Contains(result, "settings = {\n    {") || strings.Contains(result, "settings = {\n        {") {
+		t.Error("Convert() output has extra nested braces in settings block")
+		t.Logf("Full output:\n%s", result)
 	}
 }

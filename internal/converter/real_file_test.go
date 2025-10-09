@@ -40,7 +40,7 @@ func TestRealMultiFlowFile(t *testing.T) {
 		`graph_data {`,
 		`elements {`,
 		`nodes = [`,
-		`settings {`,
+		`settings = {`,
 	}
 
 	for _, expected := range expectedFlow1Elements {

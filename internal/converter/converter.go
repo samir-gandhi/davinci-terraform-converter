@@ -219,27 +219,20 @@ func generateEdgeJSON(hcl *strings.Builder, edge interface{}, indent string) err
 	return nil
 }
 
-// generateSettings generates the settings block
+// generateSettings generates the settings attribute with JSON object value
 func generateSettings(hcl *strings.Builder, settings map[string]interface{}) error {
-	hcl.WriteString("  settings {\n")
+	// Use attribute assignment (=) not a block
+	hcl.WriteString("  settings = ")
 
 	// Convert settings to JSON for proper formatting
-	jsonBytes, err := json.MarshalIndent(settings, "    ", "  ")
+	jsonBytes, err := json.MarshalIndent(settings, "  ", "  ")
 	if err != nil {
 		return fmt.Errorf("failed to marshal settings: %w", err)
 	}
 
-	// Write the JSON content, indented properly
-	lines := strings.Split(string(jsonBytes), "\n")
-	for _, line := range lines {
-		if strings.TrimSpace(line) != "" {
-			hcl.WriteString("    ")
-			hcl.WriteString(line)
-			hcl.WriteString("\n")
-		}
-	}
-
-	hcl.WriteString("  }\n")
+	// Write the JSON content
+	hcl.WriteString(string(jsonBytes))
+	hcl.WriteString("\n")
 	hcl.WriteString("\n")
 
 	return nil
