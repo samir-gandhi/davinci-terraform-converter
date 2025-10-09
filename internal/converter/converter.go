@@ -4,9 +4,303 @@
 // to HCL compatible with the PingOne Terraform Provider.
 package converter
 
+import (
+	"encoding/json"
+	"fmt"
+	"regexp"
+	"strings"
+)
+
+// FlowExport represents the structure of a DaVinci flow export JSON.
+// This represents the export format from DaVinci (different from PingOne API format).
+// Note: We define custom structs here because the DaVinci export format differs
+// from the pingone-go-client API response models. The export has fields like
+// flowId, companyId, flowStatus, etc., while API models use id, _links, environment.
+type FlowExport struct {
+	Name                string                   `json:"name"`
+	Description         string                   `json:"description,omitempty"`
+	FlowID              string                   `json:"flowId"`
+	FlowStatus          string                   `json:"flowStatus"`
+	GraphData           map[string]interface{}   `json:"graphData,omitempty"`
+	Settings            map[string]interface{}   `json:"settings,omitempty"`
+	Variables           []map[string]interface{} `json:"variables,omitempty"`
+	InputSchemaCompiled map[string]interface{}   `json:"inputSchemaCompiled,omitempty"`
+	// Store the rest as additional properties for completeness
+	AdditionalProperties map[string]interface{} `json:"-"`
+}
+
+// MultiFlowExport represents a DaVinci export containing multiple flows.
+// This format is used when exporting a parent flow with its subflows.
+type MultiFlowExport struct {
+	Flows      []FlowExport `json:"flows"`
+	CompanyID  string       `json:"companyId,omitempty"`
+	CustomerID string       `json:"customerId,omitempty"`
+}
+
 // Convert takes a DaVinci flow JSON byte array and converts it to HCL.
-// This is a placeholder that will be implemented in Part 2.
 func Convert(flowJSON []byte) (string, error) {
-	// TODO: Implement in Part 2
-	return "", nil
+	// Unmarshal the JSON into our struct
+	var flow FlowExport
+	if err := json.Unmarshal(flowJSON, &flow); err != nil {
+		return "", fmt.Errorf("failed to unmarshal flow JSON: %w", err)
+	}
+
+	// Generate HCL from the flow data
+	hcl, err := generateHCL(&flow)
+	if err != nil {
+		return "", fmt.Errorf("failed to generate HCL: %w", err)
+	}
+
+	return hcl, nil
+}
+
+// ConvertMultiFlow takes a DaVinci multi-flow export JSON (with "flows" array) and
+// converts each flow to HCL, returning a slice of HCL strings.
+// This handles exports that contain a parent flow and its subflows.
+func ConvertMultiFlow(multiFlowJSON []byte) ([]string, error) {
+	// First, try to unmarshal as a multi-flow export
+	var multiFlow MultiFlowExport
+	if err := json.Unmarshal(multiFlowJSON, &multiFlow); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal multi-flow JSON: %w", err)
+	}
+
+	// If no flows found, return empty slice
+	if len(multiFlow.Flows) == 0 {
+		return []string{}, nil
+	}
+
+	// Convert each flow to HCL
+	results := make([]string, 0, len(multiFlow.Flows))
+	for i, flow := range multiFlow.Flows {
+		hcl, err := generateHCL(&flow)
+		if err != nil {
+			return nil, fmt.Errorf("failed to generate HCL for flow %d (%s): %w", i, flow.Name, err)
+		}
+		results = append(results, hcl)
+	}
+
+	return results, nil
+}
+
+// generateHCL creates HCL string from a FlowExport struct
+func generateHCL(flow *FlowExport) (string, error) {
+	// Convert flow name to a valid Terraform resource name (lowercase, underscores)
+	resourceName := sanitizeResourceName(flow.Name)
+
+	// Build the HCL manually for better control over formatting
+	var hcl strings.Builder
+
+	// Resource declaration
+	hcl.WriteString(fmt.Sprintf(`resource "pingone_davinci_flow" "%s" {`, resourceName))
+	hcl.WriteString("\n")
+	hcl.WriteString("  environment_id = var.environment_id\n")
+	hcl.WriteString("\n")
+
+	// Basic attributes
+	hcl.WriteString(fmt.Sprintf("  name        = %q\n", flow.Name))
+	if flow.Description != "" {
+		hcl.WriteString(fmt.Sprintf("  description = %q\n", flow.Description))
+	}
+	hcl.WriteString("\n")
+
+	// Graph data section
+	if len(flow.GraphData) > 0 {
+		if err := generateGraphData(&hcl, flow.GraphData); err != nil {
+			return "", fmt.Errorf("failed to generate graph_data: %w", err)
+		}
+	}
+
+	// Settings section
+	if len(flow.Settings) > 0 {
+		if err := generateSettings(&hcl, flow.Settings); err != nil {
+			return "", fmt.Errorf("failed to generate settings: %w", err)
+		}
+	}
+
+	// Variables section - add as comments for now since variables are managed separately
+	if len(flow.Variables) > 0 {
+		if err := generateVariablesComments(&hcl, flow.Variables); err != nil {
+			return "", fmt.Errorf("failed to generate variable comments: %w", err)
+		}
+	}
+
+	hcl.WriteString("}\n")
+
+	return hcl.String(), nil
+}
+
+// generateGraphData generates the graph_data block with nodes and edges
+func generateGraphData(hcl *strings.Builder, graphData map[string]interface{}) error {
+	hcl.WriteString("  graph_data {\n")
+
+	// Extract elements
+	if elements, ok := graphData["elements"].(map[string]interface{}); ok {
+		hcl.WriteString("    elements {\n")
+
+		// Generate nodes
+		if nodes, ok := elements["nodes"].([]interface{}); ok && len(nodes) > 0 {
+			hcl.WriteString("      nodes = [\n")
+			for _, node := range nodes {
+				if err := generateNodeJSON(hcl, node, "        "); err != nil {
+					return err
+				}
+			}
+			hcl.WriteString("      ]\n")
+		}
+
+		// Generate edges
+		if edges, ok := elements["edges"].([]interface{}); ok && len(edges) > 0 {
+			hcl.WriteString("\n")
+			hcl.WriteString("      edges = [\n")
+			for _, edge := range edges {
+				if err := generateEdgeJSON(hcl, edge, "        "); err != nil {
+					return err
+				}
+			}
+			hcl.WriteString("      ]\n")
+		}
+
+		hcl.WriteString("    }\n")
+	}
+
+	hcl.WriteString("  }\n")
+	hcl.WriteString("\n")
+
+	return nil
+}
+
+// generateNodeJSON generates JSON representation of a node
+func generateNodeJSON(hcl *strings.Builder, node interface{}, indent string) error {
+	jsonBytes, err := json.MarshalIndent(node, indent, "  ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal node: %w", err)
+	}
+
+	// Write the JSON with proper indentation
+	lines := strings.Split(string(jsonBytes), "\n")
+	for i, line := range lines {
+		if i == 0 {
+			hcl.WriteString(indent)
+		} else {
+			hcl.WriteString(indent)
+		}
+		hcl.WriteString(line)
+		if i < len(lines)-1 {
+			hcl.WriteString("\n")
+		}
+	}
+	hcl.WriteString(",\n")
+
+	return nil
+}
+
+// generateEdgeJSON generates JSON representation of an edge
+func generateEdgeJSON(hcl *strings.Builder, edge interface{}, indent string) error {
+	jsonBytes, err := json.MarshalIndent(edge, indent, "  ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal edge: %w", err)
+	}
+
+	// Write the JSON with proper indentation
+	lines := strings.Split(string(jsonBytes), "\n")
+	for i, line := range lines {
+		if i == 0 {
+			hcl.WriteString(indent)
+		} else {
+			hcl.WriteString(indent)
+		}
+		hcl.WriteString(line)
+		if i < len(lines)-1 {
+			hcl.WriteString("\n")
+		}
+	}
+	hcl.WriteString(",\n")
+
+	return nil
+}
+
+// generateSettings generates the settings block
+func generateSettings(hcl *strings.Builder, settings map[string]interface{}) error {
+	hcl.WriteString("  settings {\n")
+
+	// Convert settings to JSON for proper formatting
+	jsonBytes, err := json.MarshalIndent(settings, "    ", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal settings: %w", err)
+	}
+
+	// Write the JSON content, indented properly
+	lines := strings.Split(string(jsonBytes), "\n")
+	for _, line := range lines {
+		if strings.TrimSpace(line) != "" {
+			hcl.WriteString("    ")
+			hcl.WriteString(line)
+			hcl.WriteString("\n")
+		}
+	}
+
+	hcl.WriteString("  }\n")
+	hcl.WriteString("\n")
+
+	return nil
+}
+
+// generateVariablesComments generates comments documenting the variables used in the flow
+func generateVariablesComments(hcl *strings.Builder, variables []map[string]interface{}) error {
+	hcl.WriteString("  # Flow Variables:\n")
+	hcl.WriteString("  # The following variables are referenced in this flow.\n")
+	hcl.WriteString("  # They should be created as separate pingone_davinci_variable resources.\n")
+	hcl.WriteString("  #\n")
+
+	for i, variable := range variables {
+		// Extract key information from the variable
+		name := ""
+		context := ""
+		varType := ""
+		displayName := ""
+
+		if n, ok := variable["name"].(string); ok {
+			name = n
+		}
+		if c, ok := variable["context"].(string); ok {
+			context = c
+		}
+		if fields, ok := variable["fields"].(map[string]interface{}); ok {
+			if t, ok := fields["type"].(string); ok {
+				varType = t
+			}
+			if dn, ok := fields["displayName"].(string); ok {
+				displayName = dn
+			}
+		}
+
+		hcl.WriteString(fmt.Sprintf("  # Variable %d:\n", i+1))
+		if displayName != "" {
+			hcl.WriteString(fmt.Sprintf("  #   Display Name: %s\n", displayName))
+		}
+		hcl.WriteString(fmt.Sprintf("  #   Name: %s\n", name))
+		hcl.WriteString(fmt.Sprintf("  #   Context: %s\n", context))
+		if varType != "" {
+			hcl.WriteString(fmt.Sprintf("  #   Type: %s\n", varType))
+		}
+		hcl.WriteString("  #\n")
+	}
+
+	return nil
+}
+
+// sanitizeResourceName converts a flow name to a valid Terraform resource name.
+// It converts to lowercase, replaces spaces and special characters with underscores.
+func sanitizeResourceName(name string) string {
+	// Convert to lowercase
+	name = strings.ToLower(name)
+
+	// Replace spaces and special characters with underscores
+	reg := regexp.MustCompile(`[^a-z0-9_]+`)
+	name = reg.ReplaceAllString(name, "_")
+
+	// Remove leading/trailing underscores
+	name = strings.Trim(name, "_")
+
+	return name
 }
