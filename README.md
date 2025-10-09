@@ -1,27 +1,60 @@
 # DaVinci Terraform Converter
 
-A CLI plugin for `pingcli` that converts PingOne DaVinci flows from their native JSON format to HCL (HashiCorp Configuration Language) compatible with the PingOne Terraform Provider.
+A CLI tool for converting PingOne DaVinci flows from their native JSON format to HCL (HashiCorp Configuration Language) compatible with the PingOne Terraform Provider.
+
+**Dual Mode Operation:**
+- **Standalone CLI**: Run directly from command line
+- **PingCLI Plugin**: Integrate with `pingcli` tool
 
 ## Overview
 
-This tool ingests a DaVinci flow JSON file and generates HCL code for the `pingone_davinci_flow` resource. It intelligently handles environment-specific values (like connection IDs, variables, and subflows) by converting them into placeholder references that can be replaced with Terraform resource references.
+This tool ingests a DaVinci flow JSON file (single flow or multi-flow export) and generates HCL code for the `pingone_davinci_flow` resource. It preserves all flow structure including nodes, edges, settings, and variables.
+
+**Features:**
+- ✅ Single flow conversion
+- ✅ Multi-flow export support (parent flow + subflows)
+- ✅ Complete attribute preservation (nodes, edges, settings, variables)
+- ✅ Automatic resource name sanitization
+- ✅ Multiple output modes (stdout, file, directory)
 
 ## Installation
 
 ### Prerequisites
 
 - Go 1.25.1 or higher
-- `pingcli` (https://github.com/pingidentity/pingcli)
+- (Optional) `pingcli` for plugin mode
 
 ### Building from Source
 
 ```bash
+make all
+# or
 go build -o davinci-convert .
 ```
 
 ## Usage
 
-The plugin is designed to be used as a `pingcli` plugin command:
+### Standalone CLI Mode
+
+The binary can be run directly without `pingcli`:
+
+```bash
+# Convert single flow to stdout
+./davinci-convert --flow-json flow.json
+
+# Convert single flow to file
+./davinci-convert --flow-json flow.json --out output.tf
+
+# Convert multi-flow export to separate files in directory
+./davinci-convert --flow-json multiflow-export.json --out-dir ./flows
+
+# Convert multi-flow export to single combined file
+./davinci-convert --flow-json multiflow-export.json --out combined.tf
+```
+
+### PingCLI Plugin Mode
+
+When launched by `pingcli`, it operates as a plugin:
 
 ```bash
 # Convert a DaVinci flow to HCL and output to stdout
@@ -33,8 +66,98 @@ pingcli davinci convert --flow-json ./my-flow.json --out ./output.tf
 
 ### Flags
 
-- `--flow-json` (required): Path to the input DaVinci flow JSON file
-- `--out` (optional): Path to the output HCL file. If not provided, output goes to stdout
+- `-f, --flow-json` (required): Path to input DaVinci flow JSON file
+- `-o, --out` (optional): Path to output HCL file (defaults to stdout)
+- `-d, --out-dir` (optional): Directory for multi-flow output (creates separate .tf files)
+- `-h, --help`: Show help message
+- `-v, --version`: Show version information
+
+## Input Formats
+
+### Single Flow Export
+
+```json
+{
+  "name": "My Flow",
+  "flowId": "abc123",
+  "graphData": { ... },
+  "settings": { ... }
+}
+```
+
+### Multi-Flow Export (Parent + Subflows)
+
+```json
+{
+  "flows": [
+    {
+      "name": "Parent Flow",
+      "flowId": "parent-id",
+      "graphData": { ... }
+    },
+    {
+      "name": "Subflow",
+      "flowId": "subflow-id",
+      "parentFlowId": "parent-id",
+      "graphData": { ... }
+    }
+  ],
+  "companyId": "...",
+  "customerId": "..."
+}
+```
+
+## Output Example
+
+**Input:** Simple flow with nodes and settings
+
+**Output:**
+```hcl
+resource "pingone_davinci_flow" "simple_demo_flow" {
+  environment_id = var.environment_id
+
+  name        = "Simple Demo Flow"
+  description = "A simple flow for demonstration"
+
+  graph_data {
+    elements {
+      nodes = [
+        {
+          "data": {
+            "capabilityName": "customHtmlMessage",
+            "connectionId": "conn-abc-123",
+            "connectorId": "httpConnector",
+            "id": "httpNode",
+            "nodeType": "CONNECTION",
+            "properties": {
+              "message": {
+                "value": "Welcome to the flow!"
+              }
+            }
+          }
+        }
+      ]
+
+      edges = [
+        {
+          "data": {
+            "id": "edge1",
+            "source": "httpNode",
+            "target": "evalNode"
+          }
+        }
+      ]
+    }
+  }
+
+  settings {
+    {
+      "csp": "default-src 'self';",
+      "logLevel": 4
+    }
+  }
+}
+```
 
 ## Development
 
@@ -42,43 +165,90 @@ pingcli davinci convert --flow-json ./my-flow.json --out ./output.tf
 
 ```
 .
-├── cmd/                    # Command implementation
-│   ├── convert.go         # Main command logic
+├── cmd/                    # Command implementation (plugin interface)
+│   ├── convert.go         # Command implementation
 │   └── convert_test.go    # Command tests
 ├── internal/              # Internal packages
-│   └── converter/         # Core conversion logic (to be implemented)
-├── main.go                # Plugin entry point
+│   └── converter/         # Core conversion logic
+│       ├── converter.go   # Main conversion functions
+│       ├── converter_test.go  # Unit tests (25 tests)
+│       └── real_file_test.go  # Integration test
+├── .github/
+│   └── prompts/           # Example flow files
+├── main.go                # Dual-mode entry point (plugin + CLI)
 ├── go.mod                 # Go module dependencies
+├── Makefile               # Build automation
 └── README.md              # This file
 ```
 
 ### Running Tests
 
 ```bash
+# Run all tests
+make test
+# or
 go test ./...
+
+# Run with coverage
+make test-coverage
+# or
+go test -cover ./...
+
+# Run specific test
+go test ./internal/converter/... -v -run TestMultiFlowExport
 ```
 
-### Running with Coverage
+### Test Coverage
 
 ```bash
-go test -coverprofile=coverage.out ./...
-go tool cover -html=coverage.out
+$ go test ./internal/converter/... -cover
+coverage: 91.6% of statements
+
+$ go test ./internal/converter/... -v 2>&1 | grep -c "^=== RUN"
+25
+```
+
+### Building
+
+```bash
+# Build binary
+make build
+
+# Clean, test, and build
+make all
+
+# Generate coverage report
+make test-coverage
 ```
 
 ## Architecture
 
-This plugin follows the TDD (Test-Driven Development) approach and is built in phases:
+This tool follows TDD (Test-Driven Development) and is built in phases:
 
 1. **Project Scaffolding** (✅ Complete): Basic command structure and flag parsing
-2. **Core Conversion Logic**: Convert simple flows to HCL
-3. **Environment-Specific Dependencies**: Handle connection IDs, variables, and subflows
-4. **Integration and Error Handling**: Robust file I/O and error handling
+2. **Core Conversion Logic** (✅ Complete): Convert flows to HCL with full attribute support
+   - Single flow conversion
+   - Multi-flow export support
+   - GraphData (nodes + edges)
+   - Settings blocks
+   - Variables documentation
+   - 25 comprehensive tests
+3. **Environment-Specific Dependencies** (⏳ Next): Handle connection IDs, variables, and subflows
+4. **Integration and Error Handling** (⏳ Future): Enhanced file I/O and validation
+
+## Examples
+
+Example flow files are provided in `.github/prompts/`:
+
+- `simple-demo-flow.json` - Simple single flow
+- `PingOne_Sign On with Sessions_multiflow.json` - Real production multi-flow export
 
 ## References
 
 - [PingCLI](https://github.com/pingidentity/pingcli)
 - [PingOne Go SDK](https://github.com/pingidentity/pingone-go-client)
 - [PingOne Terraform Provider](https://github.com/pingidentity/terraform-provider-pingone)
+- [DaVinci Documentation](https://docs.pingidentity.com/davinci/)
 
 ## License
 

@@ -1,0 +1,45 @@
+{
+  "name": "Simple Demo Flow",
+  "description": "A simple flow for demonstration",
+  "flowId": "demo-flow-123",
+  "flowStatus": "enabled",
+  "graphData": {
+    "elements": {
+      "nodes": [
+        {
+          "data": {
+            "id": "httpNode",
+            "nodeType": "CONNECTION",
+            "connectionId": "conn-abc-123",
+            "connectorId": "httpConnector",
+            "capabilityName": "customHtmlMessage",
+            "properties": {
+              "message": {
+                "value": "Welcome to the flow!"
+              }
+            }
+          }
+        },
+        {
+          "data": {
+            "id": "evalNode",
+            "nodeType": "EVAL"
+          }
+        }
+      ],
+      "edges": [
+        {
+          "data": {
+            "id": "edge1",
+            "source": "httpNode",
+            "target": "evalNode"
+          }
+        }
+      ]
+    }
+  },
+  "settings": {
+    "logLevel": 4,
+    "csp": "default-src 'self';"
+  }
+}
