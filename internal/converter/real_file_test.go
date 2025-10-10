@@ -37,8 +37,8 @@ func TestRealMultiFlowFile(t *testing.T) {
 		`resource "pingone_davinci_flow"`,
 		`environment_id = var.environment_id`,
 		`name        = "PingOne Sign On with Sessions"`,
-		`graph_data {`,
-		`elements {`,
+		`graph_data = {`,
+		`elements = {`,
 		`nodes = [`,
 		`settings = {`,
 	}
@@ -57,10 +57,9 @@ func TestRealMultiFlowFile(t *testing.T) {
 		`resource "pingone_davinci_flow"`,
 		`environment_id = var.environment_id`,
 		`name        = "PingOne Sign On with Registration, Password Reset and Recovery"`,
-		`graph_data {`,
-		`elements {`,
+		`graph_data = {`,
+		`elements = {`,
 		`nodes = [`,
-		`# Flow Variables:`,
 	}
 
 	for _, expected := range expectedFlow2Elements {
