@@ -312,9 +312,9 @@ func writeNodesBlock(hcl *strings.Builder, nodes []interface{}) error {
 		if pannable, ok := node["pannable"].(bool); ok {
 			hcl.WriteString(fmt.Sprintf("          pannable   = %t\n", pannable))
 		}
-		if classes := getString(node, "classes"); classes != "" {
-			hcl.WriteString(fmt.Sprintf("          classes    = %s\n", quoteString(classes)))
-		}
+		// Always include classes field (even if empty string)
+		classes := getString(node, "classes")
+		hcl.WriteString(fmt.Sprintf("          classes    = %s\n", quoteString(classes)))
 
 		hcl.WriteString("        }")
 		// Add comma for all but last element
@@ -385,9 +385,9 @@ func writeEdgesBlock(hcl *strings.Builder, edges []interface{}) error {
 		if pannable, ok := edge["pannable"].(bool); ok {
 			hcl.WriteString(fmt.Sprintf("          pannable   = %t\n", pannable))
 		}
-		if classes := getString(edge, "classes"); classes != "" {
-			hcl.WriteString(fmt.Sprintf("          classes    = %s\n", quoteString(classes)))
-		}
+		// Always include classes field (even if empty string)
+		classes := getString(edge, "classes")
+		hcl.WriteString(fmt.Sprintf("          classes    = %s\n", quoteString(classes)))
 
 		hcl.WriteString("        }")
 		// Add comma for all but last element
@@ -428,9 +428,9 @@ func writeInputSchemaBlock(hcl *strings.Builder, inputSchema []interface{}) erro
 		if isExpanded, ok := schema["isExpanded"].(bool); ok {
 			hcl.WriteString(fmt.Sprintf("      is_expanded             = %t\n", isExpanded))
 		}
-		if description := getString(schema, "description"); description != "" {
-			hcl.WriteString(fmt.Sprintf("      description             = %s\n", quoteString(description)))
-		}
+		// Always include description field (even if empty string)
+		description := getString(schema, "description")
+		hcl.WriteString(fmt.Sprintf("      description             = %s\n", quoteString(description)))
 
 		hcl.WriteString("    }")
 		// Add comma for all but last element
