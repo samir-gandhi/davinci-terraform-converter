@@ -931,3 +931,470 @@ func TestSettingsAttributeFormat(t *testing.T) {
 		t.Logf("Full output:\n%s", result)
 	}
 }
+
+// TestCompleteFlowConversion tests converting a complete DaVinci flow with all nested structures.
+// This is Phase 2.1 - testing comprehensive flow structure mapping including:
+// - Top-level metadata (name, description, flowId, status, etc.)
+// - Complete graphData structure with nodes and edges
+// - Settings object with all nested properties
+// - Variables array
+// - InputSchema array
+// - OutputSchema structure
+func TestCompleteFlowConversion(t *testing.T) {
+	// Complete DaVinci flow JSON with all major structures
+	flowJSON := []byte(`{
+		"name": "Complete Test Flow",
+		"description": "A comprehensive test flow with all structures",
+		"flowId": "complete-flow-abc123",
+		"flowStatus": "enabled",
+		"companyId": "test-company-123",
+		"customerId": "test-customer-456",
+		"createdDate": 1749506377880,
+		"currentVersion": 2,
+		"deployedDate": 1749506378135,
+		"updatedDate": 1749506378157,
+		"publishedVersion": 2,
+		"flowColor": "#CACED3",
+		"connectorIds": [
+			"pingOneSSOConnector",
+			"httpConnector",
+			"variablesConnector"
+		],
+		"graphData": {
+			"elements": {
+				"nodes": [
+					{
+						"data": {
+							"id": "node1",
+							"nodeType": "CONNECTION",
+							"connectionId": "conn-http-123",
+							"connectorId": "httpConnector",
+							"name": "Http",
+							"label": "Http Connector",
+							"capabilityName": "customHtmlMessage",
+							"properties": {
+								"message": {
+									"value": "Welcome to the flow"
+								},
+								"backgroundColor": {
+									"value": "#ffffff"
+								}
+							},
+							"status": "configured",
+							"type": "action"
+						},
+						"position": {
+							"x": 100,
+							"y": 200
+						},
+						"group": "nodes",
+						"removed": false,
+						"selected": false,
+						"selectable": true,
+						"locked": false,
+						"grabbable": true,
+						"pannable": false,
+						"classes": ""
+					},
+					{
+						"data": {
+							"id": "node2",
+							"nodeType": "CONNECTION",
+							"connectionId": "conn-pingone-456",
+							"connectorId": "pingOneSSOConnector",
+							"name": "PingOne",
+							"label": "PingOne SSO",
+							"capabilityName": "checkPassword",
+							"properties": {
+								"identifier": {
+									"value": "user@example.com"
+								},
+								"matchAttribute": {
+									"value": "email"
+								}
+							},
+							"status": "configured",
+							"type": "action"
+						},
+						"position": {
+							"x": 300,
+							"y": 200
+						},
+						"group": "nodes"
+					}
+				],
+				"edges": [
+					{
+						"data": {
+							"id": "edge1",
+							"source": "node1",
+							"target": "node2"
+						},
+						"group": "edges",
+						"removed": false,
+						"selected": false,
+						"selectable": true,
+						"locked": false
+					}
+				]
+			},
+			"pan": {
+				"x": 0,
+				"y": 0
+			},
+			"zoom": 1,
+			"minZoom": 1e-50,
+			"maxZoom": 1e+50,
+			"zoomingEnabled": true,
+			"userZoomingEnabled": true,
+			"panningEnabled": true,
+			"userPanningEnabled": true,
+			"boxSelectionEnabled": true,
+			"renderer": {
+				"name": "canvas"
+			}
+		},
+		"settings": {
+			"csp": "worker-src 'self' blob:; script-src 'self' https://cdn.jsdelivr.net 'unsafe-inline' 'unsafe-eval';",
+			"css": ".button { color: blue; }",
+			"cssLinks": ["https://example.com/styles.css"],
+			"customTitle": "My Custom Flow",
+			"customFaviconLink": "https://example.com/favicon.ico",
+			"flowHttpTimeoutInSeconds": 300,
+			"flowTimeoutInSeconds": 600,
+			"intermediateLoadingScreenCSS": ".loader { animation: spin 1s; }",
+			"intermediateLoadingScreenHTML": "<div class='loader'>Loading...</div>",
+			"jsCustomFlowPlayer": "console.log('Custom player');",
+			"jsLinks": [
+				{
+					"label": "jQuery",
+					"value": "https://code.jquery.com/jquery-3.6.0.min.js",
+					"defer": true,
+					"crossorigin": "anonymous",
+					"integrity": "sha256-abc123",
+					"referrerpolicy": "no-referrer",
+					"type": "text/javascript"
+				}
+			],
+			"logLevel": 2,
+			"requireAuthenticationToInitiate": false,
+			"scrubSensitiveInfo": true,
+			"sensitiveInfoFields": ["password", "ssn", "creditCard"],
+			"useCSP": true,
+			"useCustomCSS": true,
+			"useCustomFlowPlayer": false,
+			"useCustomScript": true,
+			"useIntermediateLoadingScreen": true,
+			"validateOnSave": true
+		},
+		"variables": [
+			{
+				"name": "userId",
+				"context": "flowInstance",
+				"dataType": "string",
+				"mutable": true,
+				"value": "",
+				"displayName": "User ID",
+				"min": 0,
+				"max": 2000
+			},
+			{
+				"name": "apiKey",
+				"context": "company",
+				"dataType": "secret",
+				"mutable": false,
+				"value": "secret-key-12345",
+				"displayName": "API Key"
+			},
+			{
+				"name": "maxAttempts",
+				"context": "flow",
+				"dataType": "number",
+				"mutable": true,
+				"value": 3,
+				"min": 1,
+				"max": 10
+			}
+		],
+		"inputSchema": [
+			{
+				"propertyName": "email",
+				"preferredDataType": "string",
+				"description": "User email address",
+				"preferredControlType": "textField",
+				"required": true,
+				"isExpanded": true
+			},
+			{
+				"propertyName": "password",
+				"preferredDataType": "string",
+				"description": "User password",
+				"preferredControlType": "textField",
+				"required": true,
+				"isExpanded": false
+			}
+		],
+		"inputSchemaCompiled": {
+			"parameters": {
+				"type": "object",
+				"properties": {
+					"email": {
+						"type": "string",
+						"description": "User email address"
+					},
+					"password": {
+						"type": "string",
+						"description": "User password"
+					}
+				},
+				"required": ["email", "password"],
+				"additionalProperties": false
+			}
+		},
+		"outputSchema": {
+			"output": {
+				"type": "object",
+				"properties": {
+					"success": {
+						"type": "boolean"
+					},
+					"userId": {
+						"type": "string"
+					},
+					"message": {
+						"type": "string"
+					}
+				},
+				"additionalProperties": true
+			}
+		},
+		"isInputSchemaSaved": true,
+		"isOutputSchemaSaved": true,
+		"timeouts": "null",
+		"authTokenExpireIds": [],
+		"savedDate": 1749506377720
+	}`)
+
+	// Call the Convert function
+	result, err := Convert(flowJSON)
+	if err != nil {
+		t.Fatalf("Convert() returned error: %v", err)
+	}
+
+	// Test 1: Verify resource declaration with sanitized name
+	expectedResourceDecl := `resource "pingone_davinci_flow" "complete_test_flow"`
+	if !strings.Contains(result, expectedResourceDecl) {
+		t.Errorf("Convert() missing expected resource declaration: %s", expectedResourceDecl)
+	}
+
+	// Test 2: Verify top-level metadata
+	topLevelChecks := []string{
+		`environment_id = var.environment_id`,
+		`name        = "Complete Test Flow"`,
+		`description = "A comprehensive test flow with all structures"`,
+	}
+	for _, check := range topLevelChecks {
+		if !strings.Contains(result, check) {
+			t.Errorf("Convert() missing top-level metadata: %s", check)
+		}
+	}
+
+	// Test 3: Verify graphData structure with nested elements - HCL syntax
+	graphDataChecks := []string{
+		`graph_data = {`,
+		`elements = {`,
+		`nodes = [`,
+		`edges = [`,
+		`id              = "node1"`,
+		`node_type       = "CONNECTION"`,
+		`connection_id   = pingone_davinci_connector_instance.http_connector_conn_http_123.id`,
+		`connector_id    = "httpConnector"`,
+		`capability_name = "customHtmlMessage"`,
+		`id              = "node2"`,
+		`connection_id   = pingone_davinci_connector_instance.ping_one_s_s_o_connector_conn_pingone_456.id`,
+		`id     = "edge1"`,
+		`source = "node1"`,
+		`target = "node2"`,
+	}
+	for _, check := range graphDataChecks {
+		if !strings.Contains(result, check) {
+			t.Errorf("Convert() missing graphData element: %s", check)
+		}
+	}
+
+	// Test 4: Verify node properties are properly nested - uses jsonencode for complex properties
+	nodePropertiesChecks := []string{
+		`properties = jsonencode(`,
+		`"message"`,
+		`"value"`,
+		`"Welcome to the flow"`,
+		`"backgroundColor"`,
+		`"#ffffff"`,
+	}
+	for _, check := range nodePropertiesChecks {
+		if !strings.Contains(result, check) {
+			t.Errorf("Convert() missing node property: %s", check)
+		}
+	}
+
+	// Test 5: Verify node position data - HCL syntax
+	positionChecks := []string{
+		`position = {`,
+		`x = 100`,
+		`y = 200`,
+	}
+	for _, check := range positionChecks {
+		if !strings.Contains(result, check) {
+			t.Errorf("Convert() missing position data: %s", check)
+		}
+	}
+
+	// Test 6: Verify graphData metadata (pan, zoom, renderer) - HCL syntax
+	graphMetadataChecks := []string{
+		`pan = {`,
+		`zoom                  = 1`,
+		`min_zoom              = 1e-50`,
+		`max_zoom              = 1e+50`,
+		`zooming_enabled       = true`,
+		`renderer = jsonencode(`,
+		`"name"`,
+		`"canvas"`,
+	}
+	for _, check := range graphMetadataChecks {
+		if !strings.Contains(result, check) {
+			t.Errorf("Convert() missing graphData metadata: %s", check)
+		}
+	}
+
+	// Test 7: Verify settings attribute syntax (not block syntax)
+	if !strings.Contains(result, "settings = {") {
+		t.Error("Convert() should use 'settings = {' (attribute assignment), not 'settings {' (block)")
+	}
+
+	// Test 8: Verify settings nested properties - HCL syntax
+	settingsChecks := []string{
+		`csp`,
+		`css`,
+		`css_links`,
+		`custom_title`,
+		`flow_http_timeout_in_seconds      = 300`,
+		`flow_timeout_in_seconds           = 600`,
+		`js_links`,
+		`log_level                         = 2`,
+		`scrub_sensitive_info              = true`,
+		`sensitive_info_fields`,
+		`use_csp                           = true`,
+		`validate_on_save                  = true`,
+	}
+	for _, check := range settingsChecks {
+		if !strings.Contains(result, check) {
+			t.Errorf("Convert() missing settings property: %s", check)
+		}
+	}
+
+	// Test 9: Verify jsLinks array with complex objects - uses jsonencode
+	jsLinksChecks := []string{
+		`js_links`,
+		`"label"`,
+		`"jQuery"`,
+		`"value"`,
+		`"https://code.jquery.com/jquery-3.6.0.min.js"`,
+		`"defer"`,
+		`"crossorigin"`,
+		`"anonymous"`,
+		`"integrity"`,
+		`"sha256-abc123"`,
+		`"referrerpolicy"`,
+		`"no-referrer"`,
+		`"type"`,
+		`"text/javascript"`,
+	}
+	for _, check := range jsLinksChecks {
+		if !strings.Contains(result, check) {
+			t.Errorf("Convert() missing jsLinks property: %s", check)
+		}
+	}
+
+	// Test 10: Verify variables are present as comments (managed separately)
+	variableCommentChecks := []string{
+		`# Variables (managed via separate pingone_davinci_variable resources):`,
+		`# - userId (flowInstance, string)`,
+		`# - apiKey (company, secret) - SENSITIVE VALUE REDACTED`,
+		`# - maxAttempts (flow, number)`,
+	}
+	for _, check := range variableCommentChecks {
+		if !strings.Contains(result, check) {
+			t.Errorf("Convert() missing variable comment: %s", check)
+		}
+	}
+
+	// Test 11: Verify inputSchema is not included (managed separately or not needed in resource)
+	// The flow resource doesn't have an input_schema block in the Terraform schema
+	// So we just verify the conversion completes without error
+
+	// Test 12: Verify boolean types are preserved correctly
+	booleanChecks := []string{
+		`"required": true`,
+		`"removed": false`,
+		`"selected": false`,
+		`"selectable": true`,
+		`"locked": false`,
+	}
+	for _, check := range booleanChecks {
+		if !strings.Contains(result, check) {
+			t.Errorf("Convert() missing boolean value: %s", check)
+		}
+	}
+
+	// Test 13: Verify numeric types are preserved correctly
+	numericChecks := []string{
+		`"x": 100`,
+		`"y": 200`,
+		`"x": 300`, // second node position
+		`"logLevel": 2`,
+		`"flowHttpTimeoutInSeconds": 300`,
+		`"flowTimeoutInSeconds": 600`,
+	}
+	for _, check := range numericChecks {
+		if !strings.Contains(result, check) {
+			t.Errorf("Convert() missing numeric value: %s", check)
+		}
+	}
+
+	// Test 14: Verify array handling (cssLinks, sensitiveInfoFields)
+	arrayChecks := []string{
+		`"cssLinks": [`,
+		`"https://example.com/styles.css"`,
+		`"sensitiveInfoFields": [`,
+		`"password"`,
+		`"ssn"`,
+		`"creditCard"`,
+	}
+	for _, check := range arrayChecks {
+		if !strings.Contains(result, check) {
+			t.Errorf("Convert() missing array content: %s", check)
+		}
+	}
+
+	// Test 15: Verify no extra nested braces in settings
+	if strings.Contains(result, "settings = {\n    {") || strings.Contains(result, "settings = {\n        {") {
+		t.Error("Convert() has extra nested braces in settings block")
+	}
+
+	// Test 16: Verify proper closing braces
+	if !strings.HasSuffix(strings.TrimSpace(result), "}") {
+		t.Error("Convert() result doesn't end with closing brace")
+	}
+
+	// Test 17: Verify complete structure by checking opening/closing balance
+	openBraces := strings.Count(result, "{")
+	closeBraces := strings.Count(result, "}")
+	if openBraces != closeBraces {
+		t.Errorf("Convert() has unbalanced braces: %d open, %d close", openBraces, closeBraces)
+	}
+
+	// Optional: Print result for manual inspection if test fails
+	if t.Failed() {
+		t.Logf("Full HCL output:\n%s", result)
+	}
+}

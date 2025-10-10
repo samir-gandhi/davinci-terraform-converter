@@ -38,15 +38,16 @@ type MultiFlowExport struct {
 }
 
 // Convert takes a DaVinci flow JSON byte array and converts it to HCL.
+// This function now delegates to ConvertFlowToHCL for unified conversion logic.
 func Convert(flowJSON []byte) (string, error) {
-	// Unmarshal the JSON into our struct
-	var flow FlowExport
-	if err := json.Unmarshal(flowJSON, &flow); err != nil {
+	// Unmarshal the JSON into a generic map for flexibility
+	var flowData map[string]interface{}
+	if err := json.Unmarshal(flowJSON, &flowData); err != nil {
 		return "", fmt.Errorf("failed to unmarshal flow JSON: %w", err)
 	}
 
-	// Generate HCL from the flow data
-	hcl, err := generateHCL(&flow)
+	// Use the new ConvertFlowToHCL function
+	hcl, err := ConvertFlowToHCL(flowData, "var.environment_id")
 	if err != nil {
 		return "", fmt.Errorf("failed to generate HCL: %w", err)
 	}
@@ -69,10 +70,21 @@ func ConvertMultiFlow(multiFlowJSON []byte) ([]string, error) {
 		return []string{}, nil
 	}
 
-	// Convert each flow to HCL
+	// Convert each flow to HCL using the new converter
 	results := make([]string, 0, len(multiFlow.Flows))
 	for i, flow := range multiFlow.Flows {
-		hcl, err := generateHCL(&flow)
+		// Convert flow struct to map for ConvertFlowToHCL
+		flowBytes, err := json.Marshal(flow)
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal flow %d (%s): %w", i, flow.Name, err)
+		}
+
+		var flowData map[string]interface{}
+		if err := json.Unmarshal(flowBytes, &flowData); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal flow %d (%s): %w", i, flow.Name, err)
+		}
+
+		hcl, err := ConvertFlowToHCL(flowData, "var.environment_id")
 		if err != nil {
 			return nil, fmt.Errorf("failed to generate HCL for flow %d (%s): %w", i, flow.Name, err)
 		}
