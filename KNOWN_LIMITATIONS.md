@@ -104,59 +104,14 @@ Rename function to better reflect what it does:
 
 ---
 
-## 3. Complex Objects in Settings Use Map String Format
+## 3. Flow Variables Not Implemented
+
+---
+
+## 3. Flow Variables Not Implemented
 
 **Priority**: High  
-**Category**: Correctness / Terraform Compatibility
-
-### Description
-
-When flow settings contain complex arrays of objects (e.g., `jsLinks`), the converter outputs them as Go map string representations instead of proper `jsonencode()` format.
-
-### Examples
-
-**Current Output**:
-```hcl
-js_links = ["map[crossorigin:anonymous defer:true integrity:sha256-abc123 label:jQuery referrerpolicy:no-referrer type:text/javascript value:https://code.jquery.com/jquery-3.6.0.min.js]"]
-```
-
-**Expected Output**:
-```hcl
-js_links = jsonencode([
-  {
-    "label": "jQuery",
-    "value": "https://code.jquery.com/jquery-3.6.0.min.js",
-    "defer": true,
-    "crossorigin": "anonymous",
-    "integrity": "sha256-abc123",
-    "referrerpolicy": "no-referrer",
-    "type": "text/javascript"
-  }
-])
-```
-
-### Impact
-
-- **Functional**: High - Map string format may not be parseable by Terraform
-- **Correctness**: Settings with complex objects may fail terraform validation
-- **User Experience**: Generated Terraform code is not immediately usable
-
-### Current Workaround
-
-Tests check only for the presence of `js_links` field, not its content format. Manual editing required for flows using complex jsLinks.
-
-### Affected Settings Fields
-
-- `jsLinks` - Array of script configuration objects
-- Potentially other complex nested objects in settings
-
-### Suggested Fix
-
-1. Detect when a settings value is a complex object (array of objects, nested objects)
-2. Use `jsonencode()` formatting instead of direct string conversion
-3. Apply consistent formatting (compact or pretty-printed)
-
-**Estimated Effort**: 2-3 hours
+**Category**: Missing Feature
 
 ---
 
@@ -330,10 +285,42 @@ Using natural alignment (align to longest field name in block). This is the most
 |---|-----------|----------|--------|--------|--------|
 | 1 | Legacy tests need resource name updates | Medium | None | 1-2h | Documented |
 | 2 | toSnakeCase function name misleading | Low | None | 15-30m | Documented |
-| 3 | Complex objects in settings | High | High | 2-3h | Documented |
-| 4 | Variables not implemented | High | High | 4-6h | Documented |
-| 5 | jsonencode compact format | Low | Low | 2-3h | Documented, Decision Made |
-| 6 | Settings alignment varies | Very Low | None | N/A | Documented, No Action Needed |
+| 3 | Variables not implemented | High | High | 4-6h | Documented |
+| 4 | jsonencode compact format | Low | Low | 2-3h | Documented, Decision Made |
+| 5 | Settings alignment varies | Very Low | None | N/A | Documented, No Action Needed |
+
+---
+
+## Resolved Limitations
+
+### js_links Complex Object Support
+
+**Resolved**: 2025-10-11  
+**Category**: Correctness / Terraform Compatibility
+
+Settings field `js_links` now outputs proper HCL object arrays instead of Go map string representations.
+
+**Before**:
+```hcl
+js_links = ["map[crossorigin:anonymous defer:true integrity:sha256-abc123 ...]"]
+```
+
+**After**:
+```hcl
+js_links = [
+  {
+    crossorigin    = "anonymous"
+    defer          = true
+    integrity      = "sha256-abc123def456"
+    label          = "jQuery"
+    referrerpolicy = "no-referrer"
+    type           = "text/javascript"
+    value          = "https://code.jquery.com/jquery-3.6.0.min.js"
+  }
+]
+```
+
+**Implementation**: Added special case handling in `writeSettingsBlock()` to properly format `js_links` as an array of HCL objects with all required fields.
 
 ---
 

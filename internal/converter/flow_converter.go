@@ -60,6 +60,14 @@ func ConvertFlowToHCL(flowData map[string]interface{}, environmentID string) (st
 		}
 	}
 
+	// Output schema object
+	if outputSchema, ok := flowData["outputSchema"].(map[string]interface{}); ok && len(outputSchema) > 0 {
+		hcl.WriteString("\n")
+		if err := writeOutputSchemaBlock(&hcl, outputSchema); err != nil {
+			return "", fmt.Errorf("failed to write output_schema: %w", err)
+		}
+	}
+
 	// Trigger block
 	if trigger, ok := flowData["trigger"].(map[string]interface{}); ok {
 		hcl.WriteString("\n")
@@ -118,6 +126,47 @@ func writeSettingsBlock(hcl *strings.Builder, settings map[string]interface{}) e
 			hclKey = toSnakeCase(key)
 		}
 
+		// Special handling for js_links - array of objects
+		if key == "jsLinks" {
+			if jsLinks, ok := value.([]interface{}); ok && len(jsLinks) > 0 {
+				hcl.WriteString("    js_links = [\n")
+				for i, linkInterface := range jsLinks {
+					if link, ok := linkInterface.(map[string]interface{}); ok {
+						hcl.WriteString("      {\n")
+						// Write all required fields for js_links
+						if crossorigin := getString(link, "crossorigin"); crossorigin != "" {
+							hcl.WriteString(fmt.Sprintf("        crossorigin    = %s\n", quoteString(crossorigin)))
+						}
+						if deferVal, ok := link["defer"].(bool); ok {
+							hcl.WriteString(fmt.Sprintf("        defer          = %t\n", deferVal))
+						}
+						if integrity := getString(link, "integrity"); integrity != "" {
+							hcl.WriteString(fmt.Sprintf("        integrity      = %s\n", quoteString(integrity)))
+						}
+						if label := getString(link, "label"); label != "" {
+							hcl.WriteString(fmt.Sprintf("        label          = %s\n", quoteString(label)))
+						}
+						if referrerpolicy := getString(link, "referrerpolicy"); referrerpolicy != "" {
+							hcl.WriteString(fmt.Sprintf("        referrerpolicy = %s\n", quoteString(referrerpolicy)))
+						}
+						if linkType := getString(link, "type"); linkType != "" {
+							hcl.WriteString(fmt.Sprintf("        type           = %s\n", quoteString(linkType)))
+						}
+						if value := getString(link, "value"); value != "" {
+							hcl.WriteString(fmt.Sprintf("        value          = %s\n", quoteString(value)))
+						}
+						hcl.WriteString("      }")
+						if i < len(jsLinks)-1 {
+							hcl.WriteString(",")
+						}
+						hcl.WriteString("\n")
+					}
+				}
+				hcl.WriteString("    ]\n")
+			}
+			continue
+		}
+
 		switch v := value.(type) {
 		case string:
 			hcl.WriteString(fmt.Sprintf("    %-36s = %s\n", hclKey, quoteString(v)))
@@ -126,7 +175,7 @@ func writeSettingsBlock(hcl *strings.Builder, settings map[string]interface{}) e
 		case bool:
 			hcl.WriteString(fmt.Sprintf("    %-36s = %t\n", hclKey, v))
 		case []interface{}:
-			// Handle array fields like cssLinks
+			// Handle array fields like cssLinks, sensitiveInfoFields
 			hcl.WriteString(fmt.Sprintf("    %s = [", hclKey))
 			for i, item := range v {
 				if i > 0 {
@@ -365,6 +414,18 @@ func writeEdgesBlock(hcl *strings.Builder, edges []interface{}) error {
 			hcl.WriteString("          }\n")
 		}
 
+		// Optional: position object (rarely used for edges but supported)
+		if position, ok := edge["position"].(map[string]interface{}); ok {
+			hcl.WriteString("          position = {\n")
+			if x, ok := position["x"].(float64); ok {
+				hcl.WriteString(fmt.Sprintf("            x = %g\n", x))
+			}
+			if y, ok := position["y"].(float64); ok {
+				hcl.WriteString(fmt.Sprintf("            y = %g\n", y))
+			}
+			hcl.WriteString("          }\n")
+		}
+
 		// Optional edge attributes
 		if group := getString(edge, "group"); group != "" {
 			hcl.WriteString(fmt.Sprintf("          group      = %s\n", quoteString(group)))
@@ -443,6 +504,24 @@ func writeInputSchemaBlock(hcl *strings.Builder, inputSchema []interface{}) erro
 	}
 
 	hcl.WriteString("  ]\n")
+	return nil
+}
+
+// writeOutputSchemaBlock writes the output_schema object
+func writeOutputSchemaBlock(hcl *strings.Builder, outputSchema map[string]interface{}) error {
+	hcl.WriteString("  output_schema = {\n")
+
+	// The output field typically contains a JSON object that should be encoded
+	if output, ok := outputSchema["output"]; ok {
+		// Convert output to JSON string
+		outputBytes, err := json.Marshal(output)
+		if err != nil {
+			return fmt.Errorf("failed to marshal output schema: %w", err)
+		}
+		hcl.WriteString(fmt.Sprintf("    output = jsonencode(%s)\n", string(outputBytes)))
+	}
+
+	hcl.WriteString("  }\n")
 	return nil
 }
 

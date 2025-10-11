@@ -32,7 +32,7 @@ func TestSimpleFlowConversion(t *testing.T) {
 
 	// Verify the result contains expected elements
 	expectedElements := []string{
-		`resource "pingone_davinci_flow" "simple_test_flow"`,
+		`resource "pingone_davinci_flow" "pingcli__Simple-0020-Test-0020-Flow"`,
 		`environment_id = var.environment_id`,
 		`name        = "Simple Test Flow"`,
 		`description = "A simple test flow"`,
@@ -89,7 +89,7 @@ func TestFlowWithSingleNode(t *testing.T) {
 		`nodes = [`,
 		`id              = "node1"`,
 		`node_type       = "CONNECTION"`,
-		`connection_id   = pingone_davinci_connector_instance.http_connector_conn-123-abc.id`,
+		`connection_id   = pingone_davinci_connector_instance.httpconnector_conn-123-abc.id`,
 		`connector_id    = "httpConnector"`,
 		`capability_name = "customHtmlMessage"`,
 		`properties = jsonencode(`,
@@ -599,8 +599,8 @@ func TestSpecialCharactersInFlowName(t *testing.T) {
 		t.Fatalf("Convert() returned error for special characters: %v", err)
 	}
 
-	// Resource name should be sanitized
-	if !strings.Contains(result, `resource "pingone_davinci_flow" "test_flow"`) {
+	// Resource name should be sanitized with pingcli format
+	if !strings.Contains(result, `resource "pingone_davinci_flow" "pingcli__Test-0021--0040--0023--0024--0025--005E--0026--002A--0028--0029-Flow-003C--003E--003F--003A--007B--007D--005B--005D-"`) {
 		t.Errorf("Resource name not properly sanitized, got:\n%s", result)
 	}
 
@@ -666,7 +666,7 @@ func TestCompleteFlowWithAllAttributes(t *testing.T) {
 
 	// Verify all major sections are present
 	expectedSections := []string{
-		`resource "pingone_davinci_flow" "complete_flow"`,
+		`resource "pingone_davinci_flow" "pingcli__Complete-0020-Flow"`,
 		`environment_id = var.environment_id`,
 		`name        = "Complete Flow"`,
 		`description = "A complete flow with all attributes"`,
@@ -775,7 +775,7 @@ func TestMultiFlowExport(t *testing.T) {
 	// Verify first flow (Main Flow)
 	mainFlow := results[0]
 	expectedMainElements := []string{
-		`resource "pingone_davinci_flow" "main_flow"`,
+		`resource "pingone_davinci_flow" "pingcli__Main-0020-Flow"`,
 		`name        = "Main Flow"`,
 		`description = "Parent flow"`,
 		`graph_data = {`,
@@ -793,7 +793,7 @@ func TestMultiFlowExport(t *testing.T) {
 	// Verify second flow (Subflow One)
 	subflowOne := results[1]
 	expectedSubflowOneElements := []string{
-		`resource "pingone_davinci_flow" "subflow_one"`,
+		`resource "pingone_davinci_flow" "pingcli__Subflow-0020-One"`,
 		`name        = "Subflow One"`,
 		`description = "First subflow"`,
 		`node_type       = "EVAL"`,
@@ -808,7 +808,7 @@ func TestMultiFlowExport(t *testing.T) {
 	// Verify third flow (Subflow Two)
 	subflowTwo := results[2]
 	expectedSubflowTwoElements := []string{
-		`resource "pingone_davinci_flow" "subflow_two"`,
+		`resource "pingone_davinci_flow" "pingcli__Subflow-0020-Two"`,
 		`name        = "Subflow Two"`,
 		`description = "Second subflow"`,
 	}
@@ -858,7 +858,7 @@ func TestSingleFlowWrappedInFlowsArray(t *testing.T) {
 	// Verify the flow was converted correctly
 	flow := results[0]
 	expectedElements := []string{
-		`resource "pingone_davinci_flow" "wrapped_flow"`,
+		`resource "pingone_davinci_flow" "pingcli__Wrapped-0020-Flow"`,
 		`name        = "Wrapped Flow"`,
 		`description = "Single flow in array"`,
 	}
@@ -1186,7 +1186,7 @@ func TestCompleteFlowConversion(t *testing.T) {
 	}
 
 	// Test 1: Verify resource declaration with sanitized name
-	expectedResourceDecl := `resource "pingone_davinci_flow" "complete_test_flow"`
+	expectedResourceDecl := `resource "pingone_davinci_flow" "pingcli__Complete-0020-Test-0020-Flow"`
 	if !strings.Contains(result, expectedResourceDecl) {
 		t.Errorf("Convert() missing expected resource declaration: %s", expectedResourceDecl)
 	}

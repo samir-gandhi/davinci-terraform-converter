@@ -1,0 +1,77 @@
+{
+  "name": "Test New Features Flow",
+  "description": "Flow to test output_schema, trigger, and js_links",
+  "flowColor": "#FF5733",
+  "settings": {
+    "logLevel": 2,
+    "csp": "default-src 'self';",
+    "jsLinks": [
+      {
+        "label": "jQuery",
+        "value": "https://code.jquery.com/jquery-3.6.0.min.js",
+        "defer": true,
+        "crossorigin": "anonymous",
+        "integrity": "sha256-abc123def456",
+        "referrerpolicy": "no-referrer",
+        "type": "text/javascript"
+      },
+      {
+        "label": "Bootstrap",
+        "value": "https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js",
+        "defer": false,
+        "crossorigin": "anonymous",
+        "integrity": "sha384-xyz789",
+        "referrerpolicy": "no-referrer",
+        "type": "text/javascript"
+      }
+    ],
+    "cssLinks": ["https://example.com/styles.css", "https://example.com/theme.css"]
+  },
+  "graphData": {
+    "elements": {
+      "nodes": [
+        {
+          "data": {
+            "id": "node1",
+            "nodeType": "CONNECTION",
+            "connectionId": "test-conn-123",
+            "connectorId": "httpConnector"
+          }
+        }
+      ],
+      "edges": []
+    }
+  },
+  "inputSchema": [
+    {
+      "propertyName": "username",
+      "preferredDataType": "string",
+      "preferredControlType": "textField",
+      "required": true,
+      "isExpanded": true,
+      "description": "User's username"
+    }
+  ],
+  "outputSchema": {
+    "output": {
+      "success": true,
+      "userId": "{{local.node1.payload.id}}",
+      "message": "Flow completed successfully"
+    }
+  },
+  "trigger": {
+    "type": "authentication",
+    "configuration": {
+      "mfa": {
+        "enabled": true,
+        "time": 30,
+        "timeFormat": "minutes"
+      },
+      "pwd": {
+        "enabled": true,
+        "time": 90,
+        "timeFormat": "days"
+      }
+    }
+  }
+}

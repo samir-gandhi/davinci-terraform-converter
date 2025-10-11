@@ -411,24 +411,25 @@ resource "pingone_davinci_flow" "example" {
 **Implemented Features**:
 - ✅ Top-level flow attributes (name, description, color)
 - ✅ Settings object with all standard fields
+- ✅ Settings `js_links` as proper HCL objects (resolved 2025-10-11)
 - ✅ Graph data structure (nodes, edges, viewport)
 - ✅ Node data with connection references
 - ✅ Edge data with source/target references
+- ✅ Edge position attributes (optional, rarely used)
 - ✅ Position attributes for nodes
 - ✅ Visual attributes (classes, group, removed, selected, etc.)
 - ✅ Input schema array
+- ✅ Output schema object (added 2025-10-11)
+- ✅ Trigger configuration with mfa/pwd (added 2025-10-11)
 - ✅ Connection ID to Terraform reference conversion
 - ✅ Resource name sanitization (pingcli format)
 - ✅ Special character escaping in strings
 - ✅ jsonencode() for complex properties
 
 **Not Yet Implemented**:
-- ⚠️ `js_links` as proper objects (currently outputs as Go map strings - Known Limitation #3)
-- ⚠️ `output_schema` attribute
-- ⚠️ `trigger` configuration
-- ⚠️ Edge `position` attributes (edges rarely have positions in practice)
-- ⚠️ Graph data `data` attribute (additional graph metadata)
-- ⚠️ Variables (documented as Known Limitation #4)
+- ⚠️ Variables (documented as Known Limitation #3)
+- ⚠️ Edge `position` attributes are supported but rarely used in practice
+- ⚠️ Graph data `data` attribute (additional graph metadata - rarely used)
 
 **Legacy Test Updates Needed**:
 - Several tests in `converter_test.go` use old resource name format expectations
@@ -436,20 +437,19 @@ resource "pingone_davinci_flow" "example" {
 
 ## Next Steps
 
-1. **Implement remaining attributes**:
-   - Add `output_schema` support
-   - Add `trigger` configuration support
-   - Fix `js_links` to output proper HCL objects (not Go map strings)
-   - Consider edge `position` attributes if needed in practice
+1. **Validate with complex real flows**: 
+   - Test generated HCL with `terraform validate`
+   - Test with complex production flows
+   - Ensure all common DaVinci patterns are handled
 
 2. **Update legacy tests**: 
    - Update `converter_test.go` to use pingcli-compatible resource names
    - Ensure all connection ID references use lowercase format
 
-3. **Validate with real flows**: 
-   - Test generated HCL with `terraform validate`
-   - Test with complex production flows
-   - Ensure all common DaVinci patterns are handled
+3. **Consider variables implementation**:
+   - Decide on approach (separate resources vs comments)
+   - Design variable reference handling
+   - Implement if needed for pingcli integration
 
 ## Testing Strategy
 
@@ -491,9 +491,10 @@ terraform validate
 - ✅ **Real flows work**: Complex production flows generate valid HCL
 - ✅ **Resource naming consistent**: Uses pingcli-compatible format
 - ✅ **Connection references correct**: Properly formatted Terraform references
+- ✅ **New attributes implemented**: output_schema, trigger, js_links (2025-10-11)
 - ⚠️ **Known limitations documented**: See KNOWN_LIMITATIONS.md
 - ⚠️ **Legacy tests need updates**: Documented in Known Limitations #1
-- 🔄 **Future enhancements**: output_schema, trigger, js_links improvements
+- 🔄 **Future enhancements**: Variables implementation if needed
 
 ## References
 
