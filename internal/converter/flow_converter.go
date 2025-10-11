@@ -6,6 +6,8 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+
+	"github.com/samir-gandhi/davinci-terraform-converter/internal/utils"
 )
 
 // ConvertFlowToHCL converts a DaVinci flow JSON structure to Terraform HCL
@@ -13,8 +15,8 @@ import (
 func ConvertFlowToHCL(flowData map[string]interface{}, environmentID string) (string, error) {
 	var hcl strings.Builder
 
-	// Generate resource name from flow name
-	resourceName := generateResourceName(getString(flowData, "name"))
+	// Generate resource name from flow name using pingcli-compatible sanitization
+	resourceName := utils.SanitizeResourceName(getString(flowData, "name"))
 
 	hcl.WriteString(fmt.Sprintf("resource \"pingone_davinci_flow\" \"%s\" {\n", resourceName))
 	hcl.WriteString(fmt.Sprintf("  environment_id = %s\n\n", environmentID))
@@ -511,24 +513,10 @@ func quoteString(s string) string {
 	return fmt.Sprintf("%q", s)
 }
 
+// generateResourceName is deprecated - use utils.SanitizeResourceName instead
+// Kept for backwards compatibility in case external code references it
 func generateResourceName(name string) string {
-	// Convert name to valid Terraform resource name
-	// Replace spaces and special characters with underscores
-	reg := regexp.MustCompile(`[^a-zA-Z0-9_]+`)
-	resourceName := reg.ReplaceAllString(name, "_")
-
-	// Remove leading/trailing underscores
-	resourceName = strings.Trim(resourceName, "_")
-
-	// Convert to lowercase for consistency
-	resourceName = strings.ToLower(resourceName)
-
-	// Ensure it doesn't start with a number
-	if len(resourceName) > 0 && resourceName[0] >= '0' && resourceName[0] <= '9' {
-		resourceName = "flow_" + resourceName
-	}
-
-	return resourceName
+	return utils.SanitizeResourceName(name)
 }
 
 func generateConnectionReference(connectorID, connectionID string) string {
@@ -539,13 +527,11 @@ func generateConnectionReference(connectorID, connectionID string) string {
 }
 
 func toSnakeCase(s string) string {
-	// Convert camelCase to snake_case
-	var result strings.Builder
-	for i, r := range s {
-		if i > 0 && r >= 'A' && r <= 'Z' {
-			result.WriteRune('_')
-		}
-		result.WriteRune(r)
-	}
-	return strings.ToLower(result.String())
+	// Convert to snake_case by:
+	// 1. Replacing all non-word characters with underscores
+	// 2. Converting to lowercase
+	// This matches the sanitiseResourceName logic from pingcli/dvtf-pingctl
+	re := regexp.MustCompile(`[^\w]+`)
+	result := re.ReplaceAllString(s, "_")
+	return strings.ToLower(result)
 }

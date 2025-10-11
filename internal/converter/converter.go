@@ -7,8 +7,9 @@ package converter
 import (
 	"encoding/json"
 	"fmt"
-	"regexp"
 	"strings"
+
+	"github.com/samir-gandhi/davinci-terraform-converter/internal/utils"
 )
 
 // FlowExport represents the structure of a DaVinci flow export JSON.
@@ -96,8 +97,8 @@ func ConvertMultiFlow(multiFlowJSON []byte) ([]string, error) {
 
 // generateHCL creates HCL string from a FlowExport struct
 func generateHCL(flow *FlowExport) (string, error) {
-	// Convert flow name to a valid Terraform resource name (lowercase, underscores)
-	resourceName := sanitizeResourceName(flow.Name)
+	// Convert flow name to a valid Terraform resource name using pingcli-compatible sanitization
+	resourceName := utils.SanitizeResourceName(flow.Name)
 
 	// Build the HCL manually for better control over formatting
 	var hcl strings.Builder
@@ -294,18 +295,8 @@ func generateVariablesComments(hcl *strings.Builder, variables []map[string]inte
 	return nil
 }
 
-// sanitizeResourceName converts a flow name to a valid Terraform resource name.
-// It converts to lowercase, replaces spaces and special characters with underscores.
+// sanitizeResourceName is deprecated - use utils.SanitizeResourceName instead
+// Kept for backwards compatibility in case external code references it
 func sanitizeResourceName(name string) string {
-	// Convert to lowercase
-	name = strings.ToLower(name)
-
-	// Replace spaces and special characters with underscores
-	reg := regexp.MustCompile(`[^a-z0-9_]+`)
-	name = reg.ReplaceAllString(name, "_")
-
-	// Remove leading/trailing underscores
-	name = strings.Trim(name, "_")
-
-	return name
+	return utils.SanitizeResourceName(name)
 }

@@ -2,8 +2,33 @@
 
 This document tracks known limitations and technical debt in the DaVinci Terraform Converter that are acceptable for current functionality but may need addressing in future iterations.
 
-**Last Updated**: 2025-10-10  
-**Project Phase**: Part 2 Phase 2.1 Complete
+**Last Updated**: 2025-10-11  
+**Project Phase**: Part 2 Phase 2.1 Complete (Resource Name Sanitization Updated)
+
+---
+
+## Recent Changes
+
+### Resource Name Sanitization Now Uses pingcli Format
+
+**Date**: 2025-10-11  
+**Category**: Compatibility Enhancement
+
+The converter now uses the same resource name sanitization as pingcli's `ImportBlock.Sanitize()` method to ensure consistency between the converter (intended as a pingcli plugin) and pingcli's export functionality.
+
+**Changes**:
+- Resource names are now prefixed with `pingcli__`
+- Special characters (spaces, punctuation, etc.) are hex-encoded (e.g., space becomes `-0020-`)
+- Alphanumeric characters, underscores, and hyphens are preserved
+
+**Examples**:
+| Input | Old Format | New Format (pingcli-compatible) |
+|-------|-----------|--------------------------------|
+| `Simple Test Flow` | `simple_test_flow` | `pingcli__Simple-0020-Test-0020-Flow` |
+| `My-Flow@2024!` | `my_flow_2024` | `pingcli__My-Flow-0040-2024-0021-` |
+| `Customer HTML Form (PF)` | `customer_html_form_pf` | `pingcli__Customer-0020-HTML-0020-Form-0020--0028-PF-0029-` |
+
+**Rationale**: As this tool is intended to be integrated as a pingcli plugin, maintaining consistent resource naming conventions across both tools is critical for a seamless user experience.
 
 ---
 

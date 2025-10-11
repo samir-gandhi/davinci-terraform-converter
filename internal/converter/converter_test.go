@@ -219,6 +219,7 @@ func TestFlowWithComplexNodeProperties(t *testing.T) {
 }
 
 // TestSanitizeResourceName tests the resource name sanitization function.
+// This now uses the pingcli-compatible sanitization that encodes special characters
 func TestSanitizeResourceName(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -228,27 +229,32 @@ func TestSanitizeResourceName(t *testing.T) {
 		{
 			name:     "Simple name",
 			input:    "My Flow",
-			expected: "my_flow",
+			expected: "pingcli__My-0020-Flow",
 		},
 		{
 			name:     "Name with special characters",
 			input:    "My-Flow@2024!",
-			expected: "my_flow_2024",
+			expected: "pingcli__My-Flow-0040-2024-0021-",
 		},
 		{
 			name:     "Name with multiple spaces",
 			input:    "My   Test   Flow",
-			expected: "my_test_flow",
+			expected: "pingcli__My-0020--0020--0020-Test-0020--0020--0020-Flow",
 		},
 		{
 			name:     "Already lowercase with underscores",
 			input:    "my_test_flow",
-			expected: "my_test_flow",
+			expected: "pingcli__my_test_flow",
 		},
 		{
 			name:     "Leading and trailing spaces",
 			input:    "  My Flow  ",
-			expected: "my_flow",
+			expected: "pingcli__-0020--0020-My-0020-Flow-0020--0020-",
+		},
+		{
+			name:     "Alphanumeric only",
+			input:    "MyFlow123",
+			expected: "pingcli__MyFlow123",
 		},
 	}
 
