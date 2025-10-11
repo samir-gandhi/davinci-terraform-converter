@@ -21,6 +21,57 @@ All phases follow TDD approach with tests written first.
 
 **Resource**: `pingone_davinci_application`
 
+### Complete Schema Reference
+
+**Reference Materials**:
+- Terraform Provider Docs: `docs/resources/davinci_application.md`
+- pingone-go-client structs for DaVinci application structure
+
+**Key Structures to Handle**:
+
+1. **Top-Level Application Attributes**:
+   - `environment_id` (string, required) - The PingOne environment ID (use `var.environment_id` in generated HCL)
+   - `name` (string, required) - Application name
+   - `api_key` (object, optional) - API key configuration (see section 2 below)
+   - `oauth` (object, optional) - OAuth configuration (see section 3 below)
+   - `id` (string, read-only) - Resource ID
+
+2. **api_key Object**:
+   - `enabled` (boolean, optional) - Whether API key authentication is enabled
+   - `value` (string, read-only, sensitive) - The actual API key value (managed by provider, not in input)
+
+3. **oauth Object**:
+   - `enforce_signed_request_openid` (boolean, optional) - Whether to enforce signed requests for OpenID
+   - `grant_types` (set of strings, optional) - OAuth grant types. Options: `authorizationCode`, `clientCredentials`, `implicit`
+   - `logout_uris` (set of strings, optional) - Logout redirect URIs
+   - `redirect_uris` (set of strings, optional) - OAuth redirect URIs
+   - `scopes` (set of strings, optional) - OAuth scopes. Options: `flow_analytics`, `offline_access`, `openid`, `profile`
+   - `sp_jwks_openid` (string, optional) - Service provider JWKS for OpenID
+   - `sp_jwks_url` (string, optional) - Service provider JWKS URL
+   - `client_secret` (string, read-only, sensitive) - OAuth client secret (managed by provider, not in input)
+
+**HCL Syntax Example**:
+```hcl
+resource "pingone_davinci_application" "my_application" {
+  environment_id = var.environment_id
+  name           = "My Application"
+  
+  api_key = {
+    enabled = true
+  }
+  
+  oauth = {
+    grant_types                   = ["authorizationCode", "implicit"]
+    scopes                        = ["openid", "profile"]
+    enforce_signed_request_openid = false
+    redirect_uris                 = ["https://example.com/callback"]
+    logout_uris                   = ["https://example.com/logout"]
+    sp_jwks_openid                = "{ ... }"  # Optional
+    sp_jwks_url                   = "https://example.com/.well-known/jwks.json"  # Optional
+  }
+}
+```
+
 ### Test Case
 
 Function: `TestApplicationConversion`
@@ -90,7 +141,97 @@ Function: `generateApplicationHCL()`
 
 **Resource**: `pingone_davinci_application_flow_policy`
 
-### Test Case
+### Complete Schema Reference
+
+**Reference Materials**:
+- Terraform Provider Docs: `docs/resources/davinci_application_flow_policy.md`
+- pingone-go-client structs for DaVinci flow policy structure
+
+**Key Structures to Handle**:
+
+1. **Top-Level Flow Policy Attributes**:
+   - `environment_id` (string, required) - The PingOne environment ID (use `var.environment_id` in generated HCL)
+   - `da_vinci_application_id` (string, required) - Reference to the DaVinci application (use Terraform reference)
+   - `flow_distributions` (set of objects, required) - Flow distributions (see section 2 below)
+   - `name` (string, optional) - Flow policy name
+   - `status` (string, optional) - Policy status. Options: `disabled`, `enabled`
+   - `trigger` (object, optional) - Flow trigger configuration (see section 3 below)
+   - `id` (string, read-only) - Resource ID
+
+2. **flow_distributions Objects (Set)**:
+   - `id` (string, required) - Flow ID (use Terraform reference to pingone_davinci_flow)
+   - `version` (number, required) - Flow version (-1 for latest)
+   - `weight` (number, optional) - Distribution weight for flow
+   - `ip` (set of strings, optional) - IP ranges for conditional routing
+   - `success_nodes` (set of objects, optional) - Success node configuration:
+     - `id` (string, required) - Node ID
+
+3. **trigger Object**:
+   - `type` (string, optional) - Trigger type (e.g., "AUTHENTICATION")
+   - `configuration` (object, optional):
+     - `mfa` (object, optional):
+       - `enabled` (boolean, optional) - Whether MFA timeout is enabled
+       - `time` (number, optional) - MFA timeout value
+       - `time_format` (string, optional) - Time format (e.g., "seconds", "minutes")
+     - `pwd` (object, optional):
+       - `enabled` (boolean, optional) - Whether password timeout is enabled
+       - `time` (number, optional) - Password timeout value
+       - `time_format` (string, optional) - Time format (e.g., "seconds", "minutes")
+
+**HCL Syntax Example**:
+```hcl
+resource "pingone_davinci_application_flow_policy" "main_policy" {
+  environment_id         = var.environment_id
+  da_vinci_application_id = pingone_davinci_application.my_app.id
+  
+  name   = "Main Policy"
+  status = "enabled"
+  
+  trigger = {
+    type = "AUTHENTICATION"
+    
+    configuration = {
+      mfa = {
+        enabled     = true
+        time        = 300
+        time_format = "seconds"
+      }
+      
+      pwd = {
+        enabled     = true
+        time        = 3600
+        time_format = "seconds"
+      }
+    }
+  }
+  
+  flow_distributions = [
+    {
+      id      = pingone_davinci_flow.registration.id
+      version = -1
+      weight  = 100
+      
+      success_nodes = [
+        {
+          id = "successNode1"
+        },
+        {
+          id = "successNode2"
+        }
+      ]
+      
+      ip = ["10.0.0.0/8", "192.168.0.0/16"]
+    },
+    {
+      id      = pingone_davinci_flow.authentication.id
+      version = -1
+      weight  = 50
+    }
+  ]
+}
+```
+
+### Test Case (Flow Policy)
 
 Function: `TestFlowPolicyConversion`
 
@@ -186,11 +327,106 @@ Function: `generateFlowPolicyHCL()`
 - Various trigger types
 - Optional fields (priority, IP ranges)
 
-## Phase 2.4: Connection (Connector Instance) Resource Conversion
+## Phase 2.4: Connection Resource Conversion
 
-**Resource**: `pingone_davinci_connection`
+**Resource**: `pingone_davinci_connector_instance`
 
-### Test Case
+**Note**: In DaVinci terminology, "connections" are connector instances - specific configurations of connectors.
+
+### Complete Schema Reference
+
+**Reference Materials**:
+- Terraform Provider Docs: `docs/resources/davinci_connector_instance.md`
+- pingone-go-client structs for DaVinci connector instance structure
+
+**Key Structures to Handle**:
+
+1. **Top-Level Connector Instance Attributes**:
+   - `environment_id` (string, required) - The PingOne environment ID (use `var.environment_id` in generated HCL)
+   - `name` (string, required) - Name for this connector instance (this is the user-assigned name)
+   - `connector` (object, required) - Connector type reference (see section 2 below)
+   - `properties` (string, optional, sensitive) - JSON string of connector-specific properties
+   - `id` (string, read-only) - Resource ID
+
+2. **connector Object**:
+   - `id` (string, required) - Connector type ID (e.g., "annotationConnector", "httpConnector", "crowdStrikeConnector")
+
+**Special Handling**:
+- **Connector Type ID**: The `connector.id` is the connector type (e.g., "httpConnector"), NOT a reference to another resource
+- **Properties**: JSON string containing connector-specific configuration (varies by connector type)
+  - Should be sensitive data for connectors with credentials
+  - Properties structure is connector-specific (no universal schema)
+  - Use `jsonencode()` in generated HCL for proper escaping
+  - For export: mask sensitive values (API keys, secrets) with TODO comments
+- **Naming**: Resource name should use pingcli format (hex-encoded)
+
+**Common Connector Types**:
+- `annotationConnector` - No properties needed
+- `httpConnector` - Usually requires endpoint URL
+- `flowConnector` - Requires flow reference
+- `functionsConnector` - JavaScript functions
+- OAuth connectors (Google, Facebook, etc.) - Require client ID/secret
+- API connectors - Require API keys/credentials
+
+**HCL Syntax Examples**:
+
+```hcl
+# Simple connector with no properties
+resource "pingone_davinci_connector_instance" "pingcli__My-0020-Annotation" {
+  environment_id = var.environment_id
+  name           = "My Annotation"
+  
+  connector = {
+    id = "annotationConnector"
+  }
+}
+
+# HTTP connector with endpoint configuration
+resource "pingone_davinci_connector_instance" "pingcli__External-0020-API" {
+  environment_id = var.environment_id
+  name           = "External API"
+  
+  connector = {
+    id = "httpConnector"
+  }
+  
+  properties = jsonencode({
+    "url" : "https://api.example.com/endpoint"
+  })
+}
+
+# OAuth connector with credentials (masked for export)
+resource "pingone_davinci_connector_instance" "pingcli__Google-0020-Login" {
+  environment_id = var.environment_id
+  name           = "Google Login"
+  
+  connector = {
+    id = "googleIdpConnector"
+  }
+  
+  properties = jsonencode({
+    "clientId" : "TODO: Replace with actual client ID",
+    "clientSecret" : "TODO: Replace with actual client secret",
+    "scope" : "openid profile email"
+  })
+}
+
+# Flow connector (references another flow)
+resource "pingone_davinci_connector_instance" "pingcli__Subflow-0020-Call" {
+  environment_id = var.environment_id
+  name           = "Subflow Call"
+  
+  connector = {
+    id = "flowConnector"
+  }
+  
+  properties = jsonencode({
+    "flowId" : "TODO: Replace with flow reference or ID"
+  })
+}
+```
+
+### Test Case (Connector Instances)
 
 Function: `TestConnectionConversion`
 
@@ -277,7 +513,128 @@ func isSensitiveField(key string) bool {
 
 **Resource**: `pingone_davinci_variable`
 
-### Test Case
+### Complete Schema Reference
+
+**Reference Materials**:
+- Terraform Provider Docs: `docs/resources/davinci_variable.md`
+- pingone-go-client structs for DaVinci variable structure
+
+**Key Structures to Handle**:
+
+1. **Top-Level Variable Attributes**:
+   - `environment_id` (string, required) - The PingOne environment ID (use `var.environment_id` in generated HCL)
+   - `name` (string, required) - Variable name
+   - `context` (string, required) - Variable context. Options: `company`, `flow`, `flowInstance`, `user`
+   - `data_type` (string, required) - Variable data type. Options: `boolean`, `number`, `object`, `secret`, `string`
+   - `mutable` (boolean, required) - Whether the variable value is mutable
+   - `display_name` (string, optional) - Display name for the variable
+   - `flow` (object, optional) - Flow reference (required for `flow` context) (see section 2 below)
+   - `min` (number, optional) - Minimum value (for `number` data type)
+   - `max` (number, optional) - Maximum value (for `number` data type)
+   - `value` (object, optional) - Variable value (see section 3 below)
+   - `id` (string, read-only) - Resource ID
+
+2. **flow Object** (Required for `flow` context):
+   - `id` (string, required) - Flow ID (use Terraform reference to pingone_davinci_flow)
+
+3. **value Object** (Type-specific value):
+   - For `string` data_type:
+     - `string` (string, optional) - String value
+   - For `number` data_type:
+     - `number` (number, optional) - Numeric value
+   - For `boolean` data_type:
+     - `boolean` (boolean, optional) - Boolean value
+   - For `object` data_type:
+     - `object` (string, optional) - JSON string representation of object
+   - For `secret` data_type:
+     - `secret` (string, optional, sensitive) - Secret value (should be masked in export)
+
+**Context-Specific Behavior**:
+- `company`: Environment-wide variable, no flow reference needed
+- `flow`: Flow-specific variable, requires `flow.id` reference
+- `flowInstance`: Runtime variable per flow execution, typically no static value
+- `user`: User-specific variable, no flow reference needed
+
+**HCL Syntax Examples**:
+
+```hcl
+# Company-level string variable
+resource "pingone_davinci_variable" "api_endpoint" {
+  environment_id = var.environment_id
+  name           = "apiEndpoint"
+  context        = "company"
+  data_type      = "string"
+  mutable        = true
+  display_name   = "API Endpoint URL"
+  
+  value = {
+    string = "https://api.example.com"
+  }
+}
+
+# Flow-level number variable with min/max
+resource "pingone_davinci_variable" "max_retries" {
+  environment_id = var.environment_id
+  name           = "maxRetries"
+  context        = "flow"
+  data_type      = "number"
+  mutable        = false
+  min            = 0
+  max            = 10
+  
+  flow = {
+    id = pingone_davinci_flow.my_flow.id
+  }
+  
+  value = {
+    number = 3
+  }
+}
+
+# Secret variable (value should be masked)
+resource "pingone_davinci_variable" "api_key" {
+  environment_id = var.environment_id
+  name           = "apiKey"
+  context        = "company"
+  data_type      = "secret"
+  mutable        = false
+  
+  value = {
+    secret = "TODO: Sensitive value - replace with actual secret"
+  }
+}
+
+# Boolean variable
+resource "pingone_davinci_variable" "feature_enabled" {
+  environment_id = var.environment_id
+  name           = "featureEnabled"
+  context        = "company"
+  data_type      = "boolean"
+  mutable        = true
+  
+  value = {
+    boolean = true
+  }
+}
+
+# Object variable
+resource "pingone_davinci_variable" "config" {
+  environment_id = var.environment_id
+  name           = "appConfig"
+  context        = "company"
+  data_type      = "object"
+  mutable        = true
+  
+  value = {
+    object = jsonencode({
+      "timeout" : 30,
+      "retries" : 3
+    })
+  }
+}
+```
+
+### Test Case (Variables)
 
 Function: `TestVariableConversion`
 
@@ -391,7 +748,7 @@ Function: `TestMultiResourceConversion`
 Generate HCL in logical dependency order:
 
 1. **Variables** (no dependencies)
-2. **Connections** (no dependencies)
+2. **Connector** (no dependencies)
 3. **Flows** (reference connections and variables, may reference other flows)
 4. **Applications** (standalone, no dependencies)
 5. **Flow Policies** (reference flows and applications)

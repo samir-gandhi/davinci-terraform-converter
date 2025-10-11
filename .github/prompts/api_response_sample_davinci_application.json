@@ -1,0 +1,40 @@
+{
+  "_links": {
+    "self": {
+      "href": "https://api.pingone.com/v1/environments/62f10a04-6c54-40c2-a97d-80a98522ff9a/davinciApplications/087ccb17aacec9279b4c4a4b60c283a8"
+    },
+    "environment": {
+      "href": "https://api.pingone.com/v1/environments/62f10a04-6c54-40c2-a97d-80a98522ff9a"
+    },
+    "flowPolicies": {
+      "href": "https://api.pingone.com/v1/environments/62f10a04-6c54-40c2-a97d-80a98522ff9a/davinciApplications/087ccb17aacec9279b4c4a4b60c283a8/flowPolicies"
+    },
+    "davinciApplication.rotateKey": {
+      "href": "https://api.pingone.com/v1/environments/62f10a04-6c54-40c2-a97d-80a98522ff9a/davinciApplications/087ccb17aacec9279b4c4a4b60c283a8/key"
+    },
+    "davinciApplication.rotateSecret": {
+      "href": "https://api.pingone.com/v1/environments/62f10a04-6c54-40c2-a97d-80a98522ff9a/davinciApplications/087ccb17aacec9279b4c4a4b60c283a8/secret"
+    }
+  },
+  "id": "087ccb17aacec9279b4c4a4b60c283a8",
+  "environment": {
+    "id": "62f10a04-6c54-40c2-a97d-80a98522ff9a"
+  },
+  "name": "DaVinci API Protect Sample Application-beta",
+  "apiKey": {
+    "enabled": false,
+    "value": "cb941c039196625327ce8fa410b2cc602a5acb99981ef0c66edda43aa03a3eb74d90e5050179ee9c0cbf39208559e8c07e3e5056fd15ee798024cf46eccc8b1ce021aca5ee591270a4a9111a21cc587b1c268409a35cbda4aa95ce4bfbe3c86768b74cc07268d3c1572088bdd9391ce430e0d95867fa98c203ae77d654b89af2"
+  },
+  "oauth": {
+    "clientSecret": "790953f6330908c87093a774f1bb0cc81efa865d1b06c9d7144eb353f216f5a3",
+    "scopes": [
+      "openid",
+      "profile"
+    ],
+    "grantTypes": [
+      "authorizationCode"
+    ]
+  },
+  "createdAt": "2025-10-03T17:25:42.122Z",
+  "updatedAt": "2025-10-03T17:25:42.247Z"
+}

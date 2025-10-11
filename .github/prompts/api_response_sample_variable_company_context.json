@@ -1,0 +1,24 @@
+{
+  "_links": {
+    "self": {
+      "href": "https://api.pingone.com/v1/environments/62f10a04-6c54-40c2-a97d-80a98522ff9a/variables/cccde8f2-c5e2-46f5-80cf-efe5c4e40ee2"
+    },
+    "environment": {
+      "href": "https://api.pingone.com/v1/environments/62f10a04-6c54-40c2-a97d-80a98522ff9a"
+    }
+  },
+  "id": "cccde8f2-c5e2-46f5-80cf-efe5c4e40ee2",
+  "environment": {
+    "id": "62f10a04-6c54-40c2-a97d-80a98522ff9a"
+  },
+  "name": "SampleVariable",
+  "dataType": "string",
+  "displayName": "Sample Company Context Variable",
+  "context": "company",
+  "value": "FOOBAR",
+  "mutable": true,
+  "min": 0,
+  "max": 2000,
+  "createdAt": "2025-10-11T22:27:54.402Z",
+  "updatedAt": "2025-10-11T22:27:54.402Z"
+}

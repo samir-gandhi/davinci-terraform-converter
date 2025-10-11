@@ -1,0 +1,37 @@
+{
+  "_links": {
+    "self": {
+      "href": "https://api.pingone.com/v1/environments/62f10a04-6c54-40c2-a97d-80a98522ff9a/davinciApplications/b0ca8a26522bfccb2dcee7e25cb73ae4/flowPolicies/655f6eb61dc2875e68614438fdfdbba5"
+    },
+    "environment": {
+      "href": "https://api.pingone.com/v1/environments/62f10a04-6c54-40c2-a97d-80a98522ff9a"
+    },
+    "davinciApplication": {
+      "href": "https://api.pingone.com/v1/environments/62f10a04-6c54-40c2-a97d-80a98522ff9a/davinciApplications/b0ca8a26522bfccb2dcee7e25cb73ae4"
+    },
+    "flow.1": {
+      "href": "https://api.pingone.com/v1/environments/62f10a04-6c54-40c2-a97d-80a98522ff9a/flows/320448fa8e9fe59eee802b3fcbb4dfb4"
+    },
+    "version.320448fa8e9fe59eee802b3fcbb4dfb4.2": {
+      "href": "https://api.pingone.com/v1/environments/62f10a04-6c54-40c2-a97d-80a98522ff9a/flows/320448fa8e9fe59eee802b3fcbb4dfb4/versions/2/details"
+    }
+  },
+  "id": "655f6eb61dc2875e68614438fdfdbba5",
+  "name": "DaVinci API Protect Sample Policy",
+  "environment": {
+    "id": "62f10a04-6c54-40c2-a97d-80a98522ff9a"
+  },
+  "application": {
+    "id": "b0ca8a26522bfccb2dcee7e25cb73ae4"
+  },
+  "status": "enabled",
+  "flowDistributions": [
+    {
+      "id": "320448fa8e9fe59eee802b3fcbb4dfb4",
+      "version": -1,
+      "weight": 100
+    }
+  ],
+  "createdAt": "2025-10-01T20:32:28.526Z",
+  "updatedAt": "2025-10-01T20:32:28.526Z"
+}

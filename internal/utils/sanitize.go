@@ -27,3 +27,14 @@ func SanitizeResourceName(name string) string {
 	// Prefix resource names with pingcli__
 	return "pingcli__" + name
 }
+
+// CamelCaseToWords converts a camelCase or PascalCase string to space-separated words
+// Examples:
+//   - "clientSecret" -> "client secret"
+//   - "apiKey" -> "api key"
+//   - "envId" -> "env id"
+func CamelCaseToWords(s string) string {
+	// Insert space before uppercase letters (except at start)
+	result := regexp.MustCompile(`([a-z])([A-Z])`).ReplaceAllString(s, "$1 $2")
+	return result
+}

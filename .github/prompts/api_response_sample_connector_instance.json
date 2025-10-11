@@ -1,0 +1,44 @@
+{
+  "_links": {
+    "self": {
+      "href": "https://api.pingone.com/v1/environments/62f10a04-6c54-40c2-a97d-80a98522ff9a/connectorInstances/292873d5ceea806d81373ed0341b5c88"
+    },
+    "environment": {
+      "href": "https://api.pingone.com/v1/environments/62f10a04-6c54-40c2-a97d-80a98522ff9a"
+    },
+    "connectorInstance.clone": {
+      "href": "https://api.pingone.com/v1/environments/62f10a04-6c54-40c2-a97d-80a98522ff9a/connectorInstances/292873d5ceea806d81373ed0341b5c88"
+    },
+    "applications": {
+      "href": "https://api.pingone.com/v1/environments/62f10a04-6c54-40c2-a97d-80a98522ff9a/applications/d2671735-e614-486c-9ae6-bdd72c5cd716"
+    }
+  },
+  "id": "292873d5ceea806d81373ed0341b5c88",
+  "environment": {
+    "id": "62f10a04-6c54-40c2-a97d-80a98522ff9a"
+  },
+  "connector": {
+    "id": "pingOneRiskConnector"
+  },
+  "name": "PingOne Protect",
+  "properties": {
+    "clientId": {
+      "type": "string",
+      "value": "d2671735-e614-486c-9ae6-bdd72c5cd716"
+    },
+    "clientSecret": {
+      "type": "string",
+      "value": "******"
+    },
+    "envId": {
+      "type": "string",
+      "value": "62f10a04-6c54-40c2-a97d-80a98522ff9a"
+    },
+    "region": {
+      "type": "string",
+      "value": "NA"
+    }
+  },
+  "createdAt": "2025-10-01T20:32:19.596Z",
+  "updatedAt": "2025-10-01T20:32:20.478Z"
+}
