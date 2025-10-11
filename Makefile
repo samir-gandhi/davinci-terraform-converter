@@ -9,6 +9,10 @@ help: ## Display this help message
 build: ## Build the plugin binary
 	go build -o davinci-convert .
 
+.PHONY: install
+install: build ## Build and install the plugin binary to GOBIN
+	go install .
+
 .PHONY: test
 test: ## Run all tests
 	go test ./...

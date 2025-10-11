@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime/debug"
 	"strings"
 
 	"github.com/hashicorp/go-plugin"
@@ -23,9 +24,27 @@ import (
 	"github.com/spf13/pflag"
 )
 
+// Version information - set at build time via ldflags or goreleaser
+var (
+	version = "dev"
+	commit  = "dev"
+)
+
 // main is the entry point for the binary. It detects whether to run in
 // plugin mode or standalone CLI mode based on the environment and arguments.
 func main() {
+	// Try to get the commit hash from the build info if it wasn't set at build time
+	if commit == "dev" {
+		if info, ok := debug.ReadBuildInfo(); ok {
+			for _, setting := range info.Settings {
+				if setting.Key == "vcs.revision" {
+					commit = setting.Value
+					break
+				}
+			}
+		}
+	}
+
 	// Check if we're being launched as a plugin
 	// Plugins are invoked with specific environment variables set by go-plugin
 	if os.Getenv("PLUGIN_PROTOCOL_VERSIONS") != "" {
@@ -58,7 +77,7 @@ func runAsStandalone() {
 	out := flags.StringP("out", "o", "", "Path to output HCL file (optional, defaults to stdout)")
 	outDir := flags.StringP("out-dir", "d", "", "Directory for multi-flow output (optional, for multi-flow exports)")
 	help := flags.BoolP("help", "h", false, "Show help message")
-	version := flags.BoolP("version", "v", false, "Show version information")
+	showVersion := flags.BoolP("version", "v", false, "Show version information")
 
 	flags.Usage = func() {
 		fmt.Fprintf(os.Stderr, "DaVinci Flow to HCL Converter\n\n")
@@ -85,8 +104,8 @@ func runAsStandalone() {
 		os.Exit(0)
 	}
 
-	if *version {
-		fmt.Println("davinci-convert v0.1.0")
+	if *showVersion {
+		fmt.Printf("davinci-convert version %s (commit: %s)\n", version, commit)
 		os.Exit(0)
 	}
 

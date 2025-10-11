@@ -27,12 +27,28 @@ This tool ingests a DaVinci flow JSON file (single flow or multi-flow export) an
 ### Building from Source
 
 ```bash
+# Build only
+make build
+
+# Build and install to GOBIN (typically ~/go/bin)
+make install
+
+# Run all checks and build
 make all
-# or
-go build -o davinci-convert .
 ```
 
+After installation, the binary will be available as `davinci-terraform-converter` in your `$GOBIN` or `$GOPATH/bin` directory.
+
 ## Usage
+
+### Version Information
+
+Check the installed version and git commit:
+
+```bash
+davinci-terraform-converter --version
+# Output: davinci-convert version dev (commit: 4fb29ab...)
+```
 
 ### Standalone CLI Mode
 
@@ -40,17 +56,19 @@ The binary can be run directly without `pingcli`:
 
 ```bash
 # Convert single flow to stdout
-./davinci-convert --flow-json flow.json
+davinci-terraform-converter --flow-json flow.json
 
 # Convert single flow to file
-./davinci-convert --flow-json flow.json --out output.tf
+davinci-terraform-converter --flow-json flow.json --out output.tf
 
 # Convert multi-flow export to separate files in directory
-./davinci-convert --flow-json multiflow-export.json --out-dir ./flows
+davinci-terraform-converter --flow-json multiflow-export.json --out-dir ./flows
 
 # Convert multi-flow export to single combined file
-./davinci-convert --flow-json multiflow-export.json --out combined.tf
+davinci-terraform-converter --flow-json multiflow-export.json --out combined.tf
 ```
+
+**Note:** If you built with `make build` only (not installed), use `./davinci-convert` instead.
 
 ### PingCLI Plugin Mode
 
@@ -186,17 +204,40 @@ resource "pingone_davinci_flow" "simple_demo_flow" {
 ```bash
 # Run all tests
 make test
-# or
-go test ./...
 
-# Run with coverage
+# Run tests with verbose output
+make test-verbose
+
+# Run with coverage report
 make test-coverage
-# or
-go test -cover ./...
 
 # Run specific test
 go test ./internal/converter/... -v -run TestMultiFlowExport
+
+# Format code
+make fmt
+
+# Run linters
+make lint
 ```
+
+### Available Make Targets
+
+```bash
+make help  # Display all available targets
+```
+
+- `build` - Build the plugin binary
+- `install` - Build and install to GOBIN
+- `test` - Run all tests
+- `test-verbose` - Run tests with verbose output
+- `test-coverage` - Generate coverage report
+- `clean` - Clean build artifacts
+- `fmt` - Format Go code
+- `vet` - Run go vet
+- `lint` - Run all linting tools
+- `deps` - Download and tidy dependencies
+- `all` - Run all checks and build
 
 ### Test Coverage
 
