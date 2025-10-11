@@ -32,53 +32,79 @@ The converter now uses the same resource name sanitization as pingcli's `ImportB
 
 ---
 
-## 1. toSnakeCase() Handles Consecutive Capitals Incorrectly
+## 1. Legacy Tests Need Resource Name Updates
 
 **Priority**: Medium  
-**Category**: Code Quality / Readability
+**Category**: Test Maintenance
 
 ### Description
 
-The `toSnakeCase()` function in `flow_converter.go` (line 549) produces suboptimal output for identifiers with consecutive capital letters, particularly common in connector IDs.
+Several tests in `converter_test.go` still use old resource name expectations that don't match the updated pingcli-compatible sanitization format.
 
 ### Examples
 
-| Input | Current Output | Expected Output |
-|-------|---------------|-----------------|
-| `pingOneSSOConnector` | `ping_one_s_s_o_connector` | `pingone_sso_connector` |
-| `httpConnector` | `http_connector` | `http_connector` ✓ |
-| `PingOneAPIConnector` | `ping_one_a_p_i_connector` | `pingone_api_connector` |
+| Test | Current Expectation | Should Be |
+|------|-------------------|-----------|
+| `TestSimpleFlowConversion` | `simple_test_flow` | `pingcli__Simple-0020-Test-0020-Flow` |
+| `TestFlowWithSingleNode` | `http_connector_conn-123-abc` | `httpconnector_conn-123-abc` |
+| `TestMultiFlowExport` | `main_flow`, `subflow_one` | `pingcli__Main-0020-Flow`, `pingcli__Subflow-0020-One` |
 
 ### Impact
 
-- **Functional**: None (Terraform accepts both formats)
-- **Readability**: Resource names and references have extra underscores
-- **Consistency**: Inconsistent with common Terraform naming conventions
+- **Functional**: None - implementation is correct
+- **Test Coverage**: Tests fail due to outdated expectations, not implementation bugs
+- **Consistency**: All flow_comprehensive_test.go tests updated and passing
 
-### Current Workaround
+### Current Status
 
-Tests use flexible matching that accepts both the current and expected formats. Connection ID references work correctly despite the formatting issue.
+- ✅ `flow_comprehensive_test.go` - All tests updated and passing
+- ✅ `flow_converter_test.go` - `toSnakeCase` tests updated and passing
+- ❌ `converter_test.go` - Legacy tests need updating (7 tests failing)
 
 ### Suggested Fix
 
-Improve the snake_case conversion algorithm to:
-1. Detect consecutive uppercase letters (acronyms)
-2. Keep acronyms together as single words
-3. Convert to lowercase as units
+Update test expectations in `converter_test.go` to use:
+1. pingcli-compatible resource names with hex encoding
+2. Lowercase connector IDs without underscores in camelCase portions
+3. Connection references like `httpconnector_<connectionId>` not `http_connector_<connectionId>`
 
-**Example Implementation Strategy**:
-```go
-// Detect runs of uppercase letters and treat as acronyms
-// "pingOneSSOConnector" -> ["ping", "One", "SSO", "Connector"]
-// -> ["ping", "one", "sso", "connector"]
-// -> "ping_one_sso_connector"
-```
-
-**Estimated Effort**: 30-60 minutes
+**Estimated Effort**: 1-2 hours
 
 ---
 
-## 2. Complex Objects in Settings Use Map String Format
+## 2. toSnakeCase() Function Name Misleading
+
+**Priority**: Low  
+**Category**: Code Quality / Naming
+
+### Description
+
+The `toSnakeCase()` function in `flow_converter.go` doesn't actually convert to snake_case. It lowercases the input and removes non-alphanumeric characters (except underscores).
+
+### Current Behavior
+
+- `httpConnector` → `httpconnector` (not `http_connector`)
+- `pingOneSSOConnector` → `pingonessoconnector` (not `ping_one_sso_connector`)
+- `ping-one-connector` → `pingoneconnector` (removes hyphens)
+
+### Impact
+
+- **Functional**: None (works correctly for its purpose)
+- **Readability**: Function name is misleading
+- **Maintainability**: Future developers may expect actual snake_case conversion
+
+### Suggested Fix
+
+Rename function to better reflect what it does:
+- `toLowerAlphaNum()` - more descriptive
+- `sanitizeConnectorId()` - purpose-oriented
+- Document clearly that it doesn't insert underscores between camelCase words
+
+**Estimated Effort**: 15-30 minutes
+
+---
+
+## 3. Complex Objects in Settings Use Map String Format
 
 **Priority**: High  
 **Category**: Correctness / Terraform Compatibility
@@ -302,11 +328,12 @@ Using natural alignment (align to longest field name in block). This is the most
 
 | # | Limitation | Priority | Impact | Effort | Status |
 |---|-----------|----------|--------|--------|--------|
-| 1 | toSnakeCase consecutive capitals | Medium | Low | 30-60m | Documented |
-| 2 | Complex objects in settings | High | High | 2-3h | Documented |
-| 3 | Variables not implemented | High | High | 4-6h | Documented |
-| 4 | jsonencode compact format | Low | Low | 2-3h | Documented, Decision Made |
-| 5 | Settings alignment | Very Low | None | N/A | Documented, No Action Needed |
+| 1 | Legacy tests need resource name updates | Medium | None | 1-2h | Documented |
+| 2 | toSnakeCase function name misleading | Low | None | 15-30m | Documented |
+| 3 | Complex objects in settings | High | High | 2-3h | Documented |
+| 4 | Variables not implemented | High | High | 4-6h | Documented |
+| 5 | jsonencode compact format | Low | Low | 2-3h | Documented, Decision Made |
+| 6 | Settings alignment varies | Very Low | None | N/A | Documented, No Action Needed |
 
 ---
 

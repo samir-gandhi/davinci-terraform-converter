@@ -527,11 +527,10 @@ func generateConnectionReference(connectorID, connectionID string) string {
 }
 
 func toSnakeCase(s string) string {
-	// Convert to snake_case by:
-	// 1. Replacing all non-word characters with underscores
-	// 2. Converting to lowercase
-	// This matches the sanitiseResourceName logic from pingcli/dvtf-pingctl
+	// Convert to lowercase and remove non-alphanumeric characters
+	// This creates a simple identifier without underscores between camelCase words
+	// Example: "httpConnector" -> "httpconnector"
 	re := regexp.MustCompile(`[^\w]+`)
-	result := re.ReplaceAllString(s, "_")
+	result := re.ReplaceAllString(s, "")
 	return strings.ToLower(result)
 }

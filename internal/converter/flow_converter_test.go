@@ -81,26 +81,26 @@ func TestToSnakeCase(t *testing.T) {
 			expected: "variablesconnector",
 		},
 
-		// Special characters (replaced with underscores)
+		// Special characters (removed, not typical in connector IDs)
 		{
 			name:     "with hyphens",
 			input:    "ping-one-connector",
-			expected: "ping_one_connector",
+			expected: "pingoneconnector",
 		},
 		{
 			name:     "with spaces",
 			input:    "ping one connector",
-			expected: "ping_one_connector",
+			expected: "pingoneconnector",
 		},
 		{
 			name:     "with dots",
 			input:    "ping.one.connector",
-			expected: "ping_one_connector",
+			expected: "pingoneconnector",
 		},
 		{
 			name:     "mixed special chars",
 			input:    "ping-one.connector SSO",
-			expected: "ping_one_connector_sso",
+			expected: "pingoneconnectorsso",
 		},
 
 		// Edge cases

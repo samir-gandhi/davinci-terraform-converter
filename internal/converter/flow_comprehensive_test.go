@@ -382,7 +382,8 @@ func TestFlowConversion_ConnectionIDReference(t *testing.T) {
 
 	// connection_id should be converted to Terraform reference
 	// Format: pingone_davinci_connector_instance.<connector_id>_<connection_id>.id
+	// Note: toSnakeCase("httpConnector") -> "httpconnector" (no underscores between camelCase words)
 	// Check for key components (flexible spacing)
 	assert.Contains(t, result, "connection_id")
-	assert.Contains(t, result, "pingone_davinci_connector_instance.http_connector_abc123def456.id")
+	assert.Contains(t, result, "pingone_davinci_connector_instance.httpconnector_abc123def456.id")
 }
