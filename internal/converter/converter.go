@@ -41,6 +41,12 @@ type MultiFlowExport struct {
 // Convert takes a DaVinci flow JSON byte array and converts it to HCL.
 // This function now delegates to ConvertFlowToHCL for unified conversion logic.
 func Convert(flowJSON []byte) (string, error) {
+	return ConvertWithOptions(flowJSON, false)
+}
+
+// ConvertWithOptions takes a DaVinci flow JSON byte array and converts it to HCL with options.
+// If skipDependencies is true, connection IDs will be hardcoded instead of Terraform references.
+func ConvertWithOptions(flowJSON []byte, skipDependencies bool) (string, error) {
 	// Unmarshal the JSON into a generic map for flexibility
 	var flowData map[string]interface{}
 	if err := json.Unmarshal(flowJSON, &flowData); err != nil {
@@ -48,7 +54,7 @@ func Convert(flowJSON []byte) (string, error) {
 	}
 
 	// Use the new ConvertFlowToHCL function
-	hcl, err := ConvertFlowToHCL(flowData, "var.environment_id")
+	hcl, err := ConvertFlowToHCL(flowData, "var.environment_id", skipDependencies)
 	if err != nil {
 		return "", fmt.Errorf("failed to generate HCL: %w", err)
 	}
@@ -60,6 +66,12 @@ func Convert(flowJSON []byte) (string, error) {
 // converts each flow to HCL, returning a slice of HCL strings.
 // This handles exports that contain a parent flow and its subflows.
 func ConvertMultiFlow(multiFlowJSON []byte) ([]string, error) {
+	return ConvertMultiFlowWithOptions(multiFlowJSON, false)
+}
+
+// ConvertMultiFlowWithOptions takes a DaVinci multi-flow export JSON and converts with options.
+// If skipDependencies is true, connection IDs will be hardcoded instead of Terraform references.
+func ConvertMultiFlowWithOptions(multiFlowJSON []byte, skipDependencies bool) ([]string, error) {
 	// First, try to unmarshal as a multi-flow export
 	var multiFlow MultiFlowExport
 	if err := json.Unmarshal(multiFlowJSON, &multiFlow); err != nil {
@@ -85,7 +97,7 @@ func ConvertMultiFlow(multiFlowJSON []byte) ([]string, error) {
 			return nil, fmt.Errorf("failed to unmarshal flow %d (%s): %w", i, flow.Name, err)
 		}
 
-		hcl, err := ConvertFlowToHCL(flowData, "var.environment_id")
+		hcl, err := ConvertFlowToHCL(flowData, "var.environment_id", skipDependencies)
 		if err != nil {
 			return nil, fmt.Errorf("failed to generate HCL for flow %d (%s): %w", i, flow.Name, err)
 		}

@@ -15,6 +15,29 @@ mode: agent
 
 ---
 
+## CRITICAL: Naming Consistency
+
+**⚠️ IMPORTANT**: The current flow converter generates dependency references based on **expected naming patterns**:
+- Connection references: `pingone_davinci_connector_instance.{connectorId}_{connectionId}.id`
+- Format uses: `toSnakeCase(connectorId)` + `_` + `connectionId`
+
+**When implementing Part 4**:
+1. **Verify naming alignment**: Ensure connection resource names generated in Part 3 (connector instance export) match the expected format used in flow references
+2. **Use consistent sanitization**: Both flow converter and connection exporter must use identical naming logic
+3. **Test name matching**: Write integration tests that verify flow references resolve to actual generated connection resources
+4. **Document naming contract**: Clearly specify the naming pattern that both systems must follow
+
+**Current implementation** (flow_converter.go lines ~603-605):
+```go
+// Format: pingone_davinci_connector_instance.<connector_id>_<connection_id>.id
+connectorName := toSnakeCase(connectorID)
+return fmt.Sprintf("pingone_davinci_connector_instance.%s_%s.id", connectorName, connectionID)
+```
+
+This must match the resource names generated when exporting connector instances in Part 3.
+
+---
+
 ## Overview
 
 Instead of hardcoded IDs in generated HCL:
@@ -27,7 +50,7 @@ variable_id   = "xyz789-abc123-def456"
 Generate Terraform references:
 ```hcl
 # GOOD - Terraform references
-connection_id = pingone_davinci_connection.my_connector.id
+connection_id = pingone_davinci_connector_instance.httpconnector_conn-123.id
 variable_id   = pingone_davinci_variable.api_key.id
 ```
 

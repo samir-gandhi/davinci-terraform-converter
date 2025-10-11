@@ -18,7 +18,10 @@ var (
   pingcli davinci convert --flow-json ./my-flow.json
 
   # Convert a DaVinci flow to HCL and save to a file
-  pingcli davinci convert --flow-json ./my-flow.json --out ./output.tf`
+  pingcli davinci convert --flow-json ./my-flow.json --out ./output.tf
+
+  # Convert without generating Terraform references (use hardcoded IDs)
+  pingcli davinci convert --flow-json ./my-flow.json --skip-dependencies`
 
 	// Long provides a detailed description of the command
 	Long = `Convert a PingOne DaVinci flow from its native JSON format to HCL (HashiCorp Configuration Language).
@@ -64,6 +67,7 @@ func (c *DaVinciConvertCommand) Run(args []string, logger grpc.Logger) error {
 	// Define flags
 	flowJSON := flags.String("flow-json", "", "Path to the input DaVinci flow JSON file (required)")
 	out := flags.String("out", "", "Path to the output HCL file (optional, defaults to stdout)")
+	skipDependencies := flags.Bool("skip-dependencies", false, "Skip generating Terraform references and use hardcoded IDs instead")
 
 	// Parse the provided arguments
 	if err := flags.Parse(args); err != nil {
@@ -82,6 +86,9 @@ func (c *DaVinciConvertCommand) Run(args []string, logger grpc.Logger) error {
 	} else {
 		message += "\nOutput will be written to stdout"
 	}
+	if *skipDependencies {
+		message += "\nDependency references will be skipped (hardcoded IDs will be used)"
+	}
 
 	if err := logger.Message(message, nil); err != nil {
 		return err
@@ -92,20 +99,21 @@ func (c *DaVinciConvertCommand) Run(args []string, logger grpc.Logger) error {
 
 // parseArgs is a helper function to parse the args slice into a map of flags.
 // This is useful for testing without having to set up the full pflag parsing.
-func parseArgs(args []string) (flowJSON string, out string, err error) {
+func parseArgs(args []string) (flowJSON string, out string, skipDeps bool, err error) {
 	flags := pflag.NewFlagSet("convert", pflag.ContinueOnError)
 	flowJSONPtr := flags.String("flow-json", "", "Path to the input DaVinci flow JSON file (required)")
 	outPtr := flags.String("out", "", "Path to the output HCL file (optional, defaults to stdout)")
+	skipDepsPtr := flags.Bool("skip-dependencies", false, "Skip generating Terraform references and use hardcoded IDs instead")
 
 	if err := flags.Parse(args); err != nil {
-		return "", "", err
+		return "", "", false, err
 	}
 
 	if *flowJSONPtr == "" {
-		return "", "", fmt.Errorf("--flow-json flag is required")
+		return "", "", false, fmt.Errorf("--flow-json flag is required")
 	}
 
-	return *flowJSONPtr, *outPtr, nil
+	return *flowJSONPtr, *outPtr, *skipDepsPtr, nil
 }
 
 // hasFlag checks if a flag with the given name exists in the args slice

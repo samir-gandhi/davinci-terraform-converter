@@ -431,8 +431,7 @@ Add resource filtering flags:
 - `--exclude-variables <comma-separated-ids-or-names>`
 
 **Dependency Flags**:
-- `--with-dependencies`: Include all dependencies (default: true)
-- `--no-dependencies`: Export only selected resources
+- `--skip-dependencies`: Export only selected resources (Default false)
 
 ### HAL Link Parsing for Dependency Discovery
 
@@ -516,7 +515,7 @@ func (f *ResourceFilter) ApplyExclusions(resources interface{}) interface{} {
 
 ### Dependency Discovery Workflow
 
-When `--with-dependencies` is true (default):
+When `--skip-dependencies` is false (default):
 
 1. User specifies: `--include-flows "Registration Flow"`
 2. Export fetches "Registration Flow" resource
@@ -567,7 +566,7 @@ Modify `Exporter.Export()`:
 
 Two-phase export:
 - **Phase 1**: Fetch specified resources (matching include/exclude filters)
-- **Phase 2**: If `--with-dependencies`, discover and fetch dependencies via HAL links
+- **Phase 2**: If `--skip-dependencies=false`, discover and fetch dependencies via HAL links
 
 Track metadata:
 - Resources explicitly selected vs. discovered
@@ -589,7 +588,7 @@ Create `internal/api/hal_test.go`:
 Create `internal/exporter/dependency_test.go`:
 - Test single-level dependency discovery
 - Test recursive dependency discovery
-- Test `--no-dependencies` flag
+- Test `--skip-dependencies` flag
 - Test circular dependency handling
 
 **Example Test Scenarios**:
@@ -600,7 +599,7 @@ Scenario 1: Export single flow with dependencies
 
 Scenario 2: Export application without dependencies
 - Include: One application by ID
-- Flag: `--no-dependencies`
+- Flag: `--skip-dependencies`
 - Expect: Only application resource
 
 Scenario 3: Export everything except test resources

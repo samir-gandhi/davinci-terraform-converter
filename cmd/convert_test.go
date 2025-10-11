@@ -81,7 +81,7 @@ func TestParseArgs(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			flowJSON, out, err := parseArgs(tt.args)
+			flowJSON, out, _, err := parseArgs(tt.args) // Ignore skipDependencies in these tests
 
 			if (err != nil) != tt.wantErr {
 				t.Errorf("parseArgs() error = %v, wantErr %v", err, tt.wantErr)
@@ -96,6 +96,50 @@ func TestParseArgs(t *testing.T) {
 				if out != tt.wantOut {
 					t.Errorf("parseArgs() out = %v, want %v", out, tt.wantOut)
 				}
+			}
+		})
+	}
+}
+
+// TestParseArgsWithSkipDependencies tests parsing of the skip-dependencies flag
+func TestParseArgsWithSkipDependencies(t *testing.T) {
+	tests := []struct {
+		name         string
+		args         []string
+		wantSkipDeps bool
+		wantErr      bool
+	}{
+		{
+			name:         "Skip dependencies flag set to true",
+			args:         []string{"--flow-json=test.json", "--skip-dependencies"},
+			wantSkipDeps: true,
+			wantErr:      false,
+		},
+		{
+			name:         "Skip dependencies flag not set",
+			args:         []string{"--flow-json=test.json"},
+			wantSkipDeps: false,
+			wantErr:      false,
+		},
+		{
+			name:         "Skip dependencies with explicit false",
+			args:         []string{"--flow-json=test.json", "--skip-dependencies=false"},
+			wantSkipDeps: false,
+			wantErr:      false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, _, skipDeps, err := parseArgs(tt.args)
+
+			if (err != nil) != tt.wantErr {
+				t.Errorf("parseArgs() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+
+			if !tt.wantErr && skipDeps != tt.wantSkipDeps {
+				t.Errorf("parseArgs() skipDependencies = %v, want %v", skipDeps, tt.wantSkipDeps)
 			}
 		})
 	}

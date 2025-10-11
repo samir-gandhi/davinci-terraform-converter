@@ -12,7 +12,8 @@ import (
 
 // ConvertFlowToHCL converts a DaVinci flow JSON structure to Terraform HCL
 // This implements Part 2.1 Phase 2.1 - Comprehensive Flow Structure Conversion
-func ConvertFlowToHCL(flowData map[string]interface{}, environmentID string) (string, error) {
+// If skipDependencies is true, connection IDs will be left as hardcoded strings instead of Terraform references
+func ConvertFlowToHCL(flowData map[string]interface{}, environmentID string, skipDependencies bool) (string, error) {
 	var hcl strings.Builder
 
 	// Generate resource name from flow name using pingcli-compatible sanitization
@@ -47,7 +48,7 @@ func ConvertFlowToHCL(flowData map[string]interface{}, environmentID string) (st
 	// Graph data block - complex nested structure
 	if graphData, ok := flowData["graphData"].(map[string]interface{}); ok {
 		hcl.WriteString("\n")
-		if err := writeGraphDataBlock(&hcl, graphData); err != nil {
+		if err := writeGraphDataBlock(&hcl, graphData, skipDependencies); err != nil {
 			return "", fmt.Errorf("failed to write graph_data: %w", err)
 		}
 	}
@@ -192,7 +193,7 @@ func writeSettingsBlock(hcl *strings.Builder, settings map[string]interface{}) e
 }
 
 // writeGraphDataBlock writes the graph_data nested block
-func writeGraphDataBlock(hcl *strings.Builder, graphData map[string]interface{}) error {
+func writeGraphDataBlock(hcl *strings.Builder, graphData map[string]interface{}, skipDependencies bool) error {
 	hcl.WriteString("  graph_data = {\n")
 
 	// Elements (nodes and edges) - most complex part
@@ -201,7 +202,7 @@ func writeGraphDataBlock(hcl *strings.Builder, graphData map[string]interface{})
 
 		// Nodes
 		if nodes, ok := elements["nodes"].([]interface{}); ok {
-			if err := writeNodesBlock(hcl, nodes); err != nil {
+			if err := writeNodesBlock(hcl, nodes, skipDependencies); err != nil {
 				return fmt.Errorf("failed to write nodes: %w", err)
 			}
 		}
@@ -268,7 +269,7 @@ func writeGraphDataBlock(hcl *strings.Builder, graphData map[string]interface{})
 }
 
 // writeNodesBlock writes the nodes array within elements
-func writeNodesBlock(hcl *strings.Builder, nodes []interface{}) error {
+func writeNodesBlock(hcl *strings.Builder, nodes []interface{}, skipDependencies bool) error {
 	hcl.WriteString("      nodes = [\n")
 
 	for i, nodeInterface := range nodes {
@@ -293,9 +294,15 @@ func writeNodesBlock(hcl *strings.Builder, nodes []interface{}) error {
 
 			// Optional fields - connection_id needs special handling
 			if connectionID := getString(data, "connectionId"); connectionID != "" {
-				connectorID := getString(data, "connectorId")
-				ref := generateConnectionReference(connectorID, connectionID)
-				hcl.WriteString(fmt.Sprintf("            connection_id   = %s\n", ref))
+				if skipDependencies {
+					// Use hardcoded ID when skipping dependencies
+					hcl.WriteString(fmt.Sprintf("            connection_id   = %s\n", quoteString(connectionID)))
+				} else {
+					// Generate Terraform reference
+					connectorID := getString(data, "connectorId")
+					ref := generateConnectionReference(connectorID, connectionID)
+					hcl.WriteString(fmt.Sprintf("            connection_id   = %s\n", ref))
+				}
 			}
 
 			if connectorID := getString(data, "connectorId"); connectorID != "" {

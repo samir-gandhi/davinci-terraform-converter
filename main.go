@@ -76,6 +76,7 @@ func runAsStandalone() {
 	flowJSON := flags.StringP("flow-json", "f", "", "Path to input DaVinci flow JSON file (required)")
 	out := flags.StringP("out", "o", "", "Path to output HCL file (optional, defaults to stdout)")
 	outDir := flags.StringP("out-dir", "d", "", "Directory for multi-flow output (optional, for multi-flow exports)")
+	skipDependencies := flags.Bool("skip-dependencies", false, "Skip generating Terraform references and use hardcoded IDs instead")
 	help := flags.BoolP("help", "h", false, "Show help message")
 	showVersion := flags.BoolP("version", "v", false, "Show version information")
 
@@ -131,15 +132,15 @@ func runAsStandalone() {
 
 	// Check for "flows" array (multi-flow export)
 	if _, hasFlows := check["flows"]; hasFlows {
-		handleMultiFlow(fileData, *out, *outDir, *flowJSON)
+		handleMultiFlow(fileData, *out, *outDir, *flowJSON, *skipDependencies)
 	} else {
-		handleSingleFlow(fileData, *out)
+		handleSingleFlow(fileData, *out, *skipDependencies)
 	}
 }
 
 // handleSingleFlow processes a single flow export
-func handleSingleFlow(fileData []byte, outPath string) {
-	hcl, err := converter.Convert(fileData)
+func handleSingleFlow(fileData []byte, outPath string, skipDependencies bool) {
+	hcl, err := converter.ConvertWithOptions(fileData, skipDependencies)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error converting flow: %v\n", err)
 		os.Exit(1)
@@ -157,8 +158,8 @@ func handleSingleFlow(fileData []byte, outPath string) {
 }
 
 // handleMultiFlow processes a multi-flow export
-func handleMultiFlow(fileData []byte, outPath, outDir, inputFile string) {
-	results, err := converter.ConvertMultiFlow(fileData)
+func handleMultiFlow(fileData []byte, outPath, outDir, inputFile string, skipDependencies bool) {
+	results, err := converter.ConvertMultiFlowWithOptions(fileData, skipDependencies)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error converting multi-flow: %v\n", err)
 		os.Exit(1)
