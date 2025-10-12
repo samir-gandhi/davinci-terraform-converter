@@ -4,14 +4,16 @@ mode: agent
 
 # Part 3: API Export Integration
 
-**Status**: ⏳ NOT STARTED (After Part 2 complete)
+**Status**: ⏳ IN PROGRESS
 
 **Prerequisites**: 
-- Part 2 (all phases 2.1-2.6) must be complete
-- All converter functions working and tested
+- Part 2 (all phases 2.1-2.6) must be complete ✅
+- All converter functions working and tested ✅
 - Understanding of PingCLI authentication patterns
 
 **Goal**: Integrate with PingOne DaVinci API to export entire environments, not just single flow files.
+
+**Implementation Approach**: Breaking into smaller reviewable phases with separate files.
 
 ---
 
@@ -631,4 +633,286 @@ Scenario 3: Export everything except test resources
 
 ---
 
-**Next Step**: After Part 3 complete, proceed to Part 4 (Dependency Resolution and Terraform References).
+## Phase 3.7: Acceptance Tests
+
+**Goal**: End-to-end tests against real PingOne API to validate complete workflow.
+
+### Test Structure
+
+Create `tests/acceptance/` directory:
+```
+tests/acceptance/
+  ├── README.md                    # Setup instructions, credentials
+  ├── acceptance_test.go           # Main acceptance tests
+  ├── fixtures/                    # Test environment setup
+  └── .gitignore                   # Ignore credentials
+```
+
+### Build Tag for Isolation
+
+```go
+//go:build acceptance
+
+package acceptance
+
+import (
+    "os"
+    "testing"
+)
+
+func TestRealAPIFlowExport(t *testing.T) {
+    // Only runs when: go test -tags=acceptance
+}
+```
+
+### Required Test Cases
+
+#### Test 1: Export Single Flow from Real Environment
+
+```go
+func TestExportSingleFlowFromAPI(t *testing.T) {
+    // Skip if credentials not available
+    clientID := os.Getenv("PINGONE_CLIENT_ID")
+    if clientID == "" {
+        t.Skip("Skipping acceptance test: PINGONE_CLIENT_ID not set")
+    }
+    
+    // 1. Authenticate with PingOne
+    client := createTestClient(t)
+    
+    // 2. Fetch a known flow from test environment
+    flowID := os.Getenv("TEST_FLOW_ID")
+    flow, err := client.GetFlow(context.Background(), flowID)
+    require.NoError(t, err)
+    
+    // 3. Convert to HCL
+    hcl, err := converter.ConvertFlow(flow)
+    require.NoError(t, err)
+    
+    // 4. Validate HCL syntax
+    assert.Contains(t, hcl, "resource \"pingone_davinci_flow\"")
+    assert.Contains(t, hcl, "environment_id")
+    
+    // 5. Optional: Terraform validate
+    validateTerraformHCL(t, hcl)
+}
+```
+
+#### Test 2: Export All Resources from Environment
+
+```go
+func TestExportAllResourcesFromAPI(t *testing.T) {
+    if os.Getenv("PINGONE_CLIENT_ID") == "" {
+        t.Skip("Skipping acceptance test: credentials not set")
+    }
+    
+    // 1. Create exporter with real client
+    exporter := createTestExporter(t)
+    
+    // 2. Export entire environment
+    hcl, err := exporter.ExportAll(context.Background())
+    require.NoError(t, err)
+    
+    // 3. Verify all resource types present
+    assert.Contains(t, hcl, "pingone_davinci_flow")
+    assert.Contains(t, hcl, "pingone_davinci_connector_instance")
+    assert.Contains(t, hcl, "pingone_davinci_variable")
+    assert.Contains(t, hcl, "pingone_davinci_application")
+    assert.Contains(t, hcl, "pingone_davinci_application_flow_policy")
+    
+    // 4. Verify resource ordering
+    verifyResourceOrdering(t, hcl)
+    
+    // 5. Count resources (should match API count)
+    apiCounts := exporter.GetResourceCounts()
+    hclCounts := countResourcesInHCL(hcl)
+    assert.Equal(t, apiCounts, hclCounts)
+}
+```
+
+#### Test 3: Export with Skip Dependencies
+
+```go
+func TestExportWithSkipDependencies(t *testing.T) {
+    if os.Getenv("PINGONE_CLIENT_ID") == "" {
+        t.Skip("Skipping acceptance test: credentials not set")
+    }
+    
+    exporter := createTestExporter(t)
+    
+    // Export with skip-dependencies flag
+    hcl, err := exporter.ExportWithOptions(context.Background(), ExportOptions{
+        SkipDependencies: true,
+    })
+    require.NoError(t, err)
+    
+    // Verify hardcoded IDs instead of references
+    assert.NotContains(t, hcl, "pingone_davinci_connector_instance.")
+    assert.Contains(t, hcl, "connection_id   = \"")  // Hardcoded ID
+}
+```
+
+#### Test 4: Terraform Apply (Optional - Separate Environment)
+
+```go
+func TestTerraformApplyExportedHCL(t *testing.T) {
+    if os.Getenv("ENABLE_TERRAFORM_APPLY_TEST") != "true" {
+        t.Skip("Skipping expensive Terraform apply test")
+    }
+    
+    // 1. Export from source environment
+    sourceExporter := createTestExporter(t)
+    hcl, err := sourceExporter.ExportAll(context.Background())
+    require.NoError(t, err)
+    
+    // 2. Write to temporary directory
+    tmpDir := t.TempDir()
+    writeTestTerraformConfig(t, tmpDir, hcl)
+    
+    // 3. Point to different target environment
+    updateProviderConfig(t, tmpDir, getTargetEnvironmentID())
+    
+    // 4. Run terraform apply
+    err = runTerraformApply(t, tmpDir)
+    require.NoError(t, err)
+    
+    // 5. Verify resources created in target environment
+    verifyResourcesCreated(t, getTargetEnvironmentID())
+    
+    // 6. Cleanup: Run terraform destroy
+    t.Cleanup(func() {
+        runTerraformDestroy(t, tmpDir)
+    })
+}
+```
+
+### Test Environment Requirements
+
+Document in `tests/acceptance/README.md`:
+
+```markdown
+# Acceptance Tests
+
+## Prerequisites
+
+1. **PingOne Test Environment**: Dedicated test environment with sample resources
+2. **Service Account**: OAuth client with sufficient permissions
+3. **Environment Variables**:
+   ```bash
+   export PINGONE_CLIENT_ID="your-client-id"
+   export PINGONE_CLIENT_SECRET="your-client-secret"
+   export PINGONE_ENVIRONMENT_ID="test-env-id"
+   export PINGONE_REGION="NA"
+   
+   # Optional: For terraform apply tests
+   export ENABLE_TERRAFORM_APPLY_TEST="true"
+   export TEST_FLOW_ID="known-flow-id"
+   ```
+
+## Running Tests
+
+```bash
+# Run all acceptance tests
+go test -tags=acceptance ./tests/acceptance -v
+
+# Run specific test
+go test -tags=acceptance ./tests/acceptance -run TestExportSingleFlow -v
+
+# Skip if credentials not set (automatic)
+go test -tags=acceptance ./tests/acceptance -v
+# Output: SKIP: credentials not set
+```
+
+## Test Data Setup
+
+The test environment should contain:
+- At least 1 flow with nodes
+- At least 1 connector instance
+- At least 1 variable
+- At least 1 application with flow policy
+
+## CI/CD Integration
+
+Add to CI pipeline (scheduled, not on every commit):
+```yaml
+# .github/workflows/acceptance-tests.yml
+name: Acceptance Tests
+on:
+  schedule:
+    - cron: '0 2 * * *'  # Nightly at 2 AM
+  workflow_dispatch:     # Manual trigger
+
+jobs:
+  acceptance:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-go@v4
+      - name: Run acceptance tests
+        env:
+          PINGONE_CLIENT_ID: ${{ secrets.ACCEPTANCE_CLIENT_ID }}
+          PINGONE_CLIENT_SECRET: ${{ secrets.ACCEPTANCE_CLIENT_SECRET }}
+          PINGONE_ENVIRONMENT_ID: ${{ secrets.ACCEPTANCE_ENV_ID }}
+          PINGONE_REGION: NA
+        run: go test -tags=acceptance ./tests/acceptance -v
+```
+```
+
+### When to Run Acceptance Tests
+
+✅ **Run acceptance tests**:
+- During development of API integration (Part 3)
+- Before releasing new versions
+- Nightly in CI/CD against test environment
+- When debugging API-related issues
+
+❌ **Don't run acceptance tests**:
+- On every commit (too slow)
+- In local unit test runs (separate command)
+- Without proper test environment
+
+### Helper Functions
+
+Create `tests/acceptance/helpers.go`:
+
+```go
+package acceptance
+
+import (
+    "testing"
+    "context"
+    "os"
+)
+
+func createTestClient(t *testing.T) *api.Client {
+    clientID := requireEnv(t, "PINGONE_CLIENT_ID")
+    clientSecret := requireEnv(t, "PINGONE_CLIENT_SECRET")
+    envID := requireEnv(t, "PINGONE_ENVIRONMENT_ID")
+    region := requireEnv(t, "PINGONE_REGION")
+    
+    client, err := api.NewClient(context.Background(), envID, region, clientID, clientSecret)
+    require.NoError(t, err)
+    return client
+}
+
+func requireEnv(t *testing.T, key string) string {
+    value := os.Getenv(key)
+    if value == "" {
+        t.Fatalf("Required environment variable %s not set", key)
+    }
+    return value
+}
+
+func validateTerraformHCL(t *testing.T, hcl string) {
+    // Write to temp dir, run terraform validate
+}
+
+func countResourcesInHCL(hcl string) map[string]int {
+    // Parse HCL and count each resource type
+}
+```
+
+---
+
+**Next Step**: After Part 3 complete (including acceptance tests), proceed to Part 4 (Dependency Resolution and Terraform References).
+

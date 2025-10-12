@@ -39,3 +39,4 @@ output/
 # Test fixtures (except sample files)
 *.json
 !.github/**/*.json
+localsecrets
