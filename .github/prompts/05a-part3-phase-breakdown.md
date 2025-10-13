@@ -185,27 +185,58 @@ Each phase creates ONE new file with tests. Review after each phase before conti
 
 ---
 
-## Phase 3.2b: Connector Instance Export Integration
+## Phase 3.2b: Connector Instance Export Integration ✅ COMPLETE
 
 **Goal**: Connect connector API to existing connector converter.
 
-**Files to Create**:
+**Files Created**:
 - `internal/exporter/connector_exporter.go`
 - `internal/exporter/connector_exporter_test.go`
+- `tests/acceptance/connector_export_test.go`
 
-**Functions to Implement**:
-```go
-// ExportConnectorInstances retrieves connectors from API and converts to HCL
-func ExportConnectorInstances(ctx context.Context, client *api.Client, skipDeps bool) (string, error)
-```
+**Functions Implemented**:
+- `ExportConnectorInstances(ctx context.Context, client *api.Client, skipDeps bool) (string, error)` - Exports all connector instances to HCL
+- `convertInstanceDetailToJSON(*api.ConnectorInstanceDetail) ([]byte, error)` - Converts API response to converter format
 
-**Success Criteria**:
-- Calls connector API correctly
-- Passes data to converter
-- Returns HCL with masked secrets
-- All tests pass
+**Implementation Details**:
+- Retrieves all connector instances via `ListConnectorInstances()` API call
+- Fetches detailed instance data for each instance via `GetConnectorInstance()` API call
+- Converts each instance to JSON format expected by converter
+- Converts to HCL using existing `converter.ConvertConnectorInstanceWithOptions()`
+- Combines all instance resources with blank lines between them
+- Supports skip-dependencies flag (uses actual environment ID vs var.environment_id)
 
-**Review Point**: Stop after connector export tested.
+**Acceptance Tests Implemented**:
+- `TestExportConnectorInstancesFromAPI` - Export all connector instances to HCL
+- `TestExportConnectorInstancesWithSkipDependenciesFromAPI` - Test skip-dependencies flag
+- `TestExportConnectorInstancesValidateHCLStructure` - Validate HCL structure for each instance
+- `TestExportSingleConnectorInstanceComparison` - Compare API and exported data
+- `TestExportConnectorInstancesPropertiesHandling` - Test property masking and structure
+
+**Test Results**:
+- Unit tests: 23/23 passing (internal/exporter - 3 connector + 3 flow tests)
+- Acceptance tests: 20/20 passing (10 flow + 5 connector API + 5 connector export)
+- Total unit tests: 70/70 passing across all packages
+
+**Test Environment Data**:
+- 20 connector instances exported
+- Generated HCL: 4.6KB output
+- Sample instances: Variables, PingOne Protect, samAnnotationConnector, etc.
+- Properties handled correctly with secret masking
+
+**Key Discoveries**:
+- Connector instance IDs can be non-UUID format (e.g., "defaultUserPool")
+- Removed UUID validation from `GetConnectorInstance()` - only validates non-empty
+- Updated validation tests to reflect non-UUID instance IDs
+- Secrets properly masked: `clientSecret` → `"TODO: Replace with actual client secret"`
+
+**Success Criteria Met**:
+- ✅ Calls connector API correctly (ListConnectorInstances + GetConnectorInstance)
+- ✅ Passes data to converter in correct JSON format
+- ✅ Returns HCL with masked secrets
+- ✅ All tests pass (70/70 unit tests, 20/20 acceptance tests)
+
+**Review Point**: Phase 3.2b complete. Ready for Phase 3.3a (Variable API Client).
 
 ---
 
@@ -428,10 +459,10 @@ func ExportEnvironment(ctx context.Context, client *api.Client, skipDeps bool) (
 
 **Total Phases**: 15 reviewable checkpoints
 
-**Phases Complete**: 5/15 (Phase 3.0, 3.1a, 3.1b, 3.1c, 3.2a)
+**Phases Complete**: 6/15 (Phase 3.0, 3.1a, 3.1b, 3.1c, 3.2a, 3.2b)
 
 **Total New Files**: ~28 files planned (14 implementation + 14 test files)
-- **Files Created So Far**: 14 files (6 implementation + 6 tests + 2 workaround docs)
+- **Files Created So Far**: 17 files (7 implementation + 8 tests + 2 workaround docs)
 
 **Approach**: 
 1. Implement one phase
@@ -440,7 +471,7 @@ func ExportEnvironment(ctx context.Context, client *api.Client, skipDeps bool) (
 4. Get confirmation to continue
 5. Move to next phase
 
-**Current Position**: Phase 3.2a complete with SDK-based connector instance API client and acceptance tests (66 unit tests + 15 acceptance tests passing). Ready for Phase 3.2b (Connector Instance Export Integration).
+**Current Position**: Phase 3.2b complete with connector instance export integration (70 unit tests + 20 acceptance tests passing). Ready for Phase 3.3a (Variable API Client).
 
 **Key Achievements**:
 - ✅ OAuth2 authentication with PingOne SDK
@@ -449,8 +480,9 @@ func ExportEnvironment(ctx context.Context, client *api.Client, skipDeps bool) (
 - ✅ Flow export to HCL with 442KB output from 8 flows
 - ✅ SDK workaround for Position and Version field validation issues (flows API)
 - ✅ Connector instance listing and retrieval from API (20 instances found)
-- ✅ SDK direct usage for connector instances (no validation issues)
+- ✅ Connector instance export to HCL with 4.6KB output from 20 instances
+- ✅ SDK direct usage for connector instances (no validation issues beyond non-UUID IDs)
 - ✅ Comprehensive acceptance test framework with real API calls
-- ✅ Complete acceptance test framework with real API testing
 - ✅ JSON export format for debugging
 - ✅ Skip-dependencies support
+- ✅ Secret masking in connector properties

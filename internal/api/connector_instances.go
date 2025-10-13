@@ -71,9 +71,10 @@ func (c *Client) GetConnectorInstance(ctx context.Context, instanceID string) (*
 		return nil, fmt.Errorf("invalid environment ID: %w", err)
 	}
 
-	// Validate instance ID is a valid UUID
-	if _, err := uuid.Parse(instanceID); err != nil {
-		return nil, fmt.Errorf("invalid connector instance ID: %w", err)
+	// Validate instance ID is not empty
+	// Note: Some connector instances use non-UUID identifiers (e.g., "defaultUserPool")
+	if instanceID == "" {
+		return nil, fmt.Errorf("connector instance ID cannot be empty")
 	}
 
 	resp, _, err := c.apiClient.DaVinciConnectorsApi.GetConnectorInstanceById(ctx, envID, instanceID).Execute()

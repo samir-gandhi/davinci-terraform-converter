@@ -73,23 +73,16 @@ func TestGetConnectorInstanceValidation(t *testing.T) {
 		{
 			name:          "invalid environment ID",
 			environmentID: "invalid-id",
-			instanceID:    "87654321-4321-4321-4321-210987654321",
+			instanceID:    "someInstanceID",
 			expectError:   true,
 			errorContains: "invalid environment ID",
-		},
-		{
-			name:          "invalid instance ID",
-			environmentID: "12345678-1234-1234-1234-123456789012",
-			instanceID:    "invalid-id",
-			expectError:   true,
-			errorContains: "invalid connector instance ID",
 		},
 		{
 			name:          "empty instance ID",
 			environmentID: "12345678-1234-1234-1234-123456789012",
 			instanceID:    "",
 			expectError:   true,
-			errorContains: "invalid connector instance ID",
+			errorContains: "cannot be empty",
 		},
 	}
 
