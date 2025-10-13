@@ -12,8 +12,9 @@ import (
 // Client wraps the PingOne API client for DaVinci operations
 type Client struct {
 	apiClient         *pingone.APIClient
-	AuthEnvironmentID string // Environment where OAuth client exists
-	EnvironmentID     string // Target environment for DaVinci operations
+	serviceCfg        *config.Configuration // WORKAROUND: Used for raw HTTP token access in GetFlow()
+	AuthEnvironmentID string                // Environment where OAuth client exists
+	EnvironmentID     string                // Target environment for DaVinci operations
 	Region            string
 }
 
@@ -58,6 +59,7 @@ func NewClient(ctx context.Context, authEnvironmentID, targetEnvironmentID, regi
 
 	client := &Client{
 		apiClient:         apiClient,
+		serviceCfg:        serviceCfg,
 		AuthEnvironmentID: authEnvironmentID,
 		EnvironmentID:     targetEnvironmentID,
 		Region:            region,

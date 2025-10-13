@@ -117,6 +117,19 @@ func verifyResourceOrdering(t *testing.T, hcl string) {
 }
 
 // validateHCLSyntax performs basic HCL syntax validation
+// validateFlowResourceHCL validates the structure of flow resource HCL
+func validateFlowResourceHCL(t *testing.T, hcl string) {
+	// Check for balanced braces
+	openBraces := strings.Count(hcl, "{")
+	closeBraces := strings.Count(hcl, "}")
+	require.Equal(t, openBraces, closeBraces, "HCL has unbalanced braces")
+
+	// Check for basic resource structure
+	require.Contains(t, hcl, "resource \"", "HCL should contain resource blocks")
+	require.Contains(t, hcl, "environment_id", "Flow resources should have environment_id")
+}
+
+// validateHCLSyntax validates complete HCL file structure including terraform blocks
 func validateHCLSyntax(t *testing.T, hcl string) {
 	// Check for balanced braces
 	openBraces := strings.Count(hcl, "{")
@@ -126,7 +139,7 @@ func validateHCLSyntax(t *testing.T, hcl string) {
 	// Check for basic resource structure
 	require.Contains(t, hcl, "resource \"", "HCL should contain resource blocks")
 
-	// Check for terraform required block
+	// Check for terraform required block (for complete Terraform configurations)
 	require.Contains(t, hcl, "terraform {", "HCL should contain terraform configuration")
 	require.Contains(t, hcl, "required_providers", "HCL should specify required providers")
 }
