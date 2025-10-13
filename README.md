@@ -16,6 +16,10 @@ This tool ingests a DaVinci flow JSON file (single flow or multi-flow export) an
 - ✅ Complete attribute preservation (nodes, edges, settings, variables)
 - ✅ Automatic resource name sanitization
 - ✅ Multiple output modes (stdout, file, directory)
+- ✅ **API Export Mode**: Export flows and connector instances directly from PingOne DaVinci
+- ✅ OAuth2 authentication with PingOne SDK
+- ✅ Skip-dependencies flag for standalone resource testing
+- ✅ Secret masking in connector properties
 
 ## Installation
 
@@ -87,8 +91,90 @@ pingcli davinci convert --flow-json ./my-flow.json --out ./output.tf
 - `-f, --flow-json` (required): Path to input DaVinci flow JSON file
 - `-o, --out` (optional): Path to output HCL file (defaults to stdout)
 - `-d, --out-dir` (optional): Directory for multi-flow output (creates separate .tf files)
+- `--skip-dependencies` (optional): Export with hardcoded environment IDs instead of `var.environment_id` references. Useful for testing individual resources before full environment export is available.
 - `-h, --help`: Show help message
 - `-v, --version`: Show version information
+
+### Skip Dependencies Flag
+
+The `--skip-dependencies` flag is useful when exporting individual resources (flows, connector instances, etc.) without a complete environment configuration:
+
+```bash
+# Export flow with hardcoded environment ID
+davinci-terraform-converter --flow-json flow.json --skip-dependencies
+
+# This generates:
+# resource "pingone_davinci_flow" "my_flow" {
+#   environment_id = "62f10a04-6c54-40c2-a97d-80a98522ff9a"  # Actual ID
+#   name = "My Flow"
+# }
+
+# Without --skip-dependencies (default):
+# resource "pingone_davinci_flow" "my_flow" {
+#   environment_id = var.environment_id  # Variable reference
+#   name = "My Flow"
+# }
+```
+
+**When to use:**
+- Testing individual resource imports
+- Exporting resources to different environments
+- Before full environment export capability is available
+
+**Note:** When full environment export is supported, `var.environment_id` (default behavior) will be preferred for portability.
+
+## API Export Mode (In Development)
+
+The tool now supports direct export from PingOne DaVinci environments via API:
+
+### Prerequisites
+
+Set up PingOne OAuth2 credentials as environment variables:
+
+```bash
+export PINGCLI_PINGONE_WORKER_CLIENT_ID="your-client-id"
+export PINGCLI_PINGONE_WORKER_CLIENT_SECRET="your-client-secret"
+export PINGCLI_PINGONE_WORKER_ENVIRONMENT_ID="auth-environment-id"
+export PINGCLI_PINGONE_EXPORT_ENVIRONMENT_ID="target-environment-id"
+export PINGONE_REGION="NA"  # or EU, AP, CA
+```
+
+### Current API Export Capabilities
+
+**Flows:**
+- Export all flows from a DaVinci environment
+- Generates 442KB HCL from 8 flows (real environment test)
+- Includes flow graph data, nodes, edges, and settings
+
+**Connector Instances:**
+- Export all connector instances from a DaVinci environment
+- Generates 4.6KB HCL from 20 instances (real environment test)
+- Includes connector properties with secret masking
+
+**Coming Soon:**
+- Variables export
+- Applications export
+- Flow policies export
+- Complete environment export
+
+### Running Acceptance Tests
+
+Acceptance tests validate against real PingOne API:
+
+```bash
+# Run acceptance tests (requires environment variables)
+go test -tags=acceptance ./tests/acceptance -v
+
+# Skip acceptance tests (runs unit tests only)
+go test ./...
+```
+
+## Input Formats
+
+### Single Flow Export
+
+```json
+```
 
 ## Input Formats
 
@@ -241,13 +327,39 @@ make help  # Display all available targets
 
 ### Test Coverage
 
+Current test coverage as of Phase 3.2b:
+
+**Unit Tests:**
+- Total: 70 tests passing across all packages
+- `internal/api`: 19 tests (client, flows, connector instances)
+- `internal/converter`: 35 tests (flows, connectors, applications, variables)
+- `internal/exporter`: 6 tests (flow export, connector export)
+- `internal/utils`: 9 tests (resource name sanitization)
+- `cmd`: 1 test (root command)
+
+**Acceptance Tests:**
+- Total: 20 tests with real API calls
+- Flow API: 6 tests (list, get, error handling, multi-retrieval)
+- Connector Instance API: 4 tests (list, get, error handling, multi-retrieval)
+- Flow Export: 5 tests (export, skip-deps, HCL structure, comparison, JSON format)
+- Connector Instance Export: 5 tests (export, skip-deps, HCL structure, comparison, properties)
+
+**Coverage by Module:**
 ```bash
 $ go test ./internal/converter/... -cover
 coverage: 91.3% of statements
-
-$ go test ./internal/converter/... -v 2>&1 | grep -c "^=== RUN"
-26
 ```
+
+**Real Environment Testing:**
+- 8 flows exported (442KB HCL)
+- 20 connector instances exported (4.6KB HCL)
+- Authentication with PingOne OAuth2
+- Dual-environment support (auth + target)
+
+**Test Approach:**
+- Unit tests for logic validation
+- Acceptance tests for API integration (requires credentials)
+- Skip acceptance tests when `PINGCLI_PINGONE_*` environment variables not set
 
 ### Building
 
@@ -273,9 +385,27 @@ This tool follows TDD (Test-Driven Development) and is built in phases:
    - GraphData (nodes + edges)
    - Settings blocks
    - Variables documentation
-   - 25 comprehensive tests
-3. **Environment-Specific Dependencies** (⏳ Next): Handle connection IDs, variables, and subflows
-4. **Integration and Error Handling** (⏳ Future): Enhanced file I/O and validation
+   - Connector instances
+   - Applications
+3. **API Export Integration** (⏳ In Progress - Phase 6/15 Complete):
+   - ✅ OAuth2 authentication with PingOne SDK
+   - ✅ Dual-environment support (auth + target)
+   - ✅ Flow listing and retrieval from API
+   - ✅ Flow export to HCL (442KB from 8 flows)
+   - ✅ Connector instance listing and retrieval
+   - ✅ Connector instance export to HCL (4.6KB from 20 instances)
+   - ⏳ Variables API and export (Phase 3.3)
+   - ⏳ Applications API and export (Phase 3.4)
+   - ⏳ Flow policies API and export (Phase 3.5)
+   - ⏳ Complete environment export (Phase 3.6)
+   - ⏳ CLI integration (Phase 3.7)
+4. **Error Handling & Polish** (⏳ Future): Enhanced validation and user experience
+
+**Current Capabilities:**
+- Export flows from PingOne DaVinci environment via API
+- Export connector instances from PingOne DaVinci environment via API
+- Convert to Terraform HCL with `--skip-dependencies` support
+- 70 unit tests + 20 acceptance tests with real API integration
 
 ## Examples
 
