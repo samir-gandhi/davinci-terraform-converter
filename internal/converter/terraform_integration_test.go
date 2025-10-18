@@ -296,7 +296,7 @@ func TestVariableValueBlockSyntax(t *testing.T) {
 				"value": 42,
 				"mutable": true
 			}`,
-			expected: "number = 42",
+			expected: "float32 = 42",
 		},
 		{
 			name: "Boolean variable",
@@ -309,7 +309,7 @@ func TestVariableValueBlockSyntax(t *testing.T) {
 				"value": true,
 				"mutable": true
 			}`,
-			expected: "boolean = true",
+			expected: "bool = true",
 		},
 	}
 

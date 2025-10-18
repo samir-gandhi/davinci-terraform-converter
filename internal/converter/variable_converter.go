@@ -75,9 +75,26 @@ func generateVariableHCL(variable VariableResponse, skipDependencies bool) strin
 	hcl.WriteString(fmt.Sprintf("  name           = \"%s\"\n", variable.Name))
 	hcl.WriteString(fmt.Sprintf("  context        = \"%s\"\n", variable.Context))
 	hcl.WriteString(fmt.Sprintf("  data_type      = \"%s\"\n", variable.DataType))
-	hcl.WriteString(fmt.Sprintf("  mutable        = %t\n", variable.Mutable))
 
-	// Optional display_name
+	// Determine if we'll actually write a value (needed for mutable logic)
+	hasValue := variable.Value != nil && !isEmptyValue(variable.Value) && variable.DataType != "secret"
+	willWriteValue := false
+	if hasValue {
+		// Check if writeVariableValueBlock would actually write something
+		willWriteValue = canWriteValue(variable.DataType, variable.Value)
+	}
+
+	// Mutable must be true when no value is set (provider requirement)
+	mutable := variable.Mutable
+	if !willWriteValue && !mutable {
+		mutable = true // Provider requires mutable=true when value is not set
+	}
+	hcl.WriteString(fmt.Sprintf("  mutable        = %t\n", mutable))
+
+	// Note if we overrode mutable
+	if !variable.Mutable && mutable {
+		hcl.WriteString("  # NOTE: mutable overridden to true because no value is provided (provider requirement)\n")
+	} // Optional display_name
 	if variable.DisplayName != "" {
 		hcl.WriteString(fmt.Sprintf("  display_name   = \"%s\"\n", variable.DisplayName))
 	}
@@ -104,16 +121,37 @@ func generateVariableHCL(variable VariableResponse, skipDependencies bool) strin
 	}
 
 	// Value block (type-specific)
-	if variable.Value != nil {
+	// Only write value block if variable actually has a meaningful value
+	// Never output secret values for security
+	valueWritten := false
+	if hasValue {
 		hcl.WriteString("\n")
-		writeVariableValueBlock(&hcl, variable.DataType, variable.Value)
-	} else if variable.DataType == "secret" {
-		// For secrets without values, add a TODO comment
+		valueWritten = writeVariableValueBlock(&hcl, variable.DataType, variable.Value)
+
+		// If no value was actually written, add TODO comment
+		if !valueWritten {
+			if variable.DataType == "secret" {
+				hcl.WriteString("  # TODO: Add secret value manually\n")
+				hcl.WriteString("  # value = {\n")
+				hcl.WriteString("  #   secret_string = \"your-secret-value\"\n")
+				hcl.WriteString("  # }\n")
+			} else {
+				hcl.WriteString(fmt.Sprintf("  # TODO: Add %s value\n", variable.DataType))
+				hcl.WriteString("  # Value omitted - will be set dynamically by flow execution\n")
+			}
+		}
+	} else {
+		// For variables without values, add a TODO comment
 		hcl.WriteString("\n")
-		hcl.WriteString("  # TODO: Add secret value manually\n")
-		hcl.WriteString("  # value = {\n")
-		hcl.WriteString("  #   secret = \"your-secret-value\"\n")
-		hcl.WriteString("  # }\n")
+		if variable.DataType == "secret" {
+			hcl.WriteString("  # TODO: Add secret value manually\n")
+			hcl.WriteString("  # value = {\n")
+			hcl.WriteString("  #   secret_string = \"your-secret-value\"\n")
+			hcl.WriteString("  # }\n")
+		} else {
+			hcl.WriteString(fmt.Sprintf("  # TODO: Add %s value\n", variable.DataType))
+			hcl.WriteString("  # Value omitted - will be set dynamically by flow execution\n")
+		}
 	}
 
 	hcl.WriteString("}\n")
@@ -121,68 +159,93 @@ func generateVariableHCL(variable VariableResponse, skipDependencies bool) strin
 	return hcl.String()
 }
 
-// writeVariableValueBlock writes the value block based on data type
-func writeVariableValueBlock(hcl *strings.Builder, dataType string, value interface{}) {
-	// Don't output secret values for security
-	if dataType == "secret" {
-		hcl.WriteString("  # TODO: Add secret value manually\n")
-		hcl.WriteString("  # value = {\n")
-		hcl.WriteString("  #   secret = \"your-secret-value\"\n")
-		hcl.WriteString("  # }\n")
-		return
+// isEmptyValue checks if a value is considered empty
+func isEmptyValue(value interface{}) bool {
+	if value == nil {
+		return true
 	}
 
-	hcl.WriteString("  value = {\n")
+	// Check for empty string or masked secret value
+	if str, ok := value.(string); ok {
+		return str == "" || str == "******"
+	}
+
+	// Check for zero numbers (but don't treat 0 as empty, only nil/missing)
+	// Other types (bool, object) are valid even if "empty" looking
+	return false
+}
+
+// canWriteValue checks if writeVariableValueBlock would actually write content for this value
+func canWriteValue(dataType string, value interface{}) bool {
+	switch dataType {
+	case "string":
+		str, ok := value.(string)
+		return ok && str != "" && str != "******"
+	case "number":
+		switch value.(type) {
+		case float64, int:
+			return true
+		}
+		return false
+	case "boolean":
+		_, ok := value.(bool)
+		return ok
+	case "object":
+		jsonBytes, err := json.Marshal(value)
+		return err == nil && len(jsonBytes) > 2 // More than just "{}"
+	case "secret":
+		return false // Never write secret values
+	}
+	return false
+}
+
+// writeVariableValueBlock writes the value block based on data type
+// Returns true if a value was written, false if nothing was written
+func writeVariableValueBlock(hcl *strings.Builder, dataType string, value interface{}) bool {
+	var valueContent strings.Builder
+	hasContent := false
 
 	switch dataType {
 	case "string":
-		if str, ok := value.(string); ok {
-			hcl.WriteString(fmt.Sprintf("    string = \"%s\"\n", str))
+		if str, ok := value.(string); ok && str != "" {
+			valueContent.WriteString(fmt.Sprintf("    string = \"%s\"\n", str))
+			hasContent = true
 		}
 	case "number":
 		switch v := value.(type) {
 		case float64:
 			// Check if it's an integer
 			if v == float64(int64(v)) {
-				hcl.WriteString(fmt.Sprintf("    number = %d\n", int64(v)))
+				valueContent.WriteString(fmt.Sprintf("    float32 = %d\n", int64(v)))
 			} else {
-				hcl.WriteString(fmt.Sprintf("    number = %f\n", v))
+				valueContent.WriteString(fmt.Sprintf("    float32 = %f\n", v))
 			}
+			hasContent = true
 		case int:
-			hcl.WriteString(fmt.Sprintf("    number = %d\n", v))
+			valueContent.WriteString(fmt.Sprintf("    float32 = %d\n", v))
+			hasContent = true
 		}
 	case "boolean":
 		if b, ok := value.(bool); ok {
-			hcl.WriteString(fmt.Sprintf("    boolean = %t\n", b))
+			valueContent.WriteString(fmt.Sprintf("    bool = %t\n", b))
+			hasContent = true
 		}
 	case "object":
 		// Marshal the object to JSON
 		jsonBytes, err := json.Marshal(value)
-		if err == nil {
-			hcl.WriteString("    object = jsonencode({\n")
-			// Pretty print the JSON content (simple approach)
-			var obj map[string]interface{}
-			if json.Unmarshal(jsonBytes, &obj) == nil {
-				for k, v := range obj {
-					switch val := v.(type) {
-					case string:
-						hcl.WriteString(fmt.Sprintf("      \"%s\" : \"%s\",\n", k, val))
-					case float64:
-						if val == float64(int64(val)) {
-							hcl.WriteString(fmt.Sprintf("      \"%s\" : %d,\n", k, int64(val)))
-						} else {
-							hcl.WriteString(fmt.Sprintf("      \"%s\" : %f,\n", k, val))
-						}
-					case bool:
-						hcl.WriteString(fmt.Sprintf("      \"%s\" : %t,\n", k, val))
-					default:
-						hcl.WriteString(fmt.Sprintf("      \"%s\" : %v,\n", k, val))
-					}
-				}
-			}
-			hcl.WriteString("    })\n")
+		if err == nil && len(jsonBytes) > 2 { // More than just "{}"
+			// Use json_object attribute per provider schema
+			valueContent.WriteString(fmt.Sprintf("    json_object = %s\n", string(jsonBytes)))
+			hasContent = true
 		}
 	}
 
-	hcl.WriteString("  }\n")
+	// Only write the value block if we have actual content
+	if hasContent {
+		hcl.WriteString("  value = {\n")
+		hcl.WriteString(valueContent.String())
+		hcl.WriteString("  }\n")
+	}
+
+	return hasContent
 }

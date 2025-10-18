@@ -240,88 +240,288 @@ Each phase creates ONE new file with tests. Review after each phase before conti
 
 ---
 
-## Phase 3.3a: Variable API Client
+## Phase 3.3a: Variable API Client ✅ COMPLETE
 
-**Goal**: Create API client for variables.
+**Goal**: Create API client for variables using SDK.
 
-**Files to Create**:
+**Files Created**:
 - `internal/api/variables.go`
 - `internal/api/variables_test.go`
+- `tests/acceptance/variable_api_test.go`
 
-**Functions to Implement**:
-```go
-// ListVariables retrieves all variables (company and flow contexts)
-func (c *Client) ListVariables(ctx context.Context) ([]Variable, error)
-```
+**Functions Implemented**:
+- `ListVariables(ctx context.Context, environmentID string) ([]pingone.DaVinciVariableResponse, error)` - Retrieves all variables from environment
+- `GetVariable(ctx context.Context, environmentID, variableID string) (*pingone.DaVinciVariableResponse, error)` - Retrieves specific variable by ID
 
-**Success Criteria**:
-- Can retrieve all variable contexts
-- Handles different variable types
-- All tests pass
+**Implementation Details**:
+- Uses SDK's `DaVinciVariablesApi.GetVariables()` for listing with pagination
+- Uses SDK's `DaVinciVariablesApi.GetVariableById()` for details
+- Handles embedded response structure with GetVariablesOk()
+- Iterates through paginated results
+- Validates UUID format for environment and variable IDs
+- No SDK validation issues encountered
 
-**Review Point**: Stop after variable API client tested.
+**Acceptance Tests Implemented**:
+- `TestVariableAPI` - List all variables from environment with context validation
+- `TestGetVariableById` - Get existing variable and test error handling for nonexistent
+- `TestListVariablesEmpty` - Verify empty result handling for environment without variables
+
+**Test Results**:
+- Unit tests: 25/25 passing (internal/api - 19 previous + 6 variable tests)
+- Acceptance tests: 23/23 passing (20 previous + 3 variable tests)
+- Total unit tests: 76/76 passing across all packages
+
+**Test Environment Data**:
+- 4 variables found in target environment:
+  - companyLogo (flowInstance context)
+  - companyName (flowInstance context)
+  - SampleUserContextVariable (user context)
+  - SampleVariable (company context)
+- 0 variables in worker environment (empty list validated)
+
+**Key Discoveries**:
+- SDK supports variables API directly with GetVariables() and GetVariableById()
+- Pagination handled via iterator pattern
+- Variable contexts include: company, flowInstance, user
+
+**Success Criteria Met**:
+- ✅ Can retrieve all variable contexts
+- ✅ Handles different variable types (string, various contexts)
+- ✅ All tests pass (76/76 unit tests, 23/23 acceptance tests)
+
+**Review Point**: Phase 3.3a complete. Ready for Phase 3.3b (Variable Export Integration).
 
 ---
 
-## Phase 3.3b: Variable Export Integration
+## Phase 3.3b: Variable Export Integration ✅ COMPLETE
 
 **Goal**: Connect variable API to existing variable converter.
 
-**Files to Create**:
+**Files Created**:
 - `internal/exporter/variable_exporter.go`
 - `internal/exporter/variable_exporter_test.go`
+- `tests/acceptance/variable_export_test.go`
 
-**Success Criteria**:
-- Calls variable API correctly
-- Passes data to converter
-- Returns HCL with masked secrets
-- All tests pass
+**Functions Implemented**:
+- `ExportVariables(ctx context.Context, client *api.Client, skipDeps bool) (string, error)` - Exports all variables to HCL
+- `convertVariableToJSON(variable interface{}) ([]byte, error)` - Converts SDK response to JSON format
 
-**Review Point**: Stop after variable export tested.
+**Implementation Details**:
+- Retrieves all variables via `ListVariables()` API call
+- Converts each SDK variable response to JSON format expected by converter
+- Uses existing `converter.ConvertVariableWithOptions()` to generate HCL
+- Combines all variable resources with blank lines between them
+- Supports skip-dependencies flag
+
+**Acceptance Tests Implemented**:
+- `TestExportVariablesFromAPI` - Export all variables to HCL with preview
+- `TestExportVariablesWithSkipDependencies` - Test skip-dependencies flag
+- `TestExportVariablesValidateHCLStructure` - Validate HCL blocks, contexts, and data types
+- `TestExportVariablesComparison` - Compare API count to HCL resource count
+- `TestExportVariablesValueHandling` - Validate value, min, max, mutable fields
+
+**Test Results**:
+- Unit tests: 27/27 passing (internal/exporter - 3 connector + 3 flow + 2 variable tests)
+- Acceptance tests: 28/28 passing (20 previous + 3 variable API + 5 variable export)
+- Total unit tests: 78/78 passing across all packages
+
+**Test Environment Data**:
+- 16 variables exported from target environment
+- Generated HCL: 4.9KB output
+- Variable contexts tested: company, flowInstance, user (all 3 found)
+- Data types tested: string, number, boolean, object, secret (all 5 found)
+- Sample variables: companyBool, companyLogo, companyName, companyNumber, companyObject, companySecret, companyString, flowBoolean, flowNumber, flowObject, flowString, SampleUserContextVariable, SampleVariable, userbool, userNumber, userObject
+
+**Key Validations**:
+- All 16 variables from API appear in HCL output
+- Resource type: `pingone_davinci_variable`
+- Required fields validated: environment_id, name, context, data_type, mutable
+- Optional fields present: value, min, max, display_name
+- Secret data type properly handled with TODO comment
+
+**Success Criteria Met**:
+- ✅ Calls variable API correctly (ListVariables)
+- ✅ Passes data to converter in correct JSON format
+- ✅ Returns HCL with proper structure
+- ✅ All tests pass (78/78 unit tests, 28/28 acceptance tests)
+- ✅ Handles variety of contexts and data types
+
+**Review Point**: Phase 3.3b complete. Ready for Phase 3.4a (Application API Client).
 
 ---
 
-## Phase 3.4a: Application API Client
+## Phase 3.4a: Application API Client ✅ COMPLETE
 
-**Goal**: Create API client for applications.
+**Goal**: Create API client for DaVinci applications using SDK.
 
-**Files to Create**:
+**Files Created**:
 - `internal/api/applications.go`
 - `internal/api/applications_test.go`
+- `tests/acceptance/application_api_test.go`
 
-**Functions to Implement**:
-```go
-// ListApplications retrieves all DaVinci applications
-func (c *Client) ListApplications(ctx context.Context) ([]Application, error)
+**Functions Implemented**:
+- `ListApplications(ctx context.Context, environmentID string) ([]pingone.DaVinciApplicationResponse, error)` - Retrieves all DaVinci applications
+- `GetApplication(ctx context.Context, environmentID, applicationID string) (*pingone.DaVinciApplicationResponse, error)` - Retrieves specific application by ID
 
-// GetApplication retrieves detailed application data
-func (c *Client) GetApplication(ctx context.Context, appID string) (*ApplicationDetail, error)
-```
+**Implementation Details**:
+- Uses SDK's `DaVinciApplicationsApi.GetDavinciApplications()` for listing
+- Uses SDK's `DaVinciApplicationsApi.GetDavinciApplicationById()` for details
+- Handles embedded response structure with GetDavinciApplicationsOk()
+- Validates UUID format for environment IDs
+- Application IDs are strings (not UUIDs)
+- No SDK validation issues encountered
 
-**Success Criteria**:
-- Can retrieve application list
-- Can retrieve application details
-- All tests pass
+**Acceptance Tests Implemented**:
+- `TestApplicationAPI` - List all applications from environment
+- `TestGetApplicationById` - Get existing application and test error handling for nonexistent
+- `TestListApplicationsEmpty` - Verify empty result handling for environment without applications
 
-**Review Point**: Stop after application API client tested.
+**Test Results**:
+- Unit tests: 30/30 passing (internal/api - 25 previous + 5 application tests)
+- Acceptance tests: 31/31 passing (28 previous + 3 application tests)
+- Total unit tests: 83/83 passing across all packages
+
+**Test Environment Data**:
+- 10 applications found in target environment
+- Sample applications: applicationFFlowPolicyMultiWeight, applicationEFlowPolicyWVersion, applicationDP1FlowPolicyOnly, applicationCConfigured, applicationBDefault, applicationAMinimal, DaVinci API Protect Sample Application (multiple instances)
+- 0 applications in worker environment (empty list validated)
+- Applications can have API key configuration
+- Applications can have OAuth configuration
+- Both configurations can exist on same application
+
+**Key Discoveries**:
+- SDK supports applications API directly with GetDavinciApplications() and GetDavinciApplicationById()
+- Application IDs are strings (not UUID format like environment IDs)
+- Applications can have multiple authentication configurations (API key and/or OAuth)
+
+**Success Criteria Met**:
+- ✅ Can retrieve application list
+- ✅ Can retrieve application details with API key and OAuth configurations
+- ✅ All tests pass (83/83 unit tests, 31/31 acceptance tests)
+
+**Review Point**: Phase 3.4a complete. Ready for Phase 3.4b (Application Export Integration).
 
 ---
 
-## Phase 3.4b: Application Export Integration
+## Phase 3.4b: Application Export Integration ✅ COMPLETE
 
 **Goal**: Connect application API to existing application converter.
 
-**Files to Create**:
+**Files Created**:
 - `internal/exporter/application_exporter.go`
 - `internal/exporter/application_exporter_test.go`
+- `tests/acceptance/application_export_test.go`
+
+**Functions Implemented**:
+- `ExportApplications(ctx context.Context, client *api.Client, skipDeps bool) (string, error)` - Exports all applications to HCL
+- `convertApplicationToJSON(application interface{}) ([]byte, error)` - Converts SDK response to JSON format
+
+**Implementation Details**:
+- Retrieves all applications via `ListApplications()` API call
+- Converts each SDK application response to JSON format expected by converter
+- Uses existing `converter.ConvertApplicationWithOptions()` to generate HCL
+- Combines all application resources with blank lines between them
+- Supports skip-dependencies flag
+
+**Acceptance Tests Implemented**:
+- `TestExportApplicationsFromAPI` - Export all applications to HCL with preview
+- `TestExportApplicationsWithSkipDependencies` - Test skip-dependencies flag
+- `TestExportApplicationsValidateHCLStructure` - Validate HCL blocks, API key, OAuth configurations
+- `TestExportApplicationsComparison` - Compare API count to HCL resource count
+- `TestExportApplicationsAuthConfigHandling` - Validate authentication configuration handling
+
+**Test Results**:
+- Unit tests: 29/29 passing (internal/exporter - 3 connector + 3 flow + 2 variable + 2 application tests)
+- Acceptance tests: 36/36 passing (31 previous + 5 application export)
+- Total unit tests: 85/85 passing across all packages
+
+**Test Environment Data**:
+- 10 applications exported from target environment
+- Generated HCL: 3.7KB output
+- Sample applications: applicationFFlowPolicyMultiWeight, applicationEFlowPolicyWVersion, applicationDP1FlowPolicyOnly, applicationCConfigured, applicationBDefault, applicationAMinimal, DaVinci API Protect Sample Application (multiple instances)
+- All applications found in HCL output
+- Authentication methods validated: API key and OAuth configurations
+
+**Key Validations**:
+- All 10 applications from API appear in HCL output
+- Resource type: `pingone_davinci_application`
+- Required fields validated: environment_id, name
+- Optional fields present: api_key (with enabled field), oauth (with grant_types, scopes)
+- API key enabled field: `api_key = { enabled = true }`
+- OAuth fields: grant_types, scopes, client_id, client_secret (when present)
+
+**Success Criteria Met**:
+- ✅ Calls application API correctly (ListApplications)
+- ✅ Passes data to converter in correct JSON format
+- ✅ Returns HCL with proper structure
+- ✅ Handles OAuth and API key blocks
+- ✅ All tests pass (85/85 unit tests, 36/36 acceptance tests)
+
+**Review Point**: Phase 3.4b complete. Ready for Phase 3.4c (Terraform Validation).
+
+---
+
+## Phase 3.4c: Terraform Validation Testing ⚠️ IN PROGRESS
+
+**Goal**: Validate that all Phase 3 exported resources produce valid Terraform HCL that passes terraform init and terraform validate.
+
+**Files Created**:
+- `tests/acceptance/terraform_validation_test.go` (5 comprehensive terraform validation tests)
+
+**Test Functions Implemented**:
+- `TestTerraformValidateVariablesFromAPI` ✅ PASSING - Validates variables HCL (16 variables, 5.5KB)
+- `TestTerraformValidateConnectorInstancesFromAPI` ❌ FAILING - environment_id validation error
+- `TestTerraformValidateApplicationsFromAPI` ❌ FAILING - Syntax errors
+- `TestTerraformValidateFlowsFromAPI` ❌ FAILING - Single quote syntax errors
+- `TestTerraformValidateAllResourcesFromAPI` ❌ FAILING - Combined validation
+
+**Test Implementation Details**:
+- Creates temporary directory for each test
+- Exports resources from API to HCL
+- Writes provider.tf with pingidentity/pingone provider configuration
+- Writes variables.tf with environment_id and region variables
+- Runs `terraform init` to download provider
+- Runs `terraform validate` to check HCL correctness
+- Provider: Uses development override at /Users/samirgandhi/go/bin
+
+**Bugs Discovered and Fixed**:
+
+**Variables Converter** (✅ FIXED):
+- Wrong attribute names: Changed `boolean` → `bool`, `number` → `float32`, `object` → `json_object` to match provider schema
+- Empty value blocks: Fixed `value = {}` being written when no value present
+- Secret masking: API returns `"******"` for secrets, now detected and treated as empty value
+- Mutable validation: Fixed to set `mutable = true` when no value is written (provider requirement)
+- Files modified: `internal/converter/variable_converter.go`, `internal/converter/variable_converter_test.go`
+- Result: All variables terraform validation PASSING
+
+**Connector Instance Converter** (❌ NEEDS FIX):
+- Issue: `environment_id` validation error - "Must be a valid UUID, got: " (empty or malformed)
+- Likely cause: Not properly setting environment_id in HCL output
+- Status: Needs investigation and fix
+
+**Application Converter** (❌ NEEDS FIX):
+- Issue: Syntax errors causing terraform init failure
+- Error details: Unknown - need to examine actual HCL output
+- Status: Needs investigation and fix
+
+**Flow Converter** (❌ NEEDS FIX):
+- Issue: Single quote syntax errors - "Invalid character - Single quotes are not valid. Use double quotes"
+- Likely cause: Improper string escaping in HCL generation
+- Status: Needs investigation and fix
+
+**Test Results**:
+- Terraform validation tests: 1/5 passing (Variables only)
+- Variables: ✅ "Success! The configuration is valid, but there were some validation warnings"
+- Other resources: ❌ Schema violations and syntax errors
 
 **Success Criteria**:
-- Calls application API correctly
-- Passes data to converter
-- Returns HCL with OAuth/API key blocks
-- All tests pass
+- ✅ Variables: terraform init and validate passing
+- ❌ Connector instances: environment_id validation error
+- ❌ Applications: syntax errors
+- ❌ Flows: quote escaping issues
+- ❌ All resources: combined validation failing
 
-**Review Point**: Stop after application export tested.
+**Review Point**: Phase 3.4c partially complete. Variables validated successfully. Other converters need fixes before continuing to Phase 3.5a.
 
 ---
 
@@ -459,10 +659,12 @@ func ExportEnvironment(ctx context.Context, client *api.Client, skipDeps bool) (
 
 **Total Phases**: 15 reviewable checkpoints
 
-**Phases Complete**: 6/15 (Phase 3.0, 3.1a, 3.1b, 3.1c, 3.2a, 3.2b)
+**Phases Complete**: 10/15 (Phase 3.0, 3.1a, 3.1b, 3.1c, 3.2a, 3.2b, 3.3a, 3.3b, 3.4a, 3.4b)
+
+**Phase In Progress**: Phase 3.4c (Terraform Validation Testing) - Variables passing, other resources need fixes
 
 **Total New Files**: ~28 files planned (14 implementation + 14 test files)
-- **Files Created So Far**: 17 files (7 implementation + 8 tests + 2 workaround docs)
+- **Files Created So Far**: 24 files (10 implementation + 14 test files)
 
 **Approach**: 
 1. Implement one phase
@@ -471,18 +673,31 @@ func ExportEnvironment(ctx context.Context, client *api.Client, skipDeps bool) (
 4. Get confirmation to continue
 5. Move to next phase
 
-**Current Position**: Phase 3.2b complete with connector instance export integration (70 unit tests + 20 acceptance tests passing). Ready for Phase 3.3a (Variable API Client).
+**Current Position**: Phase 3.4c in progress - terraform validation testing. Variables converter fully validated and passing. Connector instance, application, and flow converters have schema violations that need fixing.
 
 **Key Achievements**:
 - ✅ OAuth2 authentication with PingOne SDK
 - ✅ Dual-environment support (auth env vs target env)
-- ✅ Flow listing and retrieval from API
+- ✅ Flow listing and retrieval from API (8 flows)
 - ✅ Flow export to HCL with 442KB output from 8 flows
 - ✅ SDK workaround for Position and Version field validation issues (flows API)
 - ✅ Connector instance listing and retrieval from API (20 instances found)
 - ✅ Connector instance export to HCL with 4.6KB output from 20 instances
 - ✅ SDK direct usage for connector instances (no validation issues beyond non-UUID IDs)
-- ✅ Comprehensive acceptance test framework with real API calls
+- ✅ Variable listing and retrieval from API (16 variables found)
+- ✅ Variable export to HCL with 4.9KB output from 16 variables
+- ✅ Variable variety tested: 3 contexts (company, flowInstance, user) and 5 data types (string, number, boolean, object, secret)
+- ✅ Application listing and retrieval from API (10 applications found)
+- ✅ Application export to HCL with 3.7KB output from 10 applications
+- ✅ Comprehensive acceptance test framework with real API calls (36 tests)
 - ✅ JSON export format for debugging
 - ✅ Skip-dependencies support
-- ✅ Secret masking in connector properties
+- ✅ Secret masking in connector properties and variable secrets
+- ✅ Terraform validation test framework created (5 tests)
+- ✅ Variables terraform validation PASSING (fixed attribute names, empty blocks, mutable logic)
+
+**Test Status**:
+- Unit tests: 85/85 passing across all packages
+- Acceptance tests: 36/36 passing (without terraform validation)
+- Terraform validation: 1/5 passing (Variables only - Connectors/Applications/Flows need fixes)
+

@@ -47,7 +47,7 @@ func TestVariableConversion(t *testing.T) {
 		{
 			name: "Number variable with min/max",
 			varJSON: `{
-				"id": "var-123",
+				"id": "var-num",
 				"environment": {"id": "env-456"},
 				"name": "maxRetries",
 				"dataType": "number",
@@ -67,7 +67,7 @@ func TestVariableConversion(t *testing.T) {
 				`min            = 0`,
 				`max            = 10`,
 				`value = {`,
-				`number = 3`,
+				`float32 = 3`,
 			},
 		},
 		{
@@ -89,7 +89,7 @@ func TestVariableConversion(t *testing.T) {
 				`data_type      = "boolean"`,
 				`mutable        = true`,
 				`value = {`,
-				`boolean = true`,
+				`bool = true`,
 			},
 		},
 		{
@@ -109,7 +109,7 @@ func TestVariableConversion(t *testing.T) {
 				`name           = "apiKey"`,
 				`context        = "company"`,
 				`data_type      = "secret"`,
-				`mutable        = false`,
+				`mutable        = true`, // Must be true when no value is provided (provider requirement)
 				`# TODO: Add secret value manually`,
 			},
 		},
@@ -132,7 +132,7 @@ func TestVariableConversion(t *testing.T) {
 				`data_type      = "object"`,
 				`mutable        = true`,
 				`value = {`,
-				`object = jsonencode({`,
+				`json_object =`,
 			},
 		},
 		{
