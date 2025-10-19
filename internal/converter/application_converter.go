@@ -23,7 +23,18 @@ func ConvertApplicationWithOptions(appJSON []byte, skipDependencies bool) (strin
 		return "", fmt.Errorf("failed to unmarshal application JSON: %w", err)
 	}
 
+	// Use var.environment_id for backward compatibility
 	return generateApplicationHCL(appData, "var.environment_id")
+}
+
+// ConvertApplicationWithEnvironment converts a DaVinci application to Terraform format with explicit environment ID
+func ConvertApplicationWithEnvironment(appJSON []byte, environmentID string) (string, error) {
+	var appData map[string]interface{}
+	if err := json.Unmarshal(appJSON, &appData); err != nil {
+		return "", fmt.Errorf("failed to unmarshal application JSON: %w", err)
+	}
+
+	return generateApplicationHCL(appData, environmentID)
 }
 
 // generateApplicationHCL generates HCL for a DaVinci application
@@ -34,7 +45,13 @@ func generateApplicationHCL(appData map[string]interface{}, environmentID string
 	resourceName := utils.SanitizeResourceName(getString(appData, "name"))
 
 	hcl.WriteString(fmt.Sprintf("resource \"pingone_davinci_application\" \"%s\" {\n", resourceName))
-	hcl.WriteString(fmt.Sprintf("  environment_id = %s\n\n", environmentID))
+
+	// Write environment_id - quote it if it doesn't start with "var."
+	if strings.HasPrefix(environmentID, "var.") {
+		hcl.WriteString(fmt.Sprintf("  environment_id = %s\n\n", environmentID))
+	} else {
+		hcl.WriteString(fmt.Sprintf("  environment_id = %q\n\n", environmentID))
+	}
 
 	// Required: name
 	if name := getString(appData, "name"); name != "" {

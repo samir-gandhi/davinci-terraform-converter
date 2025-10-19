@@ -1,0 +1,78 @@
+package exporter
+
+import (
+	"context"
+	"fmt"
+	"regexp"
+	"strings"
+
+	"github.com/samir-gandhi/davinci-terraform-converter/internal/api"
+	"github.com/samir-gandhi/davinci-terraform-converter/internal/converter"
+)
+
+// ExportFlowPolicies exports all flow policies to Terraform HCL
+func ExportFlowPolicies(ctx context.Context, client *api.Client, skipDeps bool) (string, error) {
+	policies, err := client.ListFlowPolicies(ctx)
+	if err != nil {
+		return "", fmt.Errorf("failed to list flow policies: %w", err)
+	}
+
+	if len(policies) == 0 {
+		return "# No flow policies found\n\n", nil
+	}
+
+	var builder strings.Builder
+	builder.WriteString(fmt.Sprintf("# Flow Policies (%d total)\n\n", len(policies)))
+
+	usedResourceNames := make(map[string]int)
+
+	for _, policy := range policies {
+		detail, err := client.GetFlowPolicy(ctx, policy.ApplicationID, policy.PolicyID)
+		if err != nil {
+			return "", fmt.Errorf("failed to get flow policy %s: %w", policy.PolicyID, err)
+		}
+
+		// Ensure unique resource names
+		resourceName := ensureUniqueFlowPolicyResourceName(policy.Name, usedResourceNames)
+
+		// Get environment ID - pass raw string for var reference or quoted UUID
+		var environmentID string
+		if skipDeps {
+			environmentID = client.EnvironmentID // Will be quoted by converter
+		} else {
+			environmentID = "var.environment_id" // Will be written as-is by converter
+		}
+
+		hcl, err := converter.ConvertFlowPolicyToTerraform(detail.RawResponse, resourceName, policy.ApplicationID, environmentID, skipDeps)
+		if err != nil {
+			return "", fmt.Errorf("failed to convert flow policy %s to Terraform: %w", policy.PolicyID, err)
+		}
+
+		builder.WriteString(hcl)
+		builder.WriteString("\n")
+	}
+
+	return builder.String(), nil
+}
+
+// ensureUniqueFlowPolicyResourceName ensures resource names are unique by appending suffixes
+func ensureUniqueFlowPolicyResourceName(name string, usedNames map[string]int) string {
+	// Extract just the resource name without the "pingone_davinci_application_flow_policy." prefix
+	re := regexp.MustCompile(`^[^.]+\.(.+)$`)
+	matches := re.FindStringSubmatch(name)
+	baseName := name
+	if len(matches) > 1 {
+		baseName = matches[1]
+	}
+
+	// If first occurrence, track it and return as-is
+	count, exists := usedNames[baseName]
+	if !exists {
+		usedNames[baseName] = 1
+		return baseName
+	}
+
+	// If duplicate, increment and append suffix
+	usedNames[baseName] = count + 1
+	return fmt.Sprintf("%s_%d", baseName, count+1)
+}

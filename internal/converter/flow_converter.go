@@ -1,6 +1,7 @@
 package converter
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"regexp"
@@ -20,7 +21,13 @@ func ConvertFlowToHCL(flowData map[string]interface{}, environmentID string, ski
 	resourceName := utils.SanitizeResourceName(getString(flowData, "name"))
 
 	hcl.WriteString(fmt.Sprintf("resource \"pingone_davinci_flow\" \"%s\" {\n", resourceName))
-	hcl.WriteString(fmt.Sprintf("  environment_id = %s\n\n", environmentID))
+
+	// Handle environment_id - quote if it's a UUID string, otherwise use as-is (for var.environment_id)
+	if strings.HasPrefix(environmentID, "var.") {
+		hcl.WriteString(fmt.Sprintf("  environment_id = %s\n\n", environmentID))
+	} else {
+		hcl.WriteString(fmt.Sprintf("  environment_id = %q\n\n", environmentID))
+	}
 
 	// Required: name
 	if name := getString(flowData, "name"); name != "" {
@@ -330,7 +337,11 @@ func writeNodesBlock(hcl *strings.Builder, nodes []interface{}, skipDependencies
 				if err != nil {
 					return fmt.Errorf("failed to marshal properties: %w", err)
 				}
-				hcl.WriteString(fmt.Sprintf("            properties = jsonencode(%s)\n", string(propertiesJSON)))
+				// Use base64decode with heredoc to avoid HCL parsing issues with special characters
+				hcl.WriteString("            properties = base64decode(<<-EOT\n")
+				encoded := base64.StdEncoding.EncodeToString(propertiesJSON)
+				hcl.WriteString(encoded)
+				hcl.WriteString("\nEOT\n)\n")
 			}
 
 			hcl.WriteString("          }\n")

@@ -36,7 +36,7 @@ func ExportConnectorInstances(ctx context.Context, client *api.Client, skipDeps 
 		}
 
 		// Convert the instance detail to JSON for the converter
-		instanceJSON, err := convertInstanceDetailToJSON(instanceDetail)
+		instanceJSON, err := convertInstanceDetailToJSON(instanceDetail, client.EnvironmentID)
 		if err != nil {
 			return "", fmt.Errorf("failed to convert instance %s to JSON: %w", summary.Name, err)
 		}
@@ -55,13 +55,13 @@ func ExportConnectorInstances(ctx context.Context, client *api.Client, skipDeps 
 }
 
 // convertInstanceDetailToJSON converts connector instance detail to JSON format expected by converter
-func convertInstanceDetailToJSON(detail *api.ConnectorInstanceDetail) ([]byte, error) {
+func convertInstanceDetailToJSON(detail *api.ConnectorInstanceDetail, environmentID string) ([]byte, error) {
 	// Build the structure expected by the converter
 	instanceData := map[string]interface{}{
 		"id":   detail.InstanceID,
 		"name": detail.Name,
 		"environment": map[string]interface{}{
-			"id": "", // Will be replaced by environment_id parameter
+			"id": environmentID,
 		},
 		"connector": map[string]interface{}{
 			"id": detail.ConnectorID,

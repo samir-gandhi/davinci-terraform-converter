@@ -63,7 +63,7 @@ func ConvertMultiResource(input MultiResourceInput, skipDependencies bool) (stri
 		if skipDependencies {
 			if env, ok := flowData["environment"].(map[string]interface{}); ok {
 				if id, ok := env["id"].(string); ok {
-					envID = fmt.Sprintf("\"%s\"", id)
+					envID = id // Pass raw UUID, converter will quote it
 				}
 			}
 		} else {
@@ -94,17 +94,10 @@ func ConvertMultiResource(input MultiResourceInput, skipDependencies bool) (stri
 		hasContent = true
 	}
 
-	// 5. Generate flow policies (reference flows and applications)
-	for i, policyJSON := range input.FlowPolicies {
-		result, err := ConvertFlowPolicyWithOptions(policyJSON, skipDependencies)
-		if err != nil {
-			return "", fmt.Errorf("failed to convert flow policy %d: %w", i, err)
-		}
-		if hasContent {
-			hcl.WriteString("\n")
-		}
-		hcl.WriteString(result)
-		hasContent = true
+	// 5. Flow policies - NOT YET IMPLEMENTED for Part 1 (JSON file conversion)
+	// Part 3 (API export) uses ConvertFlowPolicyToTerraform() directly
+	if len(input.FlowPolicies) > 0 {
+		return "", fmt.Errorf("flow policy conversion from JSON not yet implemented - use API export")
 	}
 
 	return hcl.String(), nil

@@ -320,10 +320,9 @@ func TestFlowConversion_NodeProperties(t *testing.T) {
 	result, err := converter.ConvertFlowToHCL(flowData, "var.environment_id", false)
 	require.NoError(t, err)
 
-	// properties should use jsonencode()
-	assert.Contains(t, result, "properties = jsonencode(")
-	assert.Contains(t, result, "key1")
-	assert.Contains(t, result, "key2")
+	// properties should use base64decode() with base64-encoded JSON
+	assert.Contains(t, result, "properties = base64decode(")
+	// Note: JSON keys won't be visible in base64-encoded output
 }
 
 // TestFlowConversion_RendererField tests jsonencode() usage for renderer field
@@ -348,7 +347,7 @@ func TestFlowConversion_RendererField(t *testing.T) {
 	result, err := converter.ConvertFlowToHCL(flowData, "var.environment_id", false)
 	require.NoError(t, err)
 
-	// renderer should use jsonencode()
+	// renderer should use jsonencode() - renderer field NOT base64 encoded
 	assert.Contains(t, result, "renderer = jsonencode(")
 }
 

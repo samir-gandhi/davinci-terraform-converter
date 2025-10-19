@@ -48,25 +48,13 @@ func TestMultiResourceConversion(t *testing.T) {
 						"name": "My App"
 					}`),
 				},
-				FlowPolicies: [][]byte{
-					[]byte(`{
-						"id": "policy-1",
-						"environment": {"id": "env-123"},
-						"application": {"id": "app-1"},
-						"name": "My Policy",
-						"status": "enabled",
-						"flowDistributions": [
-							{"id": "flow-1", "version": -1, "weight": 100}
-						]
-					}`),
-				},
+				// FlowPolicies: Not implemented for Part 1 (JSON file conversion)
 			},
 			expected: []string{
 				`resource "pingone_davinci_variable" "pingcli__apiEndpoint"`,
 				`resource "pingone_davinci_connector_instance" "pingcli__External-0020-API"`,
 				`resource "pingone_davinci_flow" "pingcli__Login-0020-Flow"`,
 				`resource "pingone_davinci_application" "pingcli__My-0020-App"`,
-				`resource "pingone_davinci_application_flow_policy" "pingcli__My-0020-Policy"`,
 			},
 		},
 		{
@@ -94,7 +82,7 @@ func TestMultiResourceConversion(t *testing.T) {
 			},
 		},
 		{
-			name: "Only applications and flow policies",
+			name: "Only applications",
 			input: MultiResourceInput{
 				Applications: [][]byte{
 					[]byte(`{
@@ -103,20 +91,10 @@ func TestMultiResourceConversion(t *testing.T) {
 						"name": "Test App"
 					}`),
 				},
-				FlowPolicies: [][]byte{
-					[]byte(`{
-						"id": "policy-1",
-						"environment": {"id": "env-123"},
-						"application": {"id": "app-1"},
-						"name": "Test Policy",
-						"status": "enabled",
-						"flowDistributions": []
-					}`),
-				},
+				// FlowPolicies: Not implemented for Part 1
 			},
 			expected: []string{
 				`resource "pingone_davinci_application" "pingcli__Test-0020-App"`,
-				`resource "pingone_davinci_application_flow_policy" "pingcli__Test-0020-Policy"`,
 			},
 		},
 		{
@@ -202,16 +180,7 @@ func TestMultiResourceOrdering(t *testing.T) {
 				"name": "App"
 			}`),
 		},
-		FlowPolicies: [][]byte{
-			[]byte(`{
-				"id": "policy-1",
-				"environment": {"id": "env-123"},
-				"application": {"id": "app-1"},
-				"name": "Policy",
-				"status": "enabled",
-				"flowDistributions": []
-			}`),
-		},
+		// FlowPolicies: Not implemented for Part 1
 	}
 
 	result, err := ConvertMultiResource(input, false)
@@ -224,9 +193,8 @@ func TestMultiResourceOrdering(t *testing.T) {
 	connPos := strings.Index(result, `resource "pingone_davinci_connector_instance"`)
 	flowPos := strings.Index(result, `resource "pingone_davinci_flow"`)
 	appPos := strings.Index(result, `resource "pingone_davinci_application"`)
-	policyPos := strings.Index(result, `resource "pingone_davinci_application_flow_policy"`)
 
-	// Verify ordering: Variables < Connectors < Flows < Applications < Policies
+	// Verify ordering: Variables < Connectors < Flows < Applications
 	if varPos > connPos {
 		t.Error("Variables should come before connector instances")
 	}
@@ -235,9 +203,6 @@ func TestMultiResourceOrdering(t *testing.T) {
 	}
 	if flowPos > appPos {
 		t.Error("Flows should come before applications")
-	}
-	if appPos > policyPos {
-		t.Error("Applications should come before flow policies")
 	}
 }
 

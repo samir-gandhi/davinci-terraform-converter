@@ -13,22 +13,22 @@ import (
 // TestExportConnectorInstances tests the connector instance export functionality
 func TestExportConnectorInstances(t *testing.T) {
 	tests := []struct {
-		name string
-		client *api.Client
-		expectError bool
+		name          string
+		client        *api.Client
+		expectError   bool
 		errorContains string
 	}{
 		{
-			name: "Returns error when client is nil",
-			client: nil,
-			expectError: true,
+			name:          "Returns error when client is nil",
+			client:        nil,
+			expectError:   true,
 			errorContains: "API client is required",
 		},
 		{
 			name: "Validates client structure for connector export",
 			client: &api.Client{
 				EnvironmentID: "test-env-id",
-				Region: "NA",
+				Region:        "NA",
 			},
 			expectError: true, // Will fail when trying to call API methods
 		},
@@ -55,7 +55,7 @@ func TestExportConnectorInstances(t *testing.T) {
 func TestExportConnectorInstancesWithSkipDeps(t *testing.T) {
 	client := &api.Client{
 		EnvironmentID: "test-env-id",
-		Region: "NA",
+		Region:        "NA",
 	}
 
 	ctx := context.Background()
@@ -75,19 +75,19 @@ func TestExportConnectorInstancesWithSkipDeps(t *testing.T) {
 // TestConvertInstanceDetailToJSON tests the conversion helper
 func TestConvertInstanceDetailToJSON(t *testing.T) {
 	tests := []struct {
-		name string
-		detail *api.ConnectorInstanceDetail
+		name         string
+		detail       *api.ConnectorInstanceDetail
 		expectFields []string
 	}{
 		{
 			name: "Converts instance detail with all fields",
 			detail: &api.ConnectorInstanceDetail{
-				InstanceID: "test-instance-id",
-				Name: "Test Instance",
+				InstanceID:  "test-instance-id",
+				Name:        "Test Instance",
 				ConnectorID: "test-connector-id",
 				Properties: map[string]interface{}{
 					"property1": map[string]interface{}{
-						"type": "string",
+						"type":  "string",
 						"value": "test-value",
 					},
 				},
@@ -97,10 +97,10 @@ func TestConvertInstanceDetailToJSON(t *testing.T) {
 		{
 			name: "Converts instance detail without properties",
 			detail: &api.ConnectorInstanceDetail{
-				InstanceID: "test-instance-id",
-				Name: "Test Instance",
+				InstanceID:  "test-instance-id",
+				Name:        "Test Instance",
 				ConnectorID: "test-connector-id",
-				Properties: nil,
+				Properties:  nil,
 			},
 			expectFields: []string{"id", "name", "connector"},
 		},
@@ -108,7 +108,7 @@ func TestConvertInstanceDetailToJSON(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			jsonBytes, err := convertInstanceDetailToJSON(tt.detail)
+			jsonBytes, err := convertInstanceDetailToJSON(tt.detail, "test-env-id")
 			require.NoError(t, err)
 
 			jsonStr := string(jsonBytes)
@@ -129,18 +129,18 @@ func TestConvertInstanceDetailToJSON(t *testing.T) {
 // TestConvertInstanceDetailToJSONStructure verifies JSON structure matches converter expectations
 func TestConvertInstanceDetailToJSONStructure(t *testing.T) {
 	detail := &api.ConnectorInstanceDetail{
-		InstanceID: "instance-123",
-		Name: "My Connector",
+		InstanceID:  "instance-123",
+		Name:        "My Connector",
 		ConnectorID: "connector-456",
 		Properties: map[string]interface{}{
 			"apiKey": map[string]interface{}{
-				"type": "string",
+				"type":  "string",
 				"value": "secret-value",
 			},
 		},
 	}
 
-	jsonBytes, err := convertInstanceDetailToJSON(detail)
+	jsonBytes, err := convertInstanceDetailToJSON(detail, "62f10a04-6c54-40c2-a97d-80a98522ff9a")
 	require.NoError(t, err)
 
 	// Verify it's valid JSON
@@ -154,4 +154,6 @@ func TestConvertInstanceDetailToJSONStructure(t *testing.T) {
 	assert.Contains(t, jsonStr, `"connector"`)
 	assert.Contains(t, jsonStr, `"id":"connector-456"`)
 	assert.Contains(t, jsonStr, `"properties"`)
+	assert.Contains(t, jsonStr, `"environment"`)
+	assert.Contains(t, jsonStr, `62f10a04-6c54-40c2-a97d-80a98522ff9a`)
 }
