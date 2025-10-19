@@ -10,6 +10,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -20,7 +21,9 @@ import (
 	"github.com/hashicorp/go-plugin"
 	"github.com/pingidentity/pingcli/shared/grpc"
 	"github.com/samir-gandhi/davinci-terraform-converter/cmd"
+	"github.com/samir-gandhi/davinci-terraform-converter/internal/api"
 	"github.com/samir-gandhi/davinci-terraform-converter/internal/converter"
+	"github.com/samir-gandhi/davinci-terraform-converter/internal/exporter"
 	"github.com/spf13/pflag"
 )
 
@@ -73,10 +76,19 @@ func runAsPlugin() {
 func runAsStandalone() {
 	flags := pflag.NewFlagSet("davinci-convert", pflag.ExitOnError)
 
-	flowJSON := flags.StringP("flow-json", "f", "", "Path to input DaVinci flow JSON file (required)")
+	// File-based conversion flags
+	flowJSON := flags.StringP("flow-json", "f", "", "Path to input DaVinci flow JSON file")
 	out := flags.StringP("out", "o", "", "Path to output HCL file (optional, defaults to stdout)")
 	outDir := flags.StringP("out-dir", "d", "", "Directory for multi-flow output (optional, for multi-flow exports)")
 	skipDependencies := flags.Bool("skip-dependencies", false, "Skip generating Terraform references and use hardcoded IDs instead")
+
+	// API export flags
+	export := flags.Bool("export", false, "Enable API export mode to export all resources from an environment")
+	environmentID := flags.String("environment-id", "", "PingOne environment ID for API export (or use PINGONE_ENVIRONMENT_ID env var)")
+	region := flags.String("region", "", "PingOne region: NA, EU, AP, or CA (or use PINGONE_REGION env var)")
+	clientID := flags.String("client-id", "", "OAuth client ID for authentication (or use PINGONE_CLIENT_ID env var)")
+	clientSecret := flags.String("client-secret", "", "OAuth client secret for authentication (or use PINGONE_CLIENT_SECRET env var)")
+
 	help := flags.BoolP("help", "h", false, "Show help message")
 	showVersion := flags.BoolP("version", "v", false, "Show version information")
 
@@ -86,13 +98,18 @@ func runAsStandalone() {
 		fmt.Fprintf(os.Stderr, "  %s [flags]\n\n", os.Args[0])
 		fmt.Fprintf(os.Stderr, "Flags:\n")
 		flags.PrintDefaults()
-		fmt.Fprintf(os.Stderr, "\nExamples:\n")
+		fmt.Fprintf(os.Stderr, "\nFile-based Conversion Examples:\n")
 		fmt.Fprintf(os.Stderr, "  # Convert single flow to stdout\n")
 		fmt.Fprintf(os.Stderr, "  %s --flow-json flow.json\n\n", os.Args[0])
 		fmt.Fprintf(os.Stderr, "  # Convert single flow to file\n")
 		fmt.Fprintf(os.Stderr, "  %s --flow-json flow.json --out output.tf\n\n", os.Args[0])
 		fmt.Fprintf(os.Stderr, "  # Convert multi-flow export to directory\n")
 		fmt.Fprintf(os.Stderr, "  %s --flow-json multiflow.json --out-dir ./flows\n\n", os.Args[0])
+		fmt.Fprintf(os.Stderr, "\nAPI Export Examples:\n")
+		fmt.Fprintf(os.Stderr, "  # Export all resources from environment\n")
+		fmt.Fprintf(os.Stderr, "  %s --export --environment-id <uuid> --region NA --client-id <id> --client-secret <secret> --out environment.tf\n\n", os.Args[0])
+		fmt.Fprintf(os.Stderr, "  # Export with environment variables\n")
+		fmt.Fprintf(os.Stderr, "  PINGONE_ENVIRONMENT_ID=<uuid> PINGONE_CLIENT_ID=<id> PINGONE_CLIENT_SECRET=<secret> %s --export --out environment.tf\n\n", os.Args[0])
 	}
 
 	if err := flags.Parse(os.Args[1:]); err != nil {
@@ -110,8 +127,15 @@ func runAsStandalone() {
 		os.Exit(0)
 	}
 
+	// Determine which mode to use
+	if *export {
+		handleExportMode(*environmentID, *region, *clientID, *clientSecret, *out, *skipDependencies)
+		return
+	}
+
+	// File-based conversion mode
 	if *flowJSON == "" {
-		fmt.Fprintf(os.Stderr, "Error: --flow-json flag is required\n\n")
+		fmt.Fprintf(os.Stderr, "Error: --flow-json flag is required for file-based conversion\n\n")
 		flags.Usage()
 		os.Exit(1)
 	}
@@ -135,6 +159,71 @@ func runAsStandalone() {
 		handleMultiFlow(fileData, *out, *outDir, *flowJSON, *skipDependencies)
 	} else {
 		handleSingleFlow(fileData, *out, *skipDependencies)
+	}
+}
+
+// handleExportMode handles API export of all resources from an environment
+func handleExportMode(environmentID, region, clientID, clientSecret, outPath string, skipDependencies bool) {
+	// Get credentials from environment variables if not provided via flags
+	if environmentID == "" {
+		environmentID = os.Getenv("PINGONE_ENVIRONMENT_ID")
+	}
+	if region == "" {
+		region = os.Getenv("PINGONE_REGION")
+	}
+	if clientID == "" {
+		clientID = os.Getenv("PINGONE_CLIENT_ID")
+	}
+	if clientSecret == "" {
+		clientSecret = os.Getenv("PINGONE_CLIENT_SECRET")
+	}
+
+	// Validate required credentials
+	if environmentID == "" {
+		fmt.Fprintf(os.Stderr, "Error: environment ID is required - use --environment-id flag or PINGONE_ENVIRONMENT_ID env var\n")
+		os.Exit(1)
+	}
+	if clientID == "" {
+		fmt.Fprintf(os.Stderr, "Error: client ID is required - use --client-id flag or PINGONE_CLIENT_ID env var\n")
+		os.Exit(1)
+	}
+	if clientSecret == "" {
+		fmt.Fprintf(os.Stderr, "Error: client secret is required - use --client-secret flag or PINGONE_CLIENT_SECRET env var\n")
+		os.Exit(1)
+	}
+
+	// Default region to NA if not specified
+	if region == "" {
+		region = "NA"
+	}
+
+	fmt.Fprintf(os.Stderr, "Exporting DaVinci environment: %s (Region: %s)\n", environmentID, region)
+
+	// Create API client
+	ctx := context.Background()
+	client, err := api.NewClientSingleEnvironment(ctx, environmentID, region, clientID, clientSecret)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error creating API client: %v\n", err)
+		os.Exit(1)
+	}
+
+	// Export all resources
+	hcl, err := exporter.ExportEnvironment(ctx, client, skipDependencies)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error exporting environment: %v\n", err)
+		os.Exit(1)
+	}
+
+	// Write output
+	if outPath != "" {
+		if err := os.WriteFile(outPath, []byte(hcl), 0644); err != nil {
+			fmt.Fprintf(os.Stderr, "Error writing output file: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Printf("Successfully exported environment to: %s (%d bytes)\n", outPath, len(hcl))
+	} else {
+		// Write to stdout
+		fmt.Print(hcl)
 	}
 }
 

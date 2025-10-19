@@ -366,6 +366,99 @@ variable "environment_id" {
 
 ---
 
+## Phase 3.7: CLI Integration ✅ COMPLETE
+
+**Goal**: Add export capability to CLI command.
+
+**Files Modified**:
+- `cmd/convert.go` - Added export mode flags and logic to command plugin
+- `main.go` - Added export mode support to standalone CLI
+
+**New Flags Added**:
+- `--export` - Enable API export mode
+- `--environment-id <uuid>` - PingOne environment ID (or use PINGONE_ENVIRONMENT_ID env var)
+- `--region <code>` - PingOne region: NA, EU, AP, or CA (or use PINGONE_REGION env var)
+- `--client-id <id>` - OAuth client ID (or use PINGONE_CLIENT_ID env var)
+- `--client-secret <secret>` - OAuth client secret (or use PINGONE_CLIENT_SECRET env var)
+
+**Implementation Details**:
+
+**cmd/convert.go (Plugin Mode)**:
+- Added `runFileMode()` - Handles file-based conversion (existing functionality)
+- Added `runExportMode()` - Handles API export mode
+- Reads credentials from flags or environment variables
+- Creates API client using `api.NewClientSingleEnvironment()`
+- Calls `exporter.ExportEnvironment()` to export all resources
+- Writes output to file or stdout
+- Validates required credentials and provides helpful error messages
+
+**main.go (Standalone Mode)**:
+- Added export flags to standalone CLI flag parsing
+- Added `handleExportMode()` function with same logic as plugin mode
+- Updated help text with API export examples
+- Maintains backward compatibility with existing file-based conversion
+
+**Authentication**:
+- Flags take precedence over environment variables
+- Falls back to environment variables if flags not provided
+- Validates required credentials before attempting export
+- Defaults region to "NA" if not specified
+
+**Usage Examples**:
+
+```bash
+# Export with flags
+./davinci-convert --export \
+  --environment-id 62f10a04-6c54-40c2-a97d-80a98522ff9a \
+  --region NA \
+  --client-id <id> \
+  --client-secret <secret> \
+  --out environment.tf
+
+# Export with environment variables
+export PINGONE_ENVIRONMENT_ID=62f10a04-6c54-40c2-a97d-80a98522ff9a
+export PINGONE_CLIENT_ID=<id>
+export PINGONE_CLIENT_SECRET=<secret>
+export PINGONE_REGION=NA
+./davinci-convert --export --out environment.tf
+
+# Export with skip-dependencies
+./davinci-convert --export \
+  --environment-id 62f10a04-6c54-40c2-a97d-80a98522ff9a \
+  --skip-dependencies \
+  --out environment.tf
+```
+
+**Test Results**:
+- Manual testing successful with real environment
+- Export with dependencies: 526,890 bytes (includes provider config, uses var.environment_id)
+- Export with skip-dependencies: 518,932 bytes (no provider config, uses raw UUIDs)
+- All existing tests pass (92/92 unit tests)
+- Command compiles successfully
+- Both plugin mode and standalone mode working
+
+**Output Validation**:
+- ✅ With dependencies: Includes terraform, provider, and variable blocks
+- ✅ With dependencies: Uses `var.environment_id` in resources
+- ✅ Skip dependencies: No provider/terraform/variable blocks
+- ✅ Skip dependencies: Uses raw UUIDs in resources
+- ✅ Header comment with environment ID and region
+- ✅ Resources exported in correct dependency order
+- ✅ Output written to file or stdout as specified
+
+**Success Criteria Met**:
+- ✅ Can run export from command line
+- ✅ Validates required flags with helpful error messages
+- ✅ Creates complete HCL output (526KB)
+- ✅ Manual testing successful
+- ✅ Both plugin and standalone modes work
+- ✅ Environment variables supported
+- ✅ Skip-dependencies flag working correctly
+
+**Review Point**: Phase 3.7 COMPLETE ✅. CLI integration successful. Ready for Phase 3.8 (Acceptance Tests - Optional).
+
+---
+
 ## Phase 3.2a: Connector Instance API Client ✅ COMPLETE
 
 **Goal**: Create API client for connector instances using SDK.
@@ -903,12 +996,13 @@ func ExportEnvironment(ctx context.Context, client *api.Client, skipDeps bool) (
 
 **Total Phases**: 15 reviewable checkpoints
 
-**Phases Complete**: 13/15 (Phase 3.0, 3.1a, 3.1b, 3.1c, 3.2a, 3.2b, 3.3a, 3.3b, 3.4a, 3.4b, 3.4c, 3.5a, 3.5b, 3.6)
+**Phases Complete**: 14/15 (Phase 3.0, 3.1a, 3.1b, 3.1c, 3.2a, 3.2b, 3.3a, 3.3b, 3.4a, 3.4b, 3.4c, 3.5a, 3.5b, 3.6, 3.7)
 
-**Phase In Progress**: None - Phase 3.6 complete, ready for Phase 3.7 (CLI Integration)
+**Phase In Progress**: None - Phase 3.7 complete, ready for Phase 3.8 (Acceptance Tests - Optional)
 
 **Total New Files**: ~28 files planned (14 implementation + 14 test files)
 - **Files Created So Far**: 27 files (12 implementation + 14 test + 1 documentation)
+- **Files Modified**: 2 files (cmd/convert.go, main.go for CLI integration)
 
 **Approach**: 
 1. Implement one phase
@@ -917,7 +1011,7 @@ func ExportEnvironment(ctx context.Context, client *api.Client, skipDeps bool) (
 4. Get confirmation to continue
 5. Move to next phase
 
-**Current Position**: Phase 3.6 COMPLETE ✅. Orchestrator successfully exports complete environment (526KB) with all 5 resource types in dependency order. All 92 unit tests passing. Ready for Phase 3.7 (CLI Integration).
+**Current Position**: Phase 3.7 COMPLETE ✅. CLI integration successful. Export functionality working from both plugin and standalone modes. Successfully tested with real environment (526KB export). Only Phase 3.8 (Acceptance Tests - Optional) remaining.
 
 **Key Achievements**:
 - ✅ OAuth2 authentication with PingOne SDK
@@ -937,6 +1031,10 @@ func ExportEnvironment(ctx context.Context, client *api.Client, skipDeps bool) (
 - ✅ Flow policy export to HCL (0 policies in test environment)
 - ✅ Orchestrator coordinates all 5 resource types in dependency order
 - ✅ Complete environment export (526KB with dependencies, 518KB without)
+- ✅ CLI integration complete with --export flag
+- ✅ Standalone and plugin modes both support export
+- ✅ Environment variable fallback for credentials
+- ✅ Manual testing successful with real environment
 - ✅ Comprehensive acceptance test framework with real API calls (36 tests)
 - ✅ JSON export format for debugging
 - ✅ Skip-dependencies support
