@@ -70,7 +70,7 @@ func ConvertMultiResource(input MultiResourceInput, skipDependencies bool) (stri
 			envID = "var.environment_id"
 		}
 
-		result, err := ConvertFlowToHCL(flowData, envID, skipDependencies)
+		result, err := ConvertFlowToHCL(flowData, envID, skipDependencies, nil)
 		if err != nil {
 			return "", fmt.Errorf("failed to convert flow %d: %w", i, err)
 		}

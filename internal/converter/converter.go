@@ -54,7 +54,7 @@ func ConvertWithOptions(flowJSON []byte, skipDependencies bool) (string, error) 
 	}
 
 	// Use the new ConvertFlowToHCL function
-	hcl, err := ConvertFlowToHCL(flowData, "var.environment_id", skipDependencies)
+	hcl, err := ConvertFlowToHCL(flowData, "var.environment_id", skipDependencies, nil)
 	if err != nil {
 		return "", fmt.Errorf("failed to generate HCL: %w", err)
 	}
@@ -97,7 +97,7 @@ func ConvertMultiFlowWithOptions(multiFlowJSON []byte, skipDependencies bool) ([
 			return nil, fmt.Errorf("failed to unmarshal flow %d (%s): %w", i, flow.Name, err)
 		}
 
-		hcl, err := ConvertFlowToHCL(flowData, "var.environment_id", skipDependencies)
+		hcl, err := ConvertFlowToHCL(flowData, "var.environment_id", skipDependencies, nil)
 		if err != nil {
 			return nil, fmt.Errorf("failed to generate HCL for flow %d (%s): %w", i, flow.Name, err)
 		}

@@ -50,7 +50,7 @@ func ExportFlows(ctx context.Context, client *api.Client, skipDeps bool) (string
 		}
 
 		// Convert to HCL using the existing converter
-		hcl, err := converter.ConvertFlowToHCL(flowData, envID, skipDeps)
+		hcl, err := converter.ConvertFlowToHCL(flowData, envID, skipDeps, nil)
 		if err != nil {
 			return "", fmt.Errorf("failed to convert flow %s to HCL: %w", summary.Name, err)
 		}

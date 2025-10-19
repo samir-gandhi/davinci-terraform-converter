@@ -193,7 +193,7 @@ func TestComprehensiveFlowConversion(t *testing.T) {
 	require.NoError(t, err, "Failed to parse flow JSON")
 
 	// Convert to HCL
-	result, err := converter.ConvertFlowToHCL(flowData, "var.environment_id", false)
+	result, err := converter.ConvertFlowToHCL(flowData, "var.environment_id", false, nil)
 	require.NoError(t, err, "ConvertFlowToHCL failed")
 
 	// Assert the HCL output contains expected key elements (flexible matching)
@@ -238,7 +238,7 @@ func TestFlowConversion_NoEdges(t *testing.T) {
 	err := json.Unmarshal([]byte(flowJSON), &flowData)
 	require.NoError(t, err)
 
-	result, err := converter.ConvertFlowToHCL(flowData, "var.environment_id", false)
+	result, err := converter.ConvertFlowToHCL(flowData, "var.environment_id", false, nil)
 	require.NoError(t, err)
 
 	// Should contain nodes but empty edges array
@@ -257,7 +257,7 @@ func TestFlowConversion_MinimalFlow(t *testing.T) {
 	err := json.Unmarshal([]byte(flowJSON), &flowData)
 	require.NoError(t, err)
 
-	result, err := converter.ConvertFlowToHCL(flowData, "var.environment_id", false)
+	result, err := converter.ConvertFlowToHCL(flowData, "var.environment_id", false, nil)
 	require.NoError(t, err)
 
 	// Should contain required fields (flexible spacing match)
@@ -280,7 +280,7 @@ func TestFlowConversion_EscapeSpecialCharacters(t *testing.T) {
 	err := json.Unmarshal([]byte(flowJSON), &flowData)
 	require.NoError(t, err)
 
-	result, err := converter.ConvertFlowToHCL(flowData, "var.environment_id", false)
+	result, err := converter.ConvertFlowToHCL(flowData, "var.environment_id", false, nil)
 	require.NoError(t, err)
 
 	// Should properly escape special characters in HCL strings
@@ -317,7 +317,7 @@ func TestFlowConversion_NodeProperties(t *testing.T) {
 	err := json.Unmarshal([]byte(flowJSON), &flowData)
 	require.NoError(t, err)
 
-	result, err := converter.ConvertFlowToHCL(flowData, "var.environment_id", false)
+	result, err := converter.ConvertFlowToHCL(flowData, "var.environment_id", false, nil)
 	require.NoError(t, err)
 
 	// properties should use base64decode() with base64-encoded JSON
@@ -344,7 +344,7 @@ func TestFlowConversion_RendererField(t *testing.T) {
 	err := json.Unmarshal([]byte(flowJSON), &flowData)
 	require.NoError(t, err)
 
-	result, err := converter.ConvertFlowToHCL(flowData, "var.environment_id", false)
+	result, err := converter.ConvertFlowToHCL(flowData, "var.environment_id", false, nil)
 	require.NoError(t, err)
 
 	// renderer should use jsonencode() - renderer field NOT base64 encoded
@@ -376,7 +376,7 @@ func TestFlowConversion_ConnectionIDReference(t *testing.T) {
 	err := json.Unmarshal([]byte(flowJSON), &flowData)
 	require.NoError(t, err)
 
-	result, err := converter.ConvertFlowToHCL(flowData, "var.environment_id", false)
+	result, err := converter.ConvertFlowToHCL(flowData, "var.environment_id", false, nil)
 	require.NoError(t, err)
 
 	// connection_id should be converted to Terraform reference

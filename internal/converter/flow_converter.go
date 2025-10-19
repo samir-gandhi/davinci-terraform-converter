@@ -8,13 +8,15 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/samir-gandhi/davinci-terraform-converter/internal/resolver"
 	"github.com/samir-gandhi/davinci-terraform-converter/internal/utils"
 )
 
 // ConvertFlowToHCL converts a DaVinci flow JSON structure to Terraform HCL
 // This implements Part 2.1 Phase 2.1 - Comprehensive Flow Structure Conversion
 // If skipDependencies is true, connection IDs will be left as hardcoded strings instead of Terraform references
-func ConvertFlowToHCL(flowData map[string]interface{}, environmentID string, skipDependencies bool) (string, error) {
+// graph parameter is optional; if provided, uses resolver for reference generation
+func ConvertFlowToHCL(flowData map[string]interface{}, environmentID string, skipDependencies bool, graph *resolver.DependencyGraph) (string, error) {
 	var hcl strings.Builder
 
 	// Generate resource name from flow name using pingcli-compatible sanitization
@@ -55,7 +57,7 @@ func ConvertFlowToHCL(flowData map[string]interface{}, environmentID string, ski
 	// Graph data block - complex nested structure
 	if graphData, ok := flowData["graphData"].(map[string]interface{}); ok {
 		hcl.WriteString("\n")
-		if err := writeGraphDataBlock(&hcl, graphData, skipDependencies); err != nil {
+		if err := writeGraphDataBlock(&hcl, graphData, skipDependencies, graph); err != nil {
 			return "", fmt.Errorf("failed to write graph_data: %w", err)
 		}
 	}
@@ -200,7 +202,7 @@ func writeSettingsBlock(hcl *strings.Builder, settings map[string]interface{}) e
 }
 
 // writeGraphDataBlock writes the graph_data nested block
-func writeGraphDataBlock(hcl *strings.Builder, graphData map[string]interface{}, skipDependencies bool) error {
+func writeGraphDataBlock(hcl *strings.Builder, graphData map[string]interface{}, skipDependencies bool, graph *resolver.DependencyGraph) error {
 	hcl.WriteString("  graph_data = {\n")
 
 	// Elements (nodes and edges) - most complex part
@@ -209,7 +211,7 @@ func writeGraphDataBlock(hcl *strings.Builder, graphData map[string]interface{},
 
 		// Nodes
 		if nodes, ok := elements["nodes"].([]interface{}); ok {
-			if err := writeNodesBlock(hcl, nodes, skipDependencies); err != nil {
+			if err := writeNodesBlock(hcl, nodes, skipDependencies, graph); err != nil {
 				return fmt.Errorf("failed to write nodes: %w", err)
 			}
 		}
@@ -276,7 +278,7 @@ func writeGraphDataBlock(hcl *strings.Builder, graphData map[string]interface{},
 }
 
 // writeNodesBlock writes the nodes array within elements
-func writeNodesBlock(hcl *strings.Builder, nodes []interface{}, skipDependencies bool) error {
+func writeNodesBlock(hcl *strings.Builder, nodes []interface{}, skipDependencies bool, graph *resolver.DependencyGraph) error {
 	hcl.WriteString("      nodes = [\n")
 
 	for i, nodeInterface := range nodes {
@@ -305,9 +307,20 @@ func writeNodesBlock(hcl *strings.Builder, nodes []interface{}, skipDependencies
 					// Use hardcoded ID when skipping dependencies
 					hcl.WriteString(fmt.Sprintf("            connection_id   = %s\n", quoteString(connectionID)))
 				} else {
-					// Generate Terraform reference
-					connectorID := getString(data, "connectorId")
-					ref := generateConnectionReference(connectorID, connectionID)
+					// Generate Terraform reference using resolver if available
+					var ref string
+					if graph != nil {
+						var err error
+						ref, err = resolver.GenerateTerraformReference(graph, "connector_instance", connectionID, "id")
+						if err != nil {
+							// If reference generation fails, use TODO placeholder
+							ref = resolver.GenerateTODOPlaceholder("connector_instance", connectionID, err)
+						}
+					} else {
+						// Fallback to legacy logic if no graph provided
+						connectorID := getString(data, "connectorId")
+						ref = generateConnectionReference(connectorID, connectionID)
+					}
 					hcl.WriteString(fmt.Sprintf("            connection_id   = %s\n", ref))
 				}
 			}

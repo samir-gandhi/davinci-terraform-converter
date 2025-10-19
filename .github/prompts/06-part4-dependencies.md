@@ -4,14 +4,142 @@ mode: agent
 
 # Part 4: Dependency Resolution and Terraform References
 
-**Status**: ⏳ NOT STARTED (After Part 3 complete)
+**Status**: 🟡 IN PROGRESS
 
 **Prerequisites**:
-- Part 3 (full export) must be complete
-- All resource types can be exported
-- HAL link parsing functional (for Phase 3.6)
+- ✅ Part 3 (full export) complete
+- ✅ All resource types can be exported
+- ✅ HAL link parsing functional
 
 **Goal**: Replace hardcoded resource IDs with Terraform references to enable proper resource dependencies.
+
+---
+
+## Current Implementation Status
+
+### Phase 4.1: Build Dependency Graph - ✅ COMPLETE
+
+**Architecture**: Four-tier system
+1. **Schema (HARDCODED)** - Defines WHERE dependencies exist in resource JSON
+2. **Parser (DYNAMIC)** - Extracts dependency IDs using schema paths
+3. **Graph (DYNAMIC)** - Stores discovered dependency relationships
+4. **Hierarchy (DYNAMIC)** - Tracks parent-child from HAL links (separate from dependencies)
+
+**Implemented Files**:
+- ✅ `internal/resolver/resolver.go` - Core dependency graph (115 lines)
+  - ResourceRef, Dependency, DependencyGraph structures
+  - AddResource(), AddDependency(), GetDependencies(), GetReferenceName()
+  - 9/9 tests passing
+  
+- ✅ `internal/resolver/schema.go` - Hardcoded dependency schemas (129 lines)
+  - FieldPath structure: Path (JSON path), TargetType, FieldName, IsArray, IsOptional
+  - GetFlowDependencySchema() - 3 paths: nodes[*].data.connectionId, nodes[*].data.properties.variableId, nodes[*].data.properties.subFlowId
+  - GetFlowPolicyDependencySchema() - 2 paths: flowDistributions[*].id, applicationId
+  - GetApplicationDependencySchema() - empty (no embedded dependencies)
+  - GetConnectorInstanceDependencySchema() - empty
+  - GetVariableDependencySchema() - empty
+  - 9/9 schema tests passing
+  
+- ✅ `internal/resolver/hierarchy.go` - Parent-child relationship tracking (79 lines)
+  - HierarchyRelationship: ParentType, ParentID, ChildType, Children[]
+  - ResourceHierarchyGraph.AddRelationship(parentType, parentID, childType, childIDs[])
+  - ResourceHierarchyGraph.GetChildren(parentType, parentID)
+  - Separate from field-level dependencies - tracks HAL link ownership
+  - 8/8 hierarchy tests passing
+
+- ✅ `internal/resolver/parser.go` - Schema-driven dependency extraction (200 lines)
+  - ParseResourceDependencies(type, id, data, schema) - Main parsing function
+  - extractValuesAtPath(data, path) - JSON path navigation with array wildcard support
+  - traversePath(values, pathParts) - Recursive traversal handling items[*] notation
+  - navigateToField(data, field) - Field extraction from map[string]interface{}
+  - splitPath(path) - Path parsing preserving bracket notation
+  - FindReferencesInFlow/FlowPolicy/Application/ConnectorInstance/Variable() - Type-specific wrappers
+  - 17/17 parser tests passing
+
+- ✅ `internal/resolver/resolver_manager.go` - Parent constructor orchestrating components (350 lines)
+  - ResolverManager coordinates: schema + parser + graph + hierarchy
+  - ProcessResource(type, id, data, links) - Main entry point
+    * Uses schema to get dependency paths
+    * Calls parser to extract IDs
+    * Stores in dependency graph
+    * Parses HAL links for hierarchy
+  - GenerateOutput() - Produces ResourceWithDependencies output
+  - Preserves original data for re-parsing
+  - Tracks unresolved dependencies separately
+
+- ✅ `internal/resolver/README.md` - Architecture documentation (comprehensive developer guide)
+- ✅ `internal/resolver/COMPARISON_TO_TERRAFORMER.md` - Analysis proving our approach superior for DaVinci
+
+**Test Coverage**:
+- ✅ 53/53 resolver package tests passing
+  - 9 resolver tests (graph operations)
+  - 17 parser tests (path traversal, dependency extraction)
+  - 9 schema tests (schema definitions, lookups)
+  - 8 hierarchy tests (relationship tracking)
+  - 6 naming tests (sanitization, uniqueness)
+  - 4 integration tests (complete workflow validation)
+- ✅ All internal tests passing
+
+**Integration Test Coverage**:
+- ✅ Complete workflow: flowData → schema → parser → dependencies → Terraform references
+- ✅ Flow policy dependency resolution with applications and flows
+- ✅ Real-world JSON parsing from DaVinci API format
+- ✅ Name uniqueness enforcement across multiple resources
+- ✅ Missing dependency error handling and TODO generation
+
+**Key Architecture Decisions**:
+- **Schema is HARDCODED source of truth** - Defines field paths like "graphData.elements.nodes[*].data.connectionId"
+- **Parser is DYNAMIC** - Uses schema paths to navigate runtime JSON and extract dependency IDs
+- **Graph is DYNAMIC** - Stores discovered dependencies at runtime
+- **Hierarchy separate from dependencies** - HAL links show ownership (app owns policies), field parsing shows references (policy references flow)
+- **Array wildcard support** - Parser handles paths like "items[*].id" to extract from all array elements
+- **Optional vs Required** - Schema marks fields as IsOptional to handle missing dependencies gracefully
+- **ResolverManager delegates** - Reduced from 420 to 350 lines by delegating path traversal to parser module
+- **Data preservation** - Original JSON preserved in output for re-parsing if needed
+
+### Phase 4.2: Generate Terraform References - ✅ COMPLETE
+
+**Goal**: Replace extracted dependency IDs with Terraform reference syntax
+
+**Implemented**:
+- ✅ `internal/resolver/naming.go` - Name sanitization (70 lines)
+  - SanitizeName() - Converts human-readable names to valid Terraform identifiers
+  - Handles: lowercase, special chars, spaces → underscores, uniqueness tracking
+  - toSnakeCase() - Converts camelCase/PascalCase for connector IDs
+  - 3/3 naming tests passing
+  
+- ✅ `internal/resolver/reference.go` - Terraform reference generation (40 lines)
+  - GenerateTerraformReference(graph, type, id, attribute) → "pingone_davinci_flow.my_flow.id"
+  - GenerateTODOPlaceholder(type, id, error) → Comment for missing dependencies
+  - mapToTerraformResourceType() - Internal type → Terraform provider resource type
+  - 3/3 reference tests passing
+
+**Functionality**:
+- GetReferenceName() already implemented in resolver.go
+- Resource name uniqueness enforced via nameUsage map in DependencyGraph
+- Reference format: `resource_type.resource_name.attribute`
+- TODO placeholders include resource type, ID, and error context
+
+**Test Coverage**:
+- ✅ 49/49 resolver package tests passing (43 + 6 new)
+
+### Phase 4.3: Handle Missing Dependencies - ⏳ NOT STARTED
+
+**Goal**: Generate informative placeholders when dependencies not found
+
+**Planned Implementation**:
+- Track missing dependency reasons (excluded, not included, not found)
+- Generate TODO comments with original IDs and names
+- Summary report after export
+
+### Phase 4.4: Validate Dependency Graph - ⏳ NOT STARTED
+
+**Goal**: Detect circular dependencies and generate optimal ordering
+
+**Planned Implementation**:
+- Cycle detection using DFS
+- Topological sort for resource ordering
+- Error reporting for unresolvable cycles
 
 ---
 
@@ -60,546 +188,377 @@ This allows Terraform to understand resource dependencies and apply them in corr
 
 ## Phase 4.1: Build Dependency Graph
 
-**Goal**: Discover all resource relationships.
+**STATUS**: ✅ COMPLETE
 
-### Create Dependency Resolver
+**Implementation approach**:
 
-Create `internal/resolver/resolver.go`:
+Our implementation uses a **schema-driven architecture** where dependency locations are defined once and applied dynamically to runtime data. This approach is superior to Terraformer's hardcoded connection mappings (see COMPARISON_TO_TERRAFORMER.md).
+
+### Architecture Overview
+
+**Four-tier system**:
+
+1. **Schema (HARDCODED)** - JSON path definitions pointing to dependency fields
+2. **Parser (DYNAMIC)** - Extracts IDs from JSON using schema paths
+3. **Graph (DYNAMIC)** - Stores discovered dependencies
+4. **Hierarchy (DYNAMIC)** - Tracks HAL link parent-child relationships
+
+**Flow**: Schema → Parser → Graph → Output
+
+### Implemented Components
+
+**Core Graph** (`internal/resolver/resolver.go` - 115 lines):
 
 ```go
-package resolver
-
 type ResourceRef struct {
-    Type string  // "flow", "connection", "variable", etc.
+    Type string  // "flow", "connector_instance", "variable"
     ID   string  // Original resource ID
-    Name string  // Sanitized Terraform resource name
 }
 
 type Dependency struct {
-    From     ResourceRef  // Dependent resource
-    To       ResourceRef  // Dependency target
-    Field    string       // Field name containing reference
-    Location string       // Location in structure (e.g., "graphData.nodes[5].data.properties.connectionId")
+    From     ResourceRef
+    To       ResourceRef
+    Field    string  // Terraform field name
 }
 
 type DependencyGraph struct {
-    resources    map[string]ResourceRef  // ID -> ResourceRef
+    resources    map[string]ResourceRef
     dependencies []Dependency
 }
-
-func NewDependencyGraph() *DependencyGraph {
-    return &DependencyGraph{
-        resources:    make(map[string]ResourceRef),
-        dependencies: make([]Dependency, 0),
-    }
-}
-
-func (g *DependencyGraph) AddResource(resourceType, id, name string) {
-    // Register resource
-}
-
-func (g *DependencyGraph) AddDependency(from, to ResourceRef, field, location string) {
-    // Register dependency relationship
-}
-
-func (g *DependencyGraph) GetDependencies(resourceID string) []Dependency {
-    // Get all dependencies for a resource
-}
-
-func (g *DependencyGraph) GetReferenceName(resourceType, resourceID string) (string, error) {
-    // Get Terraform resource name for a given ID
-    // Returns error if resource not found
-}
 ```
 
-### Identify Dependency Types
-
-Parse exported data to find all references:
-
-**Flow Dependencies**:
-- `connectionId` fields in flow nodes → connector instance resources
-- Variable references in node properties → variable resources
-- Subflow node references → other flow resources
-
-**Flow Policy Dependencies**:
-- `flowId` in policy_flow blocks → flow resources
-- `applicationId` (if present) → application resources
-
-**Application Dependencies**:
-- Flow policy associations → flow policy resources
-
-### Parse Multiple Dependency Sources
-
-Use hybrid approach combining two sources:
-
-**1. JSON Structure Parsing** (detailed):
-Parse flow `graphData` to find:
-```json
-{
-  "graphData": {
-    "elements": {
-      "nodes": [
-        {
-          "data": {
-            "connectionId": "abc123",  // Reference to connection
-            "properties": {
-              "variableId": "xyz789"  // Reference to variable
-            }
-          }
-        },
-        {
-          "data": {
-            "nodeType": "FLOW",
-            "capabilityName": "startSubFlowNode",
-            "properties": {
-              "subFlowId": "def456"  // Reference to subflow
-            }
-          }
-        }
-      ]
-    }
-  }
-}
-```
-
-**2. HAL Link Parsing** (high-level):
-Extract from API response `_links`:
-```json
-{
-  "_links": {
-    "connectorInstances": { "href": ".../connectorInstances?flowId=flow123" },
-    "variables": { "href": ".../variables?flowId=flow123" },
-    "subflows": { "href": ".../flows?parentFlowId=flow123" }
-  }
-}
-```
-
-HAL links are more reliable but less detailed. JSON structure gives exact field locations.
-
-Create `internal/resolver/parser.go`:
+**Schema Definitions** (`internal/resolver/schema.go` - 129 lines):
 
 ```go
-func FindReferencesInFlow(flow *Flow) []Dependency {
-    dependencies := []Dependency{}
-    
-    // Parse JSON structure for connectionId fields
-    // Parse JSON structure for variable references
-    // Parse JSON structure for subflow references
-    // Parse HAL links for validation
-    
-    return dependencies
+type FieldPath struct {
+    Path         string  // "graphData.elements.nodes[*].data.connectionId"
+    TargetType   string  // "connector_instance"
+    FieldName    string  // "connection_id"
+    IsArray      bool    // true for arrays
+    IsOptional   bool    // true for optional fields
 }
 
-func FindReferencesInFlowPolicy(policy *FlowPolicy) []Dependency {
-    // Parse flowId references
-    // Parse applicationId references
-    return dependencies
-}
+// Schemas for each resource type
+GetFlowDependencySchema() // 3 paths: connectionId, variableId, subFlowId
+GetFlowPolicyDependencySchema() // 2 paths: flowDistributions[*].id, applicationId
+GetApplicationDependencySchema() // empty
+GetConnectorInstanceDependencySchema() // empty
+GetVariableDependencySchema() // empty
 ```
 
-### Test Dependency Detection
+**Parser** (`internal/resolver/parser.go` - 200 lines):
 
-Create `internal/resolver/resolver_test.go`:
+```go
+// Main parsing function
+ParseResourceDependencies(type, id, data, schema) []Dependency
 
-Test cases:
-- Flow with single connection dependency
-- Flow with multiple connection dependencies
-- Flow with variable references
-- Flow with subflow references
-- Flow with all dependency types
-- Flow policy with flow reference
-- Application with flow policy references
-- Resources with circular dependencies (should detect)
-- Resources with no dependencies
+// Path traversal with array wildcard support
+extractValuesAtPath(data, "nodes[*].data.connectionId")
+// Returns: ["conn-1", "conn-2", "conn-3"]
 
-Mock data for each test case showing expected dependency graph.
+// Path parsing helpers
+splitPath("graphData.elements.nodes[*].data.connectionId")
+traversePath(values, pathParts)
+navigateToField(data, field)
+```
+
+**Hierarchy Tracking** (`internal/resolver/hierarchy.go` - 79 lines):
+
+```go
+type HierarchyRelationship struct {
+    ParentType string   // "application"
+    ParentID   string   // "app-123"
+    ChildType  string   // "flow_policy"
+    Children   []string // ["policy-1", "policy-2"]
+}
+
+// Separate from field-level dependencies
+// Tracks HAL link ownership: app owns policies, policy owns flows
+```
+
+**Orchestration** (`internal/resolver/resolver_manager.go` - 350 lines):
+
+```go
+type ResolverManager struct {
+    graph     *DependencyGraph
+    hierarchy *ResourceHierarchyGraph
+    // Stores original data for re-parsing
+}
+
+// Main entry point
+ProcessResource(type, id, data, links)
+// 1. Get schema for resource type
+// 2. Call parser to extract dependencies
+// 3. Store in graph
+// 4. Parse HAL links for hierarchy
+
+// Output generation
+GenerateOutput() ResourceWithDependencies
+```
+
+### Test Coverage
+
+**43/43 tests passing**:
+
+- 9 resolver tests (graph operations)
+- 17 parser tests (path traversal, dependency extraction)
+- 9 schema tests (schema definitions, lookups)
+- 8 hierarchy tests (relationship tracking)
+
+### Key Design Decisions
+
+**Schema is HARDCODED** - Single source of truth for dependency locations
+
+**Parser is DYNAMIC** - Uses schema paths to navigate runtime JSON
+
+**Hierarchy separate from dependencies**:
+
+- HAL links: Ownership (app owns policies)
+- Field parsing: References (policy references flow)
+
+**Array wildcard support** - Handles `items[*].id` notation
+
+**Original data preserved** - Stored in output for re-parsing
+
+**Comparison to Terraformer**:
+
+- Terraformer: Simple hardcoded mappings, loses original data
+- Our approach: Schema-driven, preserves data, tracks hierarchy
+- Verdict: Our approach better for DaVinci's complex nested structures
 
 ---
 
 ## Phase 4.2: Generate Terraform References
 
-**Goal**: Replace IDs with valid Terraform references.
+**STATUS**: ⏳ NOT STARTED
+
+**Goal**: Replace extracted dependency IDs with Terraform reference syntax.
 
 ### Reference Syntax
 
 Terraform reference format:
+
 ```
 <resource_type>.<resource_name>.<attribute>
 ```
 
 Examples:
-- Connection: `pingone_davinci_connection.http_connector.id`
+
+- Connection: `pingone_davinci_connector_instance.http_connector.id`
 - Variable: `pingone_davinci_variable.api_key.id`
 - Flow: `pingone_davinci_flow.registration.id`
-- Application: `pingone_davinci_application.my_app.id`
 
-### Resource Naming
+### Implementation Plan
 
-Generate valid Terraform resource names from human-readable names.
-
-Create `internal/resolver/naming.go`:
+Update converter to use `DependencyGraph.GetReferenceName(type, id)`:
 
 ```go
-func SanitizeName(name string) string {
-    // Convert to lowercase
-    // Replace spaces with underscores
-    // Remove special characters (keep alphanumeric and underscores)
-    // Ensure starts with letter
-    // Ensure uniqueness (append counter if needed)
-}
-
-// Example transformations:
-// "My HTTP Connector" -> "my_http_connector"
-// "API Key (Production)" -> "api_key_production"
-// "Registration Flow" -> "registration_flow"
-// "Registration Flow" (duplicate) -> "registration_flow_2"
-```
-
-Maintain bidirectional mappings:
-- Original name → Terraform name
-- Original ID → Terraform name
-
-### Update HCL Generation
-
-Modify converter functions to use references:
-
-**For Flows** (update `generateFlowHCL()`):
-```go
-func (c *Converter) generateFlowHCL(flow *Flow, graph *DependencyGraph) (string, error) {
+func (c *Converter) generateFlowHCL(flow *Flow, graph *DependencyGraph) string {
     // When writing connectionId field:
-    connectionName, err := graph.GetReferenceName("connection", connectionID)
+    connectionName, err := graph.GetReferenceName("connector_instance", connectionID)
     if err != nil {
-        // Connection not found - generate TODO placeholder
-        return fmt.Sprintf(`connection_id = "" # TODO: Reference missing for ID: %s`, connectionID)
+        // Generate TODO placeholder for missing dependency
+        return fmt.Sprintf(`connection_id = "" # TODO: %s`, err)
     }
     // Generate reference
-    return fmt.Sprintf("connection_id = pingone_davinci_connection.%s.id", connectionName)
+    return fmt.Sprintf("connection_id = pingone_davinci_connector_instance.%s.id", connectionName)
 }
 ```
-
-**For Flow Policies** (update `generateFlowPolicyHCL()`):
-```go
-func (c *Converter) generateFlowPolicyHCL(policy *FlowPolicy, graph *DependencyGraph) (string, error) {
-    // When writing flow_id field:
-    flowName, err := graph.GetReferenceName("flow", flowID)
-    if err != nil {
-        return fmt.Sprintf(`flow_id = "" # TODO: Reference missing for ID: %s`, flowID)
-    }
-    return fmt.Sprintf("flow_id = pingone_davinci_flow.%s.id", flowName)
-}
-```
-
-**For Variables in Flow Nodes**:
-Handle variable references in node properties using same pattern.
-
-### Test Reference Generation
-
-Create `internal/resolver/reference_test.go`:
-
-Test cases:
-- Generate reference for existing connection
-- Generate reference for existing variable
-- Generate reference for existing flow
-- Generate TODO placeholder for missing connection
-- Generate TODO placeholder for missing variable
-- Verify reference syntax validity
-- Test name sanitization (special chars, spaces, duplicates)
 
 ---
 
 ## Phase 4.3: Handle Missing Dependencies
 
-**Goal**: Gracefully handle references to resources not in export.
+**STATUS**: ⏳ NOT STARTED
 
-### Detect Orphaned References
+**Goal**: Generate informative placeholders when dependencies not found.
 
-Occurs when:
-- Resource was deleted but still referenced
-- Selective export (Phase 3.6) excluded dependency
-- Resource is in different environment
-- HAL link points to non-existent resource
+### Missing Dependency Scenarios
 
-### Generate Placeholder Comments
+Three types:
 
-Three types of missing dependencies:
+1. **Excluded by user** - `--exclude` flag filtered out
+2. **Not included** - Not in `--include` filters
+3. **Not found** - Doesn't exist in environment
 
-**1. Missing by User Exclusion**:
+### Placeholder Format
+
 ```hcl
 connection_id = ""  # TODO: Reference to "PingOne Connector" (ID: abc123) was excluded from export
+variable_id = ""    # TODO: Reference to variable xyz789 not found in environment
 ```
 
-**2. Missing by Selection** (not in include filters):
-```hcl
-variable_id = ""  # TODO: Reference to "apiKey" (ID: xyz789) was not included in export filters
-```
+### Implementation Plan
 
-**3. Actually Missing** (doesn't exist):
-```hcl
-subflow_id = ""  # TODO: Reference to flow ID def456 not found in environment
-```
-
-Create `internal/resolver/missing.go`:
+Track missing dependencies with reasons:
 
 ```go
-type MissingReason int
-
-const (
-    MissingExcluded MissingReason = iota  // User excluded with --exclude flag
-    MissingNotIncluded                    // Not in --include filter
-    MissingNotFound                       // Doesn't exist in environment
-)
-
 type MissingDependency struct {
     ResourceType string
     ResourceID   string
-    ResourceName string  // If available
-    Reason       MissingReason
-}
-
-func GenerateTODOPlaceholder(missing MissingDependency) string {
-    switch missing.Reason {
-    case MissingExcluded:
-        if missing.ResourceName != "" {
-            return fmt.Sprintf(`"" # TODO: Reference to "%s" (ID: %s) was excluded from export`,
-                missing.ResourceName, missing.ResourceID)
-        }
-        return fmt.Sprintf(`"" # TODO: Reference to %s %s was excluded from export`,
-            missing.ResourceType, missing.ResourceID)
-    
-    case MissingNotIncluded:
-        if missing.ResourceName != "" {
-            return fmt.Sprintf(`"" # TODO: Reference to "%s" (ID: %s) was not included in export filters`,
-                missing.ResourceName, missing.ResourceID)
-        }
-        return fmt.Sprintf(`"" # TODO: Reference to %s %s was not included in export filters`,
-            missing.ResourceType, missing.ResourceID)
-    
-    case MissingNotFound:
-        return fmt.Sprintf(`"" # TODO: Reference to %s %s not found in environment`,
-            missing.ResourceType, missing.ResourceID)
-    }
+    Reason       MissingReason  // Excluded, NotIncluded, NotFound
 }
 ```
 
-### Track Missing Dependencies
-
-Update `DependencyGraph`:
-
-```go
-type DependencyGraph struct {
-    // ... existing fields
-    missing map[string]MissingDependency  // ID -> MissingDependency
-}
-
-func (g *DependencyGraph) RecordMissing(resourceType, resourceID string, reason MissingReason) {
-    // Record missing dependency with reason
-}
-
-func (g *DependencyGraph) GetMissingSummary() map[MissingReason][]MissingDependency {
-    // Group missing dependencies by reason
-    // For user reporting
-}
-```
-
-### Warn User About Missing Dependencies
-
-After export complete, print summary:
-
-```
-Export complete! Generated HCL with 42 resources.
-
-WARNING: Found 3 missing dependencies:
-  - 1 resource excluded by filters (see TODO comments in output)
-  - 2 resources not found in environment (may be deleted)
-
-Review TODO comments in generated HCL before applying.
-```
-
-### Test Missing Dependency Handling
-
-Create `internal/resolver/missing_test.go`:
-
-Test cases:
-- Generate placeholder for excluded resource
-- Generate placeholder for not-included resource
-- Generate placeholder for not-found resource
-- Verify placeholder includes original ID
-- Verify placeholder includes resource name (if available)
-- Test summary generation
-- Test with multiple missing dependencies
+Generate summary report after export.
 
 ---
 
 ## Phase 4.4: Validate Dependency Graph
 
-**Goal**: Detect and report issues in dependency graph.
+**STATUS**: ⏳ NOT STARTED
+
+**Goal**: Detect circular dependencies and optimize resource ordering.
 
 ### Circular Dependency Detection
 
-Terraform cannot handle circular dependencies.
-
-Create `internal/resolver/cycles.go`:
+Use depth-first search to find cycles:
 
 ```go
-func (g *DependencyGraph) DetectCycles() ([][]ResourceRef, error) {
-    // Use depth-first search to detect cycles
-    // Return all cycles found
-    // Each cycle is a slice of resources forming the loop
-}
+func (g *DependencyGraph) DetectCycles() [][]ResourceRef
 ```
 
-Algorithm:
-1. Start DFS from each unvisited node
-2. Track path from root to current node
-3. If we visit a node already in current path → cycle detected
-4. Record cycle and continue to find all cycles
+Report to user:
 
-Report cycles to user:
 ```
-ERROR: Circular dependencies detected!
-
-Cycle 1: flow_a → flow_b → flow_c → flow_a
-  - flow_a (ID: abc123) references subflow flow_b
-  - flow_b (ID: def456) references subflow flow_c
-  - flow_c (ID: ghi789) references subflow flow_a
-
-Terraform cannot handle circular dependencies. Manual intervention required.
+ERROR: Circular dependency detected!
+Cycle: flow_a → flow_b → flow_c → flow_a
 ```
 
-### Dependency Ordering
+### Topological Sort
 
-Generate HCL with resources in dependency order:
-
-Resources with no dependencies first.
-Dependent resources after their dependencies.
-
-Create `internal/resolver/ordering.go`:
+Order resources by dependencies:
 
 ```go
-func (g *DependencyGraph) TopologicalSort() ([]ResourceRef, error) {
-    // Perform topological sort on dependency graph
-    // Return resources in order: dependencies before dependents
-    // Return error if cycles detected (cannot sort)
-}
+func (g *DependencyGraph) TopologicalSort() ([]ResourceRef, error)
 ```
-
-Algorithm:
-1. Calculate in-degree for each node (number of dependencies)
-2. Add nodes with in-degree 0 to queue
-3. Process queue:
-   - Remove node from queue, add to result
-   - Decrease in-degree of dependent nodes
-   - Add nodes with in-degree 0 to queue
-4. If all nodes processed → valid order
-5. If nodes remain → cycle exists
 
 Benefits:
-- Improved readability of generated HCL
-- Better Terraform plan output (dependencies applied first)
-- Easier debugging of reference issues
 
-### Test Dependency Validation
-
-Create `internal/resolver/validation_test.go`:
-
-**Cycle Detection Tests**:
-- No cycles (linear dependencies)
-- Simple cycle (A → B → A)
-- Complex cycle (A → B → C → D → B)
-- Multiple separate cycles
-- Large graph with no cycles (performance test)
-
-**Ordering Tests**:
-- Simple linear chain (A → B → C)
-- Diamond dependency (A → B, A → C, B → D, C → D)
-- No dependencies (any order valid)
-- Multiple independent chains
-- Verify error when cycles present
-
-**Complex Scenario Tests**:
-- Multi-resource export with realistic dependencies
-- Flow → multiple connections
-- Flow → variables → connections (transitive)
-- Application → flow policy → flow → connection
-- Verify final HCL has correct resource order
-
+- Improved HCL readability
+- Better Terraform plan output
+- Easier debugging
 ---
 
-## Integration with Converter
+## Integration with Converter (Phase 4.2-4.4)
 
-Update `converter.ConvertExport()`:
+After Phase 4.1 completion, remaining work:
+
+### Update Converter to Use Resolver
 
 ```go
 func (c *Converter) ConvertExport(export *exporter.ExportResult) (string, error) {
-    // 1. Build dependency graph
-    graph := resolver.NewDependencyGraph()
+    // 1. Initialize resolver manager
+    manager := resolver.NewResolverManager()
     
-    // 2. Register all resources
+    // 2. Process all resources
     for _, flow := range export.Flows {
-        name := resolver.SanitizeName(flow.Name)
-        graph.AddResource("flow", flow.ID, name)
+        manager.ProcessResource("flow", flow.ID, flow.Data, flow.Links)
     }
-    // ... register other resource types
+    // Process other resource types...
     
-    // 3. Parse dependencies
-    for _, flow := range export.Flows {
-        deps := resolver.FindReferencesInFlow(&flow)
-        for _, dep := range deps {
-            graph.AddDependency(dep.From, dep.To, dep.Field, dep.Location)
-        }
-    }
-    // ... parse dependencies for other types
+    // 3. Generate output with resolved dependencies
+    output := manager.GenerateOutput()
     
-    // 4. Detect cycles
-    cycles, err := graph.DetectCycles()
-    if len(cycles) > 0 {
-        return "", fmt.Errorf("circular dependencies detected: %v", cycles)
+    // 4. Validate (detect cycles)
+    if cycles := output.Graph.DetectCycles(); len(cycles) > 0 {
+        return "", fmt.Errorf("circular dependencies: %v", cycles)
     }
     
-    // 5. Order resources
-    orderedResources, err := graph.TopologicalSort()
-    if err != nil {
-        return "", err
-    }
+    // 5. Generate HCL with Terraform references
+    hcl := c.generateHCLWithReferences(output)
     
-    // 6. Generate HCL in dependency order
-    var hcl strings.Builder
-    for _, resource := range orderedResources {
-        switch resource.Type {
-        case "flow":
-            flow := findFlow(export.Flows, resource.ID)
-            flowHCL, err := c.generateFlowHCL(flow, graph)
-            if err != nil {
-                return "", err
-            }
-            hcl.WriteString(flowHCL)
-        // ... handle other resource types
-        }
-    }
-    
-    // 7. Report missing dependencies
-    missing := graph.GetMissingSummary()
-    if len(missing) > 0 {
-        printMissingSummary(missing)
-    }
-    
-    return hcl.String(), nil
+    return hcl, nil
 }
 ```
+
+---
+
+## Testing Strategy
+
+### Unit Tests (Complete)
+
+- ✅ 43/43 resolver package tests passing
+- ✅ Parser path traversal
+- ✅ Schema lookups
+- ✅ Graph operations
+- ✅ Hierarchy tracking
+
+### Integration Tests (Phase 4.2)
+
+Test complete workflow:
+
+- Resource with dependencies → schema → parser → graph → Terraform references
+- Multiple resource types with cross-dependencies
+- Missing dependency handling
+- Circular dependency detection
+
+### End-to-End Tests (Phase 4.3-4.4)
+
+- Export application with all dependencies
+- Verify generated HCL has correct references
+- Verify resources ordered by dependencies
+- Verify missing dependencies generate TODOs
 
 ---
 
 ## Success Criteria
 
+Phase 4.1: ✅ COMPLETE
+
 - ✅ Dependency graph correctly identifies all resource relationships
-- ✅ Hardcoded IDs replaced with Terraform references
-- ✅ Resource names are sanitized and unique
-- ✅ Missing dependencies generate TODO placeholders with reasons
-- ✅ Circular dependencies are detected and reported
-- ✅ Generated HCL has resources in dependency order
-- ✅ Integration tests verify complete dependency resolution
-- ✅ User receives clear warnings about missing dependencies
+- ✅ Schema-driven parser extracts dependencies from JSON
+- ✅ Array wildcard paths supported (items[*].id)
+- ✅ Hierarchy tracking separate from field dependencies
+- ✅ Original data preserved for re-parsing
+- ✅ 43/43 tests passing
+
+Phase 4.2-4.4: ⏳ IN PROGRESS
+
+Phase 4.2: ✅ COMPLETE
+- ✅ Naming sanitization and uniqueness tracking implemented
+- ✅ Terraform reference generation functional
+- ✅ TODO placeholder generation for missing dependencies
+- ✅ Integration tests validate complete workflow
+
+Phase 4.3-4.4: ⏳ NOT STARTED
+- ⏳ Missing dependency tracking (excluded, not included, not found reasons)
+- ⏳ Circular dependency detection
+- ⏳ Topological sort for resource ordering
+- ⏳ User-facing missing dependency summary reports
+- ⏳ Cycle detection error messages
+
+**Integration Required**:
+- ⏳ Update flow_converter.go to use GenerateTerraformReference()
+- ⏳ Update flow_policy_converter.go to use GenerateTerraformReference()
+- ⏳ Main converter integration with ResolverManager
 
 ---
 
-**Next Step**: After Part 4 complete, proceed to Part 5 (Final Integration and Error Handling).
+**Next Steps**:
+
+**Phase 4.1-4.2**: ✅ COMPLETE (53/53 tests passing)
+
+**Immediate Options**:
+
+1. **Complete Phase 4.3-4.4** (missing deps + validation)
+   - Implement circular dependency detection (DFS)
+   - Implement topological sort for resource ordering
+   - Enhanced missing dependency tracking with reasons
+   - User-facing error reports and warnings
+
+2. **Integrate with Converters** (recommended)
+   - Update flow_converter.go to use GenerateTerraformReference()
+   - Update flow_policy_converter.go to use GenerateTerraformReference()
+   - Validate resolver with real-world export data
+   - Return to Phase 4.3-4.4 after proving architecture
+
+3. **Proceed to Phase 5**
+   - Move to final integration and error handling
+   - Complete Phase 4.3-4.4 when integration requirements clearer
+
+**Recommendation**: Option 2 - Integrate with converters to validate the resolver works end-to-end with real data before implementing advanced features like cycle detection.
+
+**See**: `internal/resolver/PHASE_4_1_4_2_SUMMARY.md` for detailed implementation summary.
+
+**After Part 4 complete**: Proceed to Part 5 (Final Integration and Error Handling).
