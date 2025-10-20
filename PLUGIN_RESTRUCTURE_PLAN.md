@@ -5,7 +5,7 @@
 
 ## Current Problem
 
-The current implementation tries to be a single command (`davinci convert`) with dual modes (file vs export), which doesn't fit well with Ping CLI's plugin architecture.
+The current implementation tries to be a single command (`davinci convert`) with dual modes (file vs export), which doesn't fit well with Ping CLI's plugin architecture. Also the current implementation is narrowly focused on davinci. DaVinci will be the focus initially, but this plugin should leave room for growth into all supported ping identity terraform resources - this means all resources in pingone and pingfederate and room for growth in the future. Keep this room for growth in mind while building new structures. 
 
 **Current Structure**:
 ```
@@ -24,7 +24,7 @@ pingcli davinci convert --export --environment-id ... # Export mode
 Create a parent command `tf` with two subcommands following Ping CLI patterns:
 
 ```
-pingcli tf convert --flow-json file.json              # Convert mode
+pingcli tf davinci-to-hcl --flow-json file.json       # Convert mode
 pingcli tf export --environment-id <id> ...           # Export mode
 ```
 

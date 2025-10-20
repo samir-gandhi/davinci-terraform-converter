@@ -6,18 +6,18 @@ import (
 	"testing"
 )
 
-// TestDaVinciConvertCommand_Configuration tests that the command configuration
+// TestDaVinciToHclCommand_Configuration tests that the command configuration
 // is properly set up with all required metadata.
-func TestDaVinciConvertCommand_Configuration(t *testing.T) {
-	cmd := &DaVinciConvertCommand{}
+func TestDaVinciToHclCommand_Configuration(t *testing.T) {
+	cmd := &DaVinciToHclCommand{}
 
 	config, err := cmd.Configuration()
 	if err != nil {
 		t.Fatalf("Configuration() returned error: %v", err)
 	}
 
-	if config.Use != "convert" {
-		t.Errorf("Expected Use to be 'convert', got '%s'", config.Use)
+	if config.Use != DaVinciToHclUse {
+		t.Errorf("Expected Use to be %q, got '%s'", DaVinciToHclUse, config.Use)
 	}
 
 	if config.Short == "" {
