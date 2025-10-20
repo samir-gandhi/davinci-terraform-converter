@@ -5,12 +5,12 @@ package resolver
 
 // FieldPath represents a path to a field that contains a dependency reference
 type FieldPath struct {
-	Path         string // JSON path to the field (e.g., "graphData.elements.nodes[*].data.connectionId")
-	TargetType   string // Type of resource being referenced ("connector_instance", "variable", "flow")
-	FieldName    string // Name of the field in HCL ("connection_id", "variable_id", "subflow_id")
-	IsArray      bool   // True if this field can contain multiple references
-	IsOptional   bool   // True if this dependency may not exist
-	Description  string // Human-readable description for debugging
+	Path        string // JSON path to the field (e.g., "graphData.elements.nodes[*].data.connectionId")
+	TargetType  string // Terraform resource type being referenced (e.g., "pingone_davinci_connector_instance")
+	FieldName   string // Name of the field in HCL ("connection_id", "variable_id", "subflow_id")
+	IsArray     bool   // True if this field can contain multiple references
+	IsOptional  bool   // True if this dependency may not exist
+	Description string // Human-readable description for debugging
 }
 
 // ResourceDependencySchema defines all possible dependencies for a resource type
@@ -22,31 +22,31 @@ type ResourceDependencySchema struct {
 // GetFlowDependencySchema returns the schema for flow resources
 func GetFlowDependencySchema() ResourceDependencySchema {
 	return ResourceDependencySchema{
-		ResourceType: "flow",
+		ResourceType: "pingone_davinci_flow",
 		Fields: []FieldPath{
 			{
-				Path:         "graphData.elements.nodes[*].data.connectionId",
-				TargetType:   "connector_instance",
-				FieldName:    "connection_id",
-				IsArray:      true,
-				IsOptional:   false,
-				Description:  "Connector instance used by flow node",
+				Path:        "graphData.elements.nodes[*].data.connectionId",
+				TargetType:  "pingone_davinci_connector_instance",
+				FieldName:   "connection_id",
+				IsArray:     true,
+				IsOptional:  false,
+				Description: "Connector instance used by flow node",
 			},
 			{
-				Path:         "graphData.elements.nodes[*].data.properties.variableId",
-				TargetType:   "variable",
-				FieldName:    "variable_id",
-				IsArray:      true,
-				IsOptional:   true,
-				Description:  "Variable referenced in flow node properties",
+				Path:        "graphData.elements.nodes[*].data.properties.variableId",
+				TargetType:  "pingone_davinci_variable",
+				FieldName:   "variable_id",
+				IsArray:     true,
+				IsOptional:  true,
+				Description: "Variable referenced in flow node properties",
 			},
 			{
-				Path:         "graphData.elements.nodes[*].data.properties.subFlowId",
-				TargetType:   "flow",
-				FieldName:    "subflow_id",
-				IsArray:      true,
-				IsOptional:   true,
-				Description:  "Subflow referenced by flow node",
+				Path:        "graphData.elements.nodes[*].data.properties.subFlowId",
+				TargetType:  "pingone_davinci_flow",
+				FieldName:   "subflow_id",
+				IsArray:     true,
+				IsOptional:  true,
+				Description: "Subflow referenced by flow node",
 			},
 			// Note: Variable references can appear in many places in node properties
 			// We may need more sophisticated parsing for complex property structures
@@ -57,23 +57,23 @@ func GetFlowDependencySchema() ResourceDependencySchema {
 // GetFlowPolicyDependencySchema returns the schema for flow policy resources
 func GetFlowPolicyDependencySchema() ResourceDependencySchema {
 	return ResourceDependencySchema{
-		ResourceType: "flow_policy",
+		ResourceType: "pingone_davinci_application_flow_policy",
 		Fields: []FieldPath{
 			{
-				Path:         "flowDistributions[*].id",
-				TargetType:   "flow",
-				FieldName:    "flow_id",
-				IsArray:      true,
-				IsOptional:   false,
-				Description:  "Flow referenced in policy distribution",
+				Path:        "flowDistributions[*].id",
+				TargetType:  "pingone_davinci_flow",
+				FieldName:   "flow_id",
+				IsArray:     true,
+				IsOptional:  false,
+				Description: "Flow referenced in policy distribution",
 			},
 			{
-				Path:         "applicationId",
-				TargetType:   "application",
-				FieldName:    "application_id",
-				IsArray:      false,
-				IsOptional:   false,
-				Description:  "Application that owns this flow policy",
+				Path:        "applicationId",
+				TargetType:  "pingone_davinci_application",
+				FieldName:   "application_id",
+				IsArray:     false,
+				IsOptional:  false,
+				Description: "Application that owns this flow policy",
 			},
 		},
 	}
@@ -84,7 +84,7 @@ func GetFlowPolicyDependencySchema() ResourceDependencySchema {
 // Their relationship to flow policies is inverse - policies reference apps
 func GetApplicationDependencySchema() ResourceDependencySchema {
 	return ResourceDependencySchema{
-		ResourceType: "application",
+		ResourceType: "pingone_davinci_application",
 		Fields:       []FieldPath{}, // No embedded dependencies
 	}
 }
@@ -92,7 +92,7 @@ func GetApplicationDependencySchema() ResourceDependencySchema {
 // GetConnectorInstanceDependencySchema returns the schema for connector instance resources
 func GetConnectorInstanceDependencySchema() ResourceDependencySchema {
 	return ResourceDependencySchema{
-		ResourceType: "connector_instance",
+		ResourceType: "pingone_davinci_connector_instance",
 		Fields:       []FieldPath{}, // No embedded dependencies
 	}
 }
@@ -100,7 +100,7 @@ func GetConnectorInstanceDependencySchema() ResourceDependencySchema {
 // GetVariableDependencySchema returns the schema for variable resources
 func GetVariableDependencySchema() ResourceDependencySchema {
 	return ResourceDependencySchema{
-		ResourceType: "variable",
+		ResourceType: "pingone_davinci_variable",
 		Fields:       []FieldPath{}, // No embedded dependencies
 	}
 }

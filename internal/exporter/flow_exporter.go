@@ -9,10 +9,11 @@ import (
 
 	"github.com/samir-gandhi/davinci-terraform-converter/internal/api"
 	"github.com/samir-gandhi/davinci-terraform-converter/internal/converter"
+	"github.com/samir-gandhi/davinci-terraform-converter/internal/resolver"
 )
 
 // ExportFlows retrieves flows from the API and converts them to Terraform HCL
-func ExportFlows(ctx context.Context, client *api.Client, skipDeps bool) (string, error) {
+func ExportFlows(ctx context.Context, client *api.Client, skipDeps bool, graph *resolver.DependencyGraph) (string, error) {
 	if client == nil {
 		return "", fmt.Errorf("API client is required")
 	}
@@ -28,9 +29,14 @@ func ExportFlows(ctx context.Context, client *api.Client, skipDeps bool) (string
 	}
 
 	var hclBlocks []string
-	usedNames := make(map[string]int) // Track resource name usage for uniqueness
 
-	// Retrieve detailed flow data and convert each flow
+	// First pass: Register all flows in the dependency graph
+	for _, summary := range flowSummaries {
+		sanitizedName := resolver.SanitizeName(summary.Name, nil)
+		graph.AddResource("pingone_davinci_flow", summary.FlowID, sanitizedName)
+	}
+
+	// Second pass: Retrieve detailed flow data and convert each flow
 	for _, summary := range flowSummaries {
 		flowDetail, err := client.GetFlow(ctx, summary.FlowID)
 		if err != nil {
@@ -49,14 +55,11 @@ func ExportFlows(ctx context.Context, client *api.Client, skipDeps bool) (string
 			envID = client.EnvironmentID
 		}
 
-		// Convert to HCL using the existing converter
-		hcl, err := converter.ConvertFlowToHCL(flowData, envID, skipDeps, nil)
+		// Convert to HCL using the converter with dependency graph
+		hcl, err := converter.ConvertFlowToHCL(flowData, envID, skipDeps, graph)
 		if err != nil {
 			return "", fmt.Errorf("failed to convert flow %s to HCL: %w", summary.Name, err)
 		}
-
-		// Ensure unique resource names by appending suffix if name already used
-		hcl = ensureUniqueFlowResourceName(hcl, usedNames)
 
 		hclBlocks = append(hclBlocks, hcl)
 	}

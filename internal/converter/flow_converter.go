@@ -19,8 +19,23 @@ import (
 func ConvertFlowToHCL(flowData map[string]interface{}, environmentID string, skipDependencies bool, graph *resolver.DependencyGraph) (string, error) {
 	var hcl strings.Builder
 
-	// Generate resource name from flow name using pingcli-compatible sanitization
-	resourceName := utils.SanitizeResourceName(getString(flowData, "name"))
+	// Generate resource name - use registered name from graph if available to ensure uniqueness
+	var resourceName string
+	if graph != nil {
+		flowID := getString(flowData, "flowId")
+		if flowID != "" {
+			// Look up the registered unique name from the graph
+			registeredName, err := graph.GetReferenceName("pingone_davinci_flow", flowID)
+			if err == nil {
+				resourceName = registeredName
+			}
+		}
+	}
+
+	// Fallback: generate from flow name if not in graph
+	if resourceName == "" {
+		resourceName = utils.SanitizeResourceName(getString(flowData, "name"))
+	}
 
 	hcl.WriteString(fmt.Sprintf("resource \"pingone_davinci_flow\" \"%s\" {\n", resourceName))
 
@@ -311,10 +326,10 @@ func writeNodesBlock(hcl *strings.Builder, nodes []interface{}, skipDependencies
 					var ref string
 					if graph != nil {
 						var err error
-						ref, err = resolver.GenerateTerraformReference(graph, "connector_instance", connectionID, "id")
+						ref, err = resolver.GenerateTerraformReference(graph, "pingone_davinci_connector_instance", connectionID, "id")
 						if err != nil {
 							// If reference generation fails, use TODO placeholder
-							ref = resolver.GenerateTODOPlaceholder("connector_instance", connectionID, err)
+							ref = resolver.GenerateTODOPlaceholder("pingone_davinci_connector_instance", connectionID, err)
 						}
 					} else {
 						// Fallback to legacy logic if no graph provided

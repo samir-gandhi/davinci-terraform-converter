@@ -41,12 +41,12 @@ func TestFlowConverterWithResolver(t *testing.T) {
 
 	// Create dependency graph and register connector
 	graph := resolver.NewDependencyGraph()
-	graph.AddResource("connector_instance", "conn-123", "http_connector")
+	graph.AddResource("pingone_davinci_connector_instance", "conn-123", "http_connector")
 
 	// Convert with graph - should use resolver reference generation
 	hclWithResolver, err := ConvertFlowToHCL(flowData, "var.environment_id", false, graph)
 	require.NoError(t, err)
-	require.Contains(t, hclWithResolver, "pingone_davinci_connector.http_connector.id")
+	require.Contains(t, hclWithResolver, "pingone_davinci_connector_instance.http_connector.id")
 
 	// Convert without graph - should use legacy reference generation
 	hclLegacy, err := ConvertFlowToHCL(flowData, "var.environment_id", false, nil)
@@ -118,13 +118,13 @@ func TestFlowConverterWithSkipDependencies(t *testing.T) {
 	require.NoError(t, err)
 
 	graph := resolver.NewDependencyGraph()
-	graph.AddResource("connector_instance", "conn-456", "http_connector")
+	graph.AddResource("pingone_davinci_connector_instance", "conn-456", "http_connector")
 
 	// With skipDeps=true, should use hardcoded ID even with graph
 	hcl, err := ConvertFlowToHCL(flowData, "var.environment_id", true, graph)
 	require.NoError(t, err)
 	require.Contains(t, hcl, `"conn-456"`)
-	require.NotContains(t, hcl, "pingone_davinci_connector")
+	require.NotContains(t, hcl, "pingone_davinci_connector_instance")
 }
 
 // TestFlowConverterResolverReferenceFormat tests exact reference format from resolver
@@ -163,18 +163,15 @@ func TestFlowConverterResolverReferenceFormat(t *testing.T) {
 	require.NoError(t, err)
 
 	graph := resolver.NewDependencyGraph()
-	graph.AddResource("connector_instance", "test-conn-abc", "my_test_connector")
-	graph.AddResource("connector_instance", "test-conn-xyz", "another_test_connector")
+	graph.AddResource("pingone_davinci_connector_instance", "test-conn-abc", "my_test_connector")
+	graph.AddResource("pingone_davinci_connector_instance", "test-conn-xyz", "another_test_connector")
 
 	hcl, err := ConvertFlowToHCL(flowData, "var.environment_id", false, graph)
 	require.NoError(t, err)
 
-	// Verify both references use resolver format (not legacy format)
-	require.Contains(t, hcl, "pingone_davinci_connector.my_test_connector.id")
-	require.Contains(t, hcl, "pingone_davinci_connector.another_test_connector.id")
-
-	// Verify no legacy format appears
-	require.NotContains(t, hcl, "pingone_davinci_connector_instance")
+	// Verify both references use full Terraform resource type
+	require.Contains(t, hcl, "pingone_davinci_connector_instance.my_test_connector.id")
+	require.Contains(t, hcl, "pingone_davinci_connector_instance.another_test_connector.id")
 }
 
 // TestFlowConverterNameSanitization tests that resolver naming is used
@@ -206,13 +203,13 @@ func TestFlowConverterNameSanitization(t *testing.T) {
 	graph := resolver.NewDependencyGraph()
 	// Register with name containing special characters that resolver will hex-encode
 	sanitizedName := resolver.SanitizeName("My HTTP Connector!", nil)
-	graph.AddResource("connector_instance", "conn-special-chars", sanitizedName)
+	graph.AddResource("pingone_davinci_connector_instance", "conn-special-chars", sanitizedName)
 
 	hcl, err := ConvertFlowToHCL(flowData, "var.environment_id", false, graph)
 	require.NoError(t, err)
 
-	// Resolver should use hex-encoding for special characters
-	require.Contains(t, hcl, "pingone_davinci_connector.")
+	// Should use full Terraform resource type
+	require.Contains(t, hcl, "pingone_davinci_connector_instance.")
 
 	// Should contain hex-encoded space (-0020-) and exclamation (-0021-)
 	require.Contains(t, hcl, "pingcli__My-0020-HTTP-0020-Connector-0021-")

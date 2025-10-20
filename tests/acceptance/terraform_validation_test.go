@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/samir-gandhi/davinci-terraform-converter/internal/exporter"
+"github.com/samir-gandhi/davinci-terraform-converter/internal/resolver"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -29,7 +30,7 @@ func TestTerraformValidateVariablesFromAPI(t *testing.T) {
 	ctx := context.Background()
 
 	// Export variables from API
-	hcl, err := exporter.ExportVariables(ctx, client, true)
+	hcl, err := exporter.ExportVariables(ctx, client, true, resolver.NewDependencyGraph())
 	require.NoError(t, err, "Failed to export variables from API")
 
 	if len(hcl) == 0 {
@@ -90,7 +91,7 @@ func TestTerraformValidateConnectorInstancesFromAPI(t *testing.T) {
 	ctx := context.Background()
 
 	// Export connector instances from API
-	hcl, err := exporter.ExportConnectorInstances(ctx, client, true)
+	hcl, err := exporter.ExportConnectorInstances(ctx, client, true, resolver.NewDependencyGraph())
 	require.NoError(t, err, "Failed to export connector instances from API")
 
 	if len(hcl) == 0 {
@@ -151,7 +152,7 @@ func TestTerraformValidateApplicationsFromAPI(t *testing.T) {
 	ctx := context.Background()
 
 	// Export applications from API
-	hcl, err := exporter.ExportApplications(ctx, client, true)
+	hcl, err := exporter.ExportApplications(ctx, client, true, resolver.NewDependencyGraph())
 	require.NoError(t, err, "Failed to export applications from API")
 
 	if len(hcl) == 0 {
@@ -212,7 +213,7 @@ func TestTerraformValidateFlowsFromAPI(t *testing.T) {
 	ctx := context.Background()
 
 	// Export flows from API
-	hcl, err := exporter.ExportFlows(ctx, client, true)
+	hcl, err := exporter.ExportFlows(ctx, client, true, resolver.NewDependencyGraph())
 	require.NoError(t, err, "Failed to export flows from API")
 
 	if len(hcl) == 0 {
@@ -273,16 +274,16 @@ func TestTerraformValidateAllResourcesFromAPI(t *testing.T) {
 	ctx := context.Background()
 
 	// Export all resources from API
-	variablesHCL, err := exporter.ExportVariables(ctx, client, true)
+	variablesHCL, err := exporter.ExportVariables(ctx, client, true, resolver.NewDependencyGraph())
 	require.NoError(t, err, "Failed to export variables from API")
 
-	connectorsHCL, err := exporter.ExportConnectorInstances(ctx, client, true)
+	connectorsHCL, err := exporter.ExportConnectorInstances(ctx, client, true, resolver.NewDependencyGraph())
 	require.NoError(t, err, "Failed to export connector instances from API")
 
-	applicationsHCL, err := exporter.ExportApplications(ctx, client, true)
+	applicationsHCL, err := exporter.ExportApplications(ctx, client, true, resolver.NewDependencyGraph())
 	require.NoError(t, err, "Failed to export applications from API")
 
-	flowsHCL, err := exporter.ExportFlows(ctx, client, true)
+	flowsHCL, err := exporter.ExportFlows(ctx, client, true, resolver.NewDependencyGraph())
 	require.NoError(t, err, "Failed to export flows from API")
 
 	// Check if we have any resources

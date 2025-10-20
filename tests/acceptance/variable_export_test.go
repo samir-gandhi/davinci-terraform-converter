@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/samir-gandhi/davinci-terraform-converter/internal/exporter"
+"github.com/samir-gandhi/davinci-terraform-converter/internal/resolver"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -20,7 +21,7 @@ func TestExportVariablesFromAPI(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("ExportAllVariables", func(t *testing.T) {
-		hcl, err := exporter.ExportVariables(ctx, client, false)
+		hcl, err := exporter.ExportVariables(ctx, client, false, resolver.NewDependencyGraph())
 		require.NoError(t, err)
 
 		t.Logf("Generated HCL length: %d bytes", len(hcl))
@@ -51,7 +52,7 @@ func TestExportVariablesWithSkipDependencies(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("ExportWithSkipDeps", func(t *testing.T) {
-		hcl, err := exporter.ExportVariables(ctx, client, true)
+		hcl, err := exporter.ExportVariables(ctx, client, true, resolver.NewDependencyGraph())
 		require.NoError(t, err)
 
 		if len(hcl) > 0 {
@@ -72,7 +73,7 @@ func TestExportVariablesValidateHCLStructure(t *testing.T) {
 	client := createTestClient(t)
 	ctx := context.Background()
 
-	hcl, err := exporter.ExportVariables(ctx, client, false)
+	hcl, err := exporter.ExportVariables(ctx, client, false, resolver.NewDependencyGraph())
 	require.NoError(t, err)
 
 	if len(hcl) == 0 {
@@ -148,7 +149,7 @@ func TestExportVariablesComparison(t *testing.T) {
 	}
 
 	// Export to HCL
-	hcl, err := exporter.ExportVariables(ctx, client, false)
+	hcl, err := exporter.ExportVariables(ctx, client, false, resolver.NewDependencyGraph())
 	require.NoError(t, err)
 	require.NotEmpty(t, hcl)
 
@@ -171,7 +172,7 @@ func TestExportVariablesValueHandling(t *testing.T) {
 	client := createTestClient(t)
 	ctx := context.Background()
 
-	hcl, err := exporter.ExportVariables(ctx, client, false)
+	hcl, err := exporter.ExportVariables(ctx, client, false, resolver.NewDependencyGraph())
 	require.NoError(t, err)
 
 	if len(hcl) == 0 {

@@ -9,10 +9,11 @@ import (
 
 	"github.com/samir-gandhi/davinci-terraform-converter/internal/api"
 	"github.com/samir-gandhi/davinci-terraform-converter/internal/converter"
+	"github.com/samir-gandhi/davinci-terraform-converter/internal/resolver"
 )
 
 // ExportApplications exports all DaVinci applications from the API to HCL format
-func ExportApplications(ctx context.Context, client *api.Client, skipDeps bool) (string, error) {
+func ExportApplications(ctx context.Context, client *api.Client, skipDeps bool, graph *resolver.DependencyGraph) (string, error) {
 	if client == nil {
 		return "", fmt.Errorf("client cannot be nil")
 	}
@@ -27,10 +28,17 @@ func ExportApplications(ctx context.Context, client *api.Client, skipDeps bool) 
 		return "", nil
 	}
 
-	var hclBlocks []string
-	usedNames := make(map[string]int) // Track resource name usage for uniqueness
+	// First pass: Register all applications in the dependency graph
+	for _, application := range applications {
+		appName := application.GetName()
+		appID := application.GetId()
+		sanitizedName := resolver.SanitizeName(appName, nil)
+		graph.AddResource("pingone_davinci_application", appID, sanitizedName)
+	}
 
-	// Convert each application to HCL
+	var hclBlocks []string
+
+	// Second pass: Convert each application to HCL
 	for _, application := range applications {
 		// Convert SDK response to JSON format expected by converter
 		appJSON, err := convertApplicationToJSON(&application)
@@ -46,14 +54,11 @@ func ExportApplications(ctx context.Context, client *api.Client, skipDeps bool) 
 			environmentID = "var.environment_id" // Will be written as-is by converter
 		}
 
-		// Convert to HCL using converter with environment ID
-		hcl, err := converter.ConvertApplicationWithEnvironment(appJSON, environmentID)
+		// Convert to HCL using converter with environment ID and graph
+		hcl, err := converter.ConvertApplicationWithEnvironmentAndGraph(appJSON, environmentID, graph)
 		if err != nil {
 			return "", fmt.Errorf("failed to convert application %s to HCL: %w", application.GetId(), err)
 		}
-
-		// Ensure unique resource names by appending suffix if name already used
-		hcl = ensureUniqueResourceName(hcl, usedNames)
 
 		hclBlocks = append(hclBlocks, hcl)
 	}

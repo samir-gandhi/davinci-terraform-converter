@@ -6,7 +6,7 @@ import (
 
 // ResourceRef represents a reference to a DaVinci resource
 type ResourceRef struct {
-	Type string // "flow", "connector_instance", "variable", "application", "flow_policy"
+	Type string // Full Terraform resource type (e.g., "pingone_davinci_flow", "pingone_davinci_connector_instance")
 	ID   string // Original resource ID
 	Name string // Sanitized Terraform resource name
 }

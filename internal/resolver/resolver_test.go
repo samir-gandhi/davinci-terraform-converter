@@ -27,19 +27,19 @@ func TestNewDependencyGraph(t *testing.T) {
 func TestAddResource(t *testing.T) {
 	graph := NewDependencyGraph()
 
-	graph.AddResource("flow", "flow-123", "pingcli__my_registration_flow")
+	graph.AddResource("pingone_davinci_flow", "flow-123", "pingcli__my_registration_flow")
 
-	if !graph.HasResource("flow", "flow-123") {
+	if !graph.HasResource("pingone_davinci_flow", "flow-123") {
 		t.Error("Resource not found after adding")
 	}
 
-	ref, err := graph.GetResource("flow", "flow-123")
+	ref, err := graph.GetResource("pingone_davinci_flow", "flow-123")
 	if err != nil {
 		t.Fatalf("GetResource() error: %v", err)
 	}
 
-	if ref.Type != "flow" {
-		t.Errorf("Expected type 'flow', got '%s'", ref.Type)
+	if ref.Type != "pingone_davinci_flow" {
+		t.Errorf("Expected type 'pingone_davinci_flow', got '%s'", ref.Type)
 	}
 
 	if ref.ID != "flow-123" {
@@ -54,10 +54,10 @@ func TestAddResource(t *testing.T) {
 func TestAddMultipleResources(t *testing.T) {
 	graph := NewDependencyGraph()
 
-	graph.AddResource("flow", "flow-1", SanitizeName("flow_one", nil))
-	graph.AddResource("flow", "flow-2", SanitizeName("flow_two", nil))
-	graph.AddResource("connector_instance", "conn-1", "pingcli__http_connector")
-	graph.AddResource("variable", "var-1", "pingcli__api_key")
+	graph.AddResource("pingone_davinci_flow", "flow-1", SanitizeName("flow_one", nil))
+	graph.AddResource("pingone_davinci_flow", "flow-2", SanitizeName("flow_two", nil))
+	graph.AddResource("pingone_davinci_connector_instance", "conn-1", "pingcli__http_connector")
+	graph.AddResource("pingone_davinci_variable", "var-1", "pingcli__api_key")
 
 	resources := graph.GetAllResources()
 
@@ -69,17 +69,17 @@ func TestAddMultipleResources(t *testing.T) {
 func TestHasResource(t *testing.T) {
 	graph := NewDependencyGraph()
 
-	graph.AddResource("flow", "flow-123", SanitizeName("test_flow", nil))
+	graph.AddResource("pingone_davinci_flow", "flow-123", SanitizeName("test_flow", nil))
 
-	if !graph.HasResource("flow", "flow-123") {
+	if !graph.HasResource("pingone_davinci_flow", "flow-123") {
 		t.Error("HasResource() returned false for existing resource")
 	}
 
-	if graph.HasResource("flow", "nonexistent") {
+	if graph.HasResource("pingone_davinci_flow", "nonexistent") {
 		t.Error("HasResource() returned true for non-existent resource")
 	}
 
-	if graph.HasResource("variable", "flow-123") {
+	if graph.HasResource("pingone_davinci_variable", "flow-123") {
 		t.Error("HasResource() returned true for wrong resource type")
 	}
 }
@@ -87,9 +87,9 @@ func TestHasResource(t *testing.T) {
 func TestGetReferenceName(t *testing.T) {
 	graph := NewDependencyGraph()
 
-	graph.AddResource("flow", "flow-123", "pingcli__my_flow")
+	graph.AddResource("pingone_davinci_flow", "flow-123", "pingcli__my_flow")
 
-	name, err := graph.GetReferenceName("flow", "flow-123")
+	name, err := graph.GetReferenceName("pingone_davinci_flow", "flow-123")
 	if err != nil {
 		t.Fatalf("GetReferenceName() error: %v", err)
 	}
@@ -99,7 +99,7 @@ func TestGetReferenceName(t *testing.T) {
 	}
 
 	// Test non-existent resource
-	_, err = graph.GetReferenceName("flow", "nonexistent")
+	_, err = graph.GetReferenceName("pingone_davinci_flow", "nonexistent")
 	if err == nil {
 		t.Error("GetReferenceName() should return error for non-existent resource")
 	}
@@ -108,8 +108,8 @@ func TestGetReferenceName(t *testing.T) {
 func TestAddDependency(t *testing.T) {
 	graph := NewDependencyGraph()
 
-	from := ResourceRef{Type: "flow", ID: "flow-1", Name: "pingcli__registration_flow"}
-	to := ResourceRef{Type: "connector_instance", ID: "conn-1", Name: "pingcli__http_connector"}
+	from := ResourceRef{Type: "pingone_davinci_flow", ID: "flow-1", Name: "pingcli__registration_flow"}
+	to := ResourceRef{Type: "pingone_davinci_connector_instance", ID: "conn-1", Name: "pingcli__http_connector"}
 
 	graph.AddDependency(from, to, "connectionId", "graphData.nodes[0].data.connectionId")
 
@@ -140,10 +140,10 @@ func TestAddDependency(t *testing.T) {
 func TestGetDependencies(t *testing.T) {
 	graph := NewDependencyGraph()
 
-	flow := ResourceRef{Type: "flow", ID: "flow-1", Name: "pingcli__my_flow"}
-	conn1 := ResourceRef{Type: "connector_instance", ID: "conn-1", Name: "pingcli__http_connector"}
-	conn2 := ResourceRef{Type: "connector_instance", ID: "conn-2", Name: "variables_connector"}
-	variable := ResourceRef{Type: "variable", ID: "var-1", Name: "pingcli__api_key"}
+	flow := ResourceRef{Type: "pingone_davinci_flow", ID: "flow-1", Name: "pingcli__my_flow"}
+	conn1 := ResourceRef{Type: "pingone_davinci_connector_instance", ID: "conn-1", Name: "pingcli__http_connector"}
+	conn2 := ResourceRef{Type: "pingone_davinci_connector_instance", ID: "conn-2", Name: "variables_connector"}
+	variable := ResourceRef{Type: "pingone_davinci_variable", ID: "var-1", Name: "pingcli__api_key"}
 
 	graph.AddDependency(flow, conn1, "connectionId", "graphData.nodes[0].data.connectionId")
 	graph.AddDependency(flow, conn2, "connectionId", "graphData.nodes[1].data.connectionId")
@@ -166,18 +166,18 @@ func TestMultipleDependenciesComplexScenario(t *testing.T) {
 	graph := NewDependencyGraph()
 
 	// Add resources
-	graph.AddResource("flow", "flow-1", "pingcli__registration_flow")
-	graph.AddResource("flow", "flow-2", SanitizeName("authentication_flow", nil))
-	graph.AddResource("connector_instance", "conn-1", "pingcli__http_connector")
-	graph.AddResource("variable", "var-1", "pingcli__api_key")
-	graph.AddResource("variable", "var-2", SanitizeName("api_url", nil))
+	graph.AddResource("pingone_davinci_flow", "flow-1", "pingcli__registration_flow")
+	graph.AddResource("pingone_davinci_flow", "flow-2", SanitizeName("authentication_flow", nil))
+	graph.AddResource("pingone_davinci_connector_instance", "conn-1", "pingcli__http_connector")
+	graph.AddResource("pingone_davinci_variable", "var-1", "pingcli__api_key")
+	graph.AddResource("pingone_davinci_variable", "var-2", SanitizeName("api_url", nil))
 
 	// Add dependencies
-	flow1 := ResourceRef{Type: "flow", ID: "flow-1", Name: "pingcli__registration_flow"}
-	flow2 := ResourceRef{Type: "flow", ID: "flow-2", Name: "authentication_flow"}
-	conn := ResourceRef{Type: "connector_instance", ID: "conn-1", Name: "pingcli__http_connector"}
-	var1 := ResourceRef{Type: "variable", ID: "var-1", Name: "pingcli__api_key"}
-	var2 := ResourceRef{Type: "variable", ID: "var-2", Name: "api_url"}
+	flow1 := ResourceRef{Type: "pingone_davinci_flow", ID: "flow-1", Name: "pingcli__registration_flow"}
+	flow2 := ResourceRef{Type: "pingone_davinci_flow", ID: "flow-2", Name: "authentication_flow"}
+	conn := ResourceRef{Type: "pingone_davinci_connector_instance", ID: "conn-1", Name: "pingcli__http_connector"}
+	var1 := ResourceRef{Type: "pingone_davinci_variable", ID: "var-1", Name: "pingcli__api_key"}
+	var2 := ResourceRef{Type: "pingone_davinci_variable", ID: "var-2", Name: "api_url"}
 
 	// flow-1 depends on connector and two variables
 	graph.AddDependency(flow1, conn, "connectionId", "graphData.nodes[0].data.connectionId")
@@ -218,12 +218,12 @@ func TestMultipleDependenciesComplexScenario(t *testing.T) {
 func TestResourceNotFoundError(t *testing.T) {
 	graph := NewDependencyGraph()
 
-	_, err := graph.GetResource("flow", "nonexistent")
+	_, err := graph.GetResource("pingone_davinci_flow", "nonexistent")
 	if err == nil {
 		t.Error("GetResource() should return error for non-existent resource")
 	}
 
-	_, err = graph.GetReferenceName("flow", "nonexistent")
+	_, err = graph.GetReferenceName("pingone_davinci_flow", "nonexistent")
 	if err == nil {
 		t.Error("GetReferenceName() should return error for non-existent resource")
 	}

@@ -4,13 +4,15 @@ import (
 	"context"
 	"testing"
 
+	"github.com/samir-gandhi/davinci-terraform-converter/internal/resolver"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestExportVariables(t *testing.T) {
 	t.Run("Returns error when client is nil", func(t *testing.T) {
-		_, err := ExportVariables(context.Background(), nil, false)
+		graph := resolver.NewDependencyGraph()
+		_, err := ExportVariables(context.Background(), nil, false, graph)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "client cannot be nil")
 	})

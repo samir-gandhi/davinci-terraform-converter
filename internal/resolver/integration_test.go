@@ -12,10 +12,10 @@ func TestCompleteWorkflow(t *testing.T) {
 	graph := NewDependencyGraph()
 
 	// 2. Register resources - AddResource will sanitize names automatically
-	graph.AddResource("connector_instance", "conn-123", SanitizeName("HTTP Connector", nil))
-	graph.AddResource("connector_instance", "conn-456", SanitizeName("PingOne Connector", nil))
-	graph.AddResource("variable", "var-789", SanitizeName("API Key", nil))
-	graph.AddResource("flow", "flow-abc", SanitizeName("Registration Flow", nil))
+	graph.AddResource("pingone_davinci_connector_instance", "conn-123", SanitizeName("HTTP Connector", nil))
+	graph.AddResource("pingone_davinci_connector_instance", "conn-456", SanitizeName("PingOne Connector", nil))
+	graph.AddResource("pingone_davinci_variable", "var-789", SanitizeName("API Key", nil))
+	graph.AddResource("pingone_davinci_flow", "flow-abc", SanitizeName("Registration Flow", nil))
 
 	// 3. Create flow data with dependencies
 	flowData := map[string]interface{}{
@@ -73,17 +73,17 @@ func TestCompleteWorkflow(t *testing.T) {
 	}
 
 	// 7. Generate Terraform references
-	ref1, err := GenerateTerraformReference(graph, "connector_instance", "conn-123", "id")
+	ref1, err := GenerateTerraformReference(graph, "pingone_davinci_connector_instance", "conn-123", "id")
 	if err != nil {
 		t.Fatalf("Failed to generate reference for conn-123: %v", err)
 	}
 
-	expectedRef1 := "pingone_davinci_connector.pingcli__HTTP-0020-Connector.id"
+	expectedRef1 := "pingone_davinci_connector_instance.pingcli__HTTP-0020-Connector.id"
 	if ref1 != expectedRef1 {
 		t.Errorf("Expected reference %q, got %q", expectedRef1, ref1)
 	}
 
-	ref2, err := GenerateTerraformReference(graph, "variable", "var-789", "id")
+	ref2, err := GenerateTerraformReference(graph, "pingone_davinci_variable", "var-789", "id")
 	if err != nil {
 		t.Fatalf("Failed to generate reference for var-789: %v", err)
 	}
@@ -94,7 +94,7 @@ func TestCompleteWorkflow(t *testing.T) {
 	}
 
 	// 8. Test missing dependency handling
-	_, err = GenerateTerraformReference(graph, "connector_instance", "nonexistent", "id")
+	_, err = GenerateTerraformReference(graph, "pingone_davinci_connector_instance", "nonexistent", "id")
 	if err == nil {
 		t.Error("Expected error for nonexistent resource, got nil")
 	}
@@ -110,10 +110,10 @@ func TestFlowPolicyWorkflow(t *testing.T) {
 	graph := NewDependencyGraph()
 
 	// Register resources (AddResource handles uniqueness, so sanitize without graph)
-	graph.AddResource("application", "app-123", SanitizeName("My Application", nil))
-	graph.AddResource("flow", "flow-456", SanitizeName("Login Flow", nil))
-	graph.AddResource("flow", "flow-789", SanitizeName("Registration Flow", nil))
-	graph.AddResource("flow_policy", "policy-abc", SanitizeName("Main Policy", nil))
+	graph.AddResource("pingone_davinci_application", "app-123", SanitizeName("My Application", nil))
+	graph.AddResource("pingone_davinci_flow", "flow-456", SanitizeName("Login Flow", nil))
+	graph.AddResource("pingone_davinci_flow", "flow-789", SanitizeName("Registration Flow", nil))
+	graph.AddResource("pingone_davinci_application_flow_policy", "policy-abc", SanitizeName("Main Policy", nil))
 
 	// Flow policy data
 	policyData := map[string]interface{}{
@@ -142,7 +142,7 @@ func TestFlowPolicyWorkflow(t *testing.T) {
 	}
 
 	// Generate references
-	appRef, err := GenerateTerraformReference(graph, "application", "app-123", "id")
+	appRef, err := GenerateTerraformReference(graph, "pingone_davinci_application", "app-123", "id")
 	if err != nil {
 		t.Fatalf("Failed to generate application reference: %v", err)
 	}
@@ -152,7 +152,7 @@ func TestFlowPolicyWorkflow(t *testing.T) {
 		t.Errorf("Unexpected application reference: expected %q, got %q", expectedAppRef, appRef)
 	}
 
-	flowRef, err := GenerateTerraformReference(graph, "flow", "flow-456", "id")
+	flowRef, err := GenerateTerraformReference(graph, "pingone_davinci_flow", "flow-456", "id")
 	if err != nil {
 		t.Fatalf("Failed to generate flow reference: %v", err)
 	}
@@ -201,15 +201,15 @@ func TestSchemaToReferenceWorkflow(t *testing.T) {
 
 	// Setup graph with resources
 	graph := NewDependencyGraph()
-	graph.AddResource("connector_instance", "867ed4363b2bc21c860085ad2baa817d",
+	graph.AddResource("pingone_davinci_connector_instance", "867ed4363b2bc21c860085ad2baa817d",
 		SanitizeName("HTTP Connector", nil))
-	graph.AddResource("connector_instance", "94141bf2f1b9b59a5f5365ff135e02bb",
+	graph.AddResource("pingone_davinci_connector_instance", "94141bf2f1b9b59a5f5365ff135e02bb",
 		SanitizeName("PingOne Connector", nil))
-	graph.AddResource("variable", "username_var_id",
+	graph.AddResource("pingone_davinci_variable", "username_var_id",
 		SanitizeName("Username Variable", nil))
-	graph.AddResource("flow", "subflow_123",
+	graph.AddResource("pingone_davinci_flow", "subflow_123",
 		SanitizeName("Sub Flow", nil))
-	graph.AddResource("flow", "main_flow",
+	graph.AddResource("pingone_davinci_flow", "main_flow",
 		SanitizeName("Registration Flow", graph))
 
 	// Parse using schema
@@ -226,25 +226,25 @@ func TestSchemaToReferenceWorkflow(t *testing.T) {
 
 	// Map dependency types
 	depTypes := map[string]int{
-		"connector_instance": 0,
-		"variable":           0,
-		"flow":               0,
+		"pingone_davinci_connector_instance": 0,
+		"pingone_davinci_variable":           0,
+		"pingone_davinci_flow":               0,
 	}
 
 	for _, dep := range deps {
 		depTypes[dep.To.Type]++
 	}
 
-	if depTypes["connector_instance"] != 2 {
-		t.Errorf("Expected 2 connector dependencies, got %d", depTypes["connector_instance"])
+	if depTypes["pingone_davinci_connector_instance"] != 2 {
+		t.Errorf("Expected 2 connector dependencies, got %d", depTypes["pingone_davinci_connector_instance"])
 	}
 
-	if depTypes["variable"] != 1 {
-		t.Errorf("Expected 1 variable dependency, got %d", depTypes["variable"])
+	if depTypes["pingone_davinci_variable"] != 1 {
+		t.Errorf("Expected 1 variable dependency, got %d", depTypes["pingone_davinci_variable"])
 	}
 
-	if depTypes["flow"] != 1 {
-		t.Errorf("Expected 1 flow dependency, got %d", depTypes["flow"])
+	if depTypes["pingone_davinci_flow"] != 1 {
+		t.Errorf("Expected 1 flow dependency, got %d", depTypes["pingone_davinci_flow"])
 	}
 
 	// Generate all references
@@ -282,14 +282,14 @@ func TestNameUniqueness(t *testing.T) {
 	}
 
 	// Register with graph
-	graph.AddResource("flow", "flow-1", name1)
-	graph.AddResource("flow", "flow-2", name2)
-	graph.AddResource("flow", "flow-3", name3)
+	graph.AddResource("pingone_davinci_flow", "flow-1", name1)
+	graph.AddResource("pingone_davinci_flow", "flow-2", name2)
+	graph.AddResource("pingone_davinci_flow", "flow-3", name3)
 
 	// Generate references
-	ref1, _ := GenerateTerraformReference(graph, "flow", "flow-1", "id")
-	ref2, _ := GenerateTerraformReference(graph, "flow", "flow-2", "id")
-	ref3, _ := GenerateTerraformReference(graph, "flow", "flow-3", "id")
+	ref1, _ := GenerateTerraformReference(graph, "pingone_davinci_flow", "flow-1", "id")
+	ref2, _ := GenerateTerraformReference(graph, "pingone_davinci_flow", "flow-2", "id")
+	ref3, _ := GenerateTerraformReference(graph, "pingone_davinci_flow", "flow-3", "id")
 
 	if ref1 == ref2 || ref1 == ref3 || ref2 == ref3 {
 		t.Errorf("Expected unique references, got: %s, %s, %s", ref1, ref2, ref3)

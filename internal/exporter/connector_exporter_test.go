@@ -1,6 +1,7 @@
 package exporter
 
 import (
+"github.com/samir-gandhi/davinci-terraform-converter/internal/resolver"
 	"context"
 	"strings"
 	"testing"
@@ -37,7 +38,7 @@ func TestExportConnectorInstances(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx := context.Background()
-			_, err := ExportConnectorInstances(ctx, tt.client, false)
+			_, err := ExportConnectorInstances(ctx, tt.client, false, resolver.NewDependencyGraph())
 
 			if tt.expectError {
 				assert.Error(t, err)
@@ -61,11 +62,11 @@ func TestExportConnectorInstancesWithSkipDeps(t *testing.T) {
 	ctx := context.Background()
 
 	// Test with skip-dependencies = true
-	_, err := ExportConnectorInstances(ctx, client, true)
+	_, err := ExportConnectorInstances(ctx, client, true, resolver.NewDependencyGraph())
 	assert.Error(t, err) // Will fail due to no real API client
 
 	// Test with skip-dependencies = false
-	_, err = ExportConnectorInstances(ctx, client, false)
+	_, err = ExportConnectorInstances(ctx, client, false, resolver.NewDependencyGraph())
 	assert.Error(t, err) // Will fail due to no real API client
 
 	// Both should fail at API call stage, not at parameter validation

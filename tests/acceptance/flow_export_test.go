@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/samir-gandhi/davinci-terraform-converter/internal/exporter"
+"github.com/samir-gandhi/davinci-terraform-converter/internal/resolver"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -22,7 +23,7 @@ func TestExportFlowsFromAPI(t *testing.T) {
 	t.Logf("Exporting flows from environment: %s", client.EnvironmentID)
 
 	// Export flows using the exporter
-	hcl, err := exporter.ExportFlows(ctx, client, false)
+	hcl, err := exporter.ExportFlows(ctx, client, false, resolver.NewDependencyGraph())
 	require.NoError(t, err, "Should successfully export flows")
 	require.NotEmpty(t, hcl, "HCL output should not be empty")
 
@@ -49,7 +50,7 @@ func TestExportFlowsWithSkipDependencies(t *testing.T) {
 	ctx := context.Background()
 
 	// Export with skip dependencies
-	hcl, err := exporter.ExportFlows(ctx, client, true)
+	hcl, err := exporter.ExportFlows(ctx, client, true, resolver.NewDependencyGraph())
 	require.NoError(t, err, "Should successfully export flows with skip-dependencies")
 	require.NotEmpty(t, hcl, "HCL output should not be empty")
 
@@ -91,7 +92,7 @@ func TestExportFlowsValidateHCLStructure(t *testing.T) {
 	client := createTestClient(t)
 	ctx := context.Background()
 
-	hcl, err := exporter.ExportFlows(ctx, client, false)
+	hcl, err := exporter.ExportFlows(ctx, client, false, resolver.NewDependencyGraph())
 	require.NoError(t, err, "Should successfully export flows")
 
 	// Count resources
@@ -126,7 +127,7 @@ func TestExportSingleFlowComparison(t *testing.T) {
 	firstFlowName := flows[0].Name
 
 	// Export all flows
-	hcl, err := exporter.ExportFlows(ctx, client, false)
+	hcl, err := exporter.ExportFlows(ctx, client, false, resolver.NewDependencyGraph())
 	require.NoError(t, err, "Should export flows")
 
 	// Verify the first flow appears in the export

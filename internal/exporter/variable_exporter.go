@@ -8,10 +8,11 @@ import (
 
 	"github.com/samir-gandhi/davinci-terraform-converter/internal/api"
 	"github.com/samir-gandhi/davinci-terraform-converter/internal/converter"
+	"github.com/samir-gandhi/davinci-terraform-converter/internal/resolver"
 )
 
 // ExportVariables exports all variables from the API to HCL format
-func ExportVariables(ctx context.Context, client *api.Client, skipDeps bool) (string, error) {
+func ExportVariables(ctx context.Context, client *api.Client, skipDeps bool, graph *resolver.DependencyGraph) (string, error) {
 	if client == nil {
 		return "", fmt.Errorf("client cannot be nil")
 	}
@@ -26,9 +27,17 @@ func ExportVariables(ctx context.Context, client *api.Client, skipDeps bool) (st
 		return "", nil
 	}
 
+	// First pass: Register all variables in the dependency graph
+	for _, variable := range variables {
+		variableName := variable.GetName()
+		variableID := variable.GetId()
+		sanitizedName := resolver.SanitizeName(variableName, nil)
+		graph.AddResource("pingone_davinci_variable", variableID.String(), sanitizedName)
+	}
+
 	var hclBlocks []string
 
-	// Convert each variable to HCL
+	// Second pass: Convert each variable to HCL
 	for _, variable := range variables {
 		// Convert SDK response to JSON format expected by converter
 		variableJSON, err := convertVariableToJSON(&variable)

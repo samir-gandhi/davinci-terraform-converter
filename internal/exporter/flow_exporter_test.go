@@ -5,13 +5,15 @@ import (
 	"testing"
 
 	"github.com/samir-gandhi/davinci-terraform-converter/internal/api"
+	"github.com/samir-gandhi/davinci-terraform-converter/internal/resolver"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestExportFlows(t *testing.T) {
 	t.Run("Returns error when client is nil", func(t *testing.T) {
-		hcl, err := ExportFlows(context.Background(), nil, false)
+		graph := resolver.NewDependencyGraph()
+		hcl, err := ExportFlows(context.Background(), nil, false, graph)
 		assert.Error(t, err)
 		assert.Empty(t, hcl)
 		assert.Contains(t, err.Error(), "API client is required")

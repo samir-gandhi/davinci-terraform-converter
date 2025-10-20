@@ -8,10 +8,11 @@ import (
 
 	"github.com/samir-gandhi/davinci-terraform-converter/internal/api"
 	"github.com/samir-gandhi/davinci-terraform-converter/internal/converter"
+	"github.com/samir-gandhi/davinci-terraform-converter/internal/resolver"
 )
 
 // ExportFlowPolicies exports all flow policies to Terraform HCL
-func ExportFlowPolicies(ctx context.Context, client *api.Client, skipDeps bool) (string, error) {
+func ExportFlowPolicies(ctx context.Context, client *api.Client, skipDeps bool, graph *resolver.DependencyGraph) (string, error) {
 	policies, err := client.ListFlowPolicies(ctx)
 	if err != nil {
 		return "", fmt.Errorf("failed to list flow policies: %w", err)
@@ -21,19 +22,27 @@ func ExportFlowPolicies(ctx context.Context, client *api.Client, skipDeps bool) 
 		return "# No flow policies found\n\n", nil
 	}
 
+	// First pass: Register all flow policies in the dependency graph
+	for _, policy := range policies {
+		sanitizedName := resolver.SanitizeName(policy.Name, nil)
+		graph.AddResource("pingone_davinci_application_flow_policy", policy.PolicyID, sanitizedName)
+	}
+
 	var builder strings.Builder
 	builder.WriteString(fmt.Sprintf("# Flow Policies (%d total)\n\n", len(policies)))
 
-	usedResourceNames := make(map[string]int)
-
+	// Second pass: Convert each flow policy to HCL
 	for _, policy := range policies {
 		detail, err := client.GetFlowPolicy(ctx, policy.ApplicationID, policy.PolicyID)
 		if err != nil {
 			return "", fmt.Errorf("failed to get flow policy %s: %w", policy.PolicyID, err)
 		}
 
-		// Ensure unique resource names
-		resourceName := ensureUniqueFlowPolicyResourceName(policy.Name, usedResourceNames)
+		// Get the sanitized resource name from the graph
+		resourceName, err := graph.GetReferenceName("pingone_davinci_application_flow_policy", policy.PolicyID)
+		if err != nil {
+			return "", fmt.Errorf("failed to get resource name for flow policy %s: %w", policy.PolicyID, err)
+		}
 
 		// Get environment ID - pass raw string for var reference or quoted UUID
 		var environmentID string
@@ -43,7 +52,7 @@ func ExportFlowPolicies(ctx context.Context, client *api.Client, skipDeps bool) 
 			environmentID = "var.environment_id" // Will be written as-is by converter
 		}
 
-		hcl, err := converter.ConvertFlowPolicyToTerraform(detail.RawResponse, resourceName, policy.ApplicationID, environmentID, skipDeps)
+		hcl, err := converter.ConvertFlowPolicyToTerraform(detail.RawResponse, resourceName, policy.ApplicationID, environmentID, skipDeps, graph)
 		if err != nil {
 			return "", fmt.Errorf("failed to convert flow policy %s to Terraform: %w", policy.PolicyID, err)
 		}

@@ -11,8 +11,8 @@ func TestGetFlowDependencySchema(t *testing.T) {
 		t.Fatal("GetFlowDependencySchema() returned empty schema")
 	}
 
-	if schema.ResourceType != "flow" {
-		t.Errorf("Expected ResourceType 'flow', got %s", schema.ResourceType)
+	if schema.ResourceType != "pingone_davinci_flow" {
+		t.Errorf("Expected ResourceType 'pingone_davinci_flow', got %s", schema.ResourceType)
 	}
 
 	// Verify we have fields
@@ -61,8 +61,8 @@ func TestGetFlowPolicyDependencySchema(t *testing.T) {
 		t.Fatal("GetFlowPolicyDependencySchema() returned empty schema")
 	}
 
-	if schema.ResourceType != "flow_policy" {
-		t.Errorf("Expected ResourceType 'flow_policy', got %s", schema.ResourceType)
+	if schema.ResourceType != "pingone_davinci_application_flow_policy" {
+		t.Errorf("Expected ResourceType 'pingone_davinci_application_flow_policy', got %s", schema.ResourceType)
 	}
 
 	// Verify we have fields
@@ -91,8 +91,8 @@ func TestGetApplicationDependencySchema(t *testing.T) {
 		t.Fatal("GetApplicationDependencySchema() returned empty schema")
 	}
 
-	if schema.ResourceType != "application" {
-		t.Errorf("Expected ResourceType 'application', got %s", schema.ResourceType)
+	if schema.ResourceType != "pingone_davinci_application" {
+		t.Errorf("Expected ResourceType 'pingone_davinci_application', got %s", schema.ResourceType)
 	}
 }
 
@@ -103,8 +103,8 @@ func TestGetConnectorInstanceDependencySchema(t *testing.T) {
 		t.Fatal("GetConnectorInstanceDependencySchema() returned empty schema")
 	}
 
-	if schema.ResourceType != "connector_instance" {
-		t.Errorf("Expected ResourceType 'connector_instance', got %s", schema.ResourceType)
+	if schema.ResourceType != "pingone_davinci_connector_instance" {
+		t.Errorf("Expected ResourceType 'pingone_davinci_connector_instance', got %s", schema.ResourceType)
 	}
 }
 
@@ -115,8 +115,8 @@ func TestGetVariableDependencySchema(t *testing.T) {
 		t.Fatal("GetVariableDependencySchema() returned empty schema")
 	}
 
-	if schema.ResourceType != "variable" {
-		t.Errorf("Expected ResourceType 'variable', got %s", schema.ResourceType)
+	if schema.ResourceType != "pingone_davinci_variable" {
+		t.Errorf("Expected ResourceType 'pingone_davinci_variable', got %s", schema.ResourceType)
 	}
 }
 
@@ -128,27 +128,27 @@ func TestGetSchemaForResourceType(t *testing.T) {
 	}{
 		{
 			name:         "flow schema",
-			resourceType: "flow",
+			resourceType: "pingone_davinci_flow",
 			expectFound:  true,
 		},
 		{
 			name:         "flow_policy schema",
-			resourceType: "flow_policy",
+			resourceType: "pingone_davinci_application_flow_policy",
 			expectFound:  true,
 		},
 		{
 			name:         "application schema",
-			resourceType: "application",
+			resourceType: "pingone_davinci_application",
 			expectFound:  true,
 		},
 		{
 			name:         "connector_instance schema",
-			resourceType: "connector_instance",
+			resourceType: "pingone_davinci_connector_instance",
 			expectFound:  true,
 		},
 		{
 			name:         "variable schema",
-			resourceType: "variable",
+			resourceType: "pingone_davinci_variable",
 			expectFound:  true,
 		},
 		{
@@ -187,11 +187,11 @@ func TestAllDependencySchemas(t *testing.T) {
 
 	// Verify all schemas are valid
 	expectedTypes := map[string]bool{
-		"flow":               true,
-		"flow_policy":        true,
-		"application":        true,
-		"connector_instance": true,
-		"variable":           true,
+		"pingone_davinci_flow":                    true,
+		"pingone_davinci_application_flow_policy": true,
+		"pingone_davinci_application":             true,
+		"pingone_davinci_connector_instance":      true,
+		"pingone_davinci_variable":                true,
 	}
 
 	for _, schema := range schemas {
@@ -267,10 +267,10 @@ func TestAllSchemasHaveValidFields(t *testing.T) {
 
 				// Validate TargetType is known
 				validTypes := map[string]bool{
-					"flow":               true,
-					"connector_instance": true,
-					"variable":           true,
-					"application":        true,
+					"pingone_davinci_flow":               true,
+					"pingone_davinci_connector_instance": true,
+					"pingone_davinci_variable":           true,
+					"pingone_davinci_application":        true,
 				}
 
 				if !validTypes[field.TargetType] {

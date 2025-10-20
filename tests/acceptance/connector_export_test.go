@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/samir-gandhi/davinci-terraform-converter/internal/exporter"
+"github.com/samir-gandhi/davinci-terraform-converter/internal/resolver"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -21,7 +22,7 @@ func TestExportConnectorInstancesFromAPI(t *testing.T) {
 
 	t.Logf("Exporting connector instances from environment: %s", client.EnvironmentID)
 
-	hcl, err := exporter.ExportConnectorInstances(ctx, client, false)
+	hcl, err := exporter.ExportConnectorInstances(ctx, client, false, resolver.NewDependencyGraph())
 	require.NoError(t, err, "Should successfully export connector instances")
 	require.NotEmpty(t, hcl, "HCL output should not be empty")
 
@@ -50,7 +51,7 @@ func TestExportConnectorInstancesWithSkipDependenciesFromAPI(t *testing.T) {
 	client := createTestClient(t)
 	ctx := context.Background()
 
-	hcl, err := exporter.ExportConnectorInstances(ctx, client, true)
+	hcl, err := exporter.ExportConnectorInstances(ctx, client, true, resolver.NewDependencyGraph())
 	require.NoError(t, err, "Should successfully export with skip-dependencies")
 
 	t.Logf("Generated HCL with skip-dependencies: %d bytes", len(hcl))
@@ -67,7 +68,7 @@ func TestExportConnectorInstancesValidateHCLStructure(t *testing.T) {
 	client := createTestClient(t)
 	ctx := context.Background()
 
-	hcl, err := exporter.ExportConnectorInstances(ctx, client, false)
+	hcl, err := exporter.ExportConnectorInstances(ctx, client, false, resolver.NewDependencyGraph())
 	require.NoError(t, err)
 
 	// Count resources
@@ -101,7 +102,7 @@ func TestExportSingleConnectorInstanceComparison(t *testing.T) {
 	}
 
 	// Export all instances
-	hcl, err := exporter.ExportConnectorInstances(ctx, client, false)
+	hcl, err := exporter.ExportConnectorInstances(ctx, client, false, resolver.NewDependencyGraph())
 	require.NoError(t, err)
 
 	// Verify first instance appears in export
@@ -149,7 +150,7 @@ func TestExportConnectorInstancesPropertiesHandling(t *testing.T) {
 	}
 
 	// Export and verify properties block exists
-	hcl, err := exporter.ExportConnectorInstances(ctx, client, false)
+	hcl, err := exporter.ExportConnectorInstances(ctx, client, false, resolver.NewDependencyGraph())
 	require.NoError(t, err)
 
 	// Should have properties block

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/samir-gandhi/davinci-terraform-converter/internal/resolver"
 	"github.com/samir-gandhi/davinci-terraform-converter/internal/utils"
 )
 
@@ -24,25 +25,45 @@ func ConvertApplicationWithOptions(appJSON []byte, skipDependencies bool) (strin
 	}
 
 	// Use var.environment_id for backward compatibility
-	return generateApplicationHCL(appData, "var.environment_id")
+	return generateApplicationHCL(appData, "var.environment_id", nil)
 }
 
 // ConvertApplicationWithEnvironment converts a DaVinci application to Terraform format with explicit environment ID
 func ConvertApplicationWithEnvironment(appJSON []byte, environmentID string) (string, error) {
+	return ConvertApplicationWithEnvironmentAndGraph(appJSON, environmentID, nil)
+}
+
+// ConvertApplicationWithEnvironmentAndGraph converts a DaVinci application to Terraform format with explicit environment ID and optional dependency graph
+func ConvertApplicationWithEnvironmentAndGraph(appJSON []byte, environmentID string, graph *resolver.DependencyGraph) (string, error) {
 	var appData map[string]interface{}
 	if err := json.Unmarshal(appJSON, &appData); err != nil {
 		return "", fmt.Errorf("failed to unmarshal application JSON: %w", err)
 	}
 
-	return generateApplicationHCL(appData, environmentID)
+	return generateApplicationHCL(appData, environmentID, graph)
 }
 
 // generateApplicationHCL generates HCL for a DaVinci application
-func generateApplicationHCL(appData map[string]interface{}, environmentID string) (string, error) {
+func generateApplicationHCL(appData map[string]interface{}, environmentID string, graph *resolver.DependencyGraph) (string, error) {
 	var hcl strings.Builder
 
-	// Generate resource name from application name
-	resourceName := utils.SanitizeResourceName(getString(appData, "name"))
+	// Generate resource name - use registered name from graph if available to ensure uniqueness
+	var resourceName string
+	if graph != nil {
+		appID := getString(appData, "id")
+		if appID != "" {
+			// Look up the registered unique name from the graph
+			registeredName, err := graph.GetReferenceName("pingone_davinci_application", appID)
+			if err == nil {
+				resourceName = registeredName
+			}
+		}
+	}
+
+	// Fallback: generate from application name if not in graph
+	if resourceName == "" {
+		resourceName = utils.SanitizeResourceName(getString(appData, "name"))
+	}
 
 	hcl.WriteString(fmt.Sprintf("resource \"pingone_davinci_application\" \"%s\" {\n", resourceName))
 

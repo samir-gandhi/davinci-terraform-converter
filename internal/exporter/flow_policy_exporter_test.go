@@ -1,6 +1,7 @@
 package exporter
 
 import (
+"github.com/samir-gandhi/davinci-terraform-converter/internal/resolver"
 	"context"
 	"os"
 	"strings"
@@ -35,7 +36,7 @@ func TestExportFlowPoliciesFromAPI(t *testing.T) {
 
 	// Test with skip-dependencies=false (use var.environment_id)
 	t.Run("WithDependencies", func(t *testing.T) {
-		hcl, err := ExportFlowPolicies(ctx, client, false)
+		hcl, err := ExportFlowPolicies(ctx, client, false, resolver.NewDependencyGraph())
 		if err != nil {
 			t.Fatalf("ExportFlowPolicies failed: %v", err)
 		}
@@ -71,7 +72,7 @@ func TestExportFlowPoliciesFromAPI(t *testing.T) {
 
 	// Test with skip-dependencies=true (use raw UUID)
 	t.Run("SkipDependencies", func(t *testing.T) {
-		hcl, err := ExportFlowPolicies(ctx, client, true)
+		hcl, err := ExportFlowPolicies(ctx, client, true, resolver.NewDependencyGraph())
 		if err != nil {
 			t.Fatalf("ExportFlowPolicies failed: %v", err)
 		}

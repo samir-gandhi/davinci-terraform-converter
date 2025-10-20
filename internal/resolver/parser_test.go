@@ -339,7 +339,7 @@ func TestFindReferencesInFlow(t *testing.T) {
 	// Verify we found connection dependency
 	foundConnection := false
 	for _, dep := range deps {
-		if dep.To.Type == "connector_instance" && dep.To.ID == "conn-123" {
+		if dep.To.Type == "pingone_davinci_connector_instance" && dep.To.ID == "conn-123" {
 			foundConnection = true
 			if dep.From.ID != "my-flow" {
 				t.Errorf("Dependency From.ID = %v, want 'my-flow'", dep.From.ID)

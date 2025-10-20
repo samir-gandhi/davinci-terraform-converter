@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/samir-gandhi/davinci-terraform-converter/internal/api"
+	"github.com/samir-gandhi/davinci-terraform-converter/internal/resolver"
 )
 
 // ExportEnvironment exports all DaVinci resources from an environment in dependency order
@@ -34,10 +35,13 @@ func ExportEnvironment(ctx context.Context, client *api.Client, skipDeps bool) (
 		hcl.WriteString("\n")
 	}
 
-	// Export resources in dependency order
+	// Initialize dependency graph for reference resolution
+	graph := resolver.NewDependencyGraph()
+
+	// Export resources in dependency order, building the graph as we go
 
 	// 1. Variables
-	variables, err := ExportVariables(ctx, client, skipDeps)
+	variables, err := ExportVariables(ctx, client, skipDeps, graph)
 	if err != nil {
 		return "", fmt.Errorf("failed to export variables: %w", err)
 	}
@@ -45,7 +49,7 @@ func ExportEnvironment(ctx context.Context, client *api.Client, skipDeps bool) (
 	hcl.WriteString("\n")
 
 	// 2. Connector Instances
-	connectors, err := ExportConnectorInstances(ctx, client, skipDeps)
+	connectors, err := ExportConnectorInstances(ctx, client, skipDeps, graph)
 	if err != nil {
 		return "", fmt.Errorf("failed to export connector instances: %w", err)
 	}
@@ -53,7 +57,7 @@ func ExportEnvironment(ctx context.Context, client *api.Client, skipDeps bool) (
 	hcl.WriteString("\n")
 
 	// 3. Flows
-	flows, err := ExportFlows(ctx, client, skipDeps)
+	flows, err := ExportFlows(ctx, client, skipDeps, graph)
 	if err != nil {
 		return "", fmt.Errorf("failed to export flows: %w", err)
 	}
@@ -61,7 +65,7 @@ func ExportEnvironment(ctx context.Context, client *api.Client, skipDeps bool) (
 	hcl.WriteString("\n")
 
 	// 4. Applications
-	applications, err := ExportApplications(ctx, client, skipDeps)
+	applications, err := ExportApplications(ctx, client, skipDeps, graph)
 	if err != nil {
 		return "", fmt.Errorf("failed to export applications: %w", err)
 	}
@@ -69,7 +73,7 @@ func ExportEnvironment(ctx context.Context, client *api.Client, skipDeps bool) (
 	hcl.WriteString("\n")
 
 	// 5. Flow Policies
-	flowPolicies, err := ExportFlowPolicies(ctx, client, skipDeps)
+	flowPolicies, err := ExportFlowPolicies(ctx, client, skipDeps, graph)
 	if err != nil {
 		return "", fmt.Errorf("failed to export flow policies: %w", err)
 	}
