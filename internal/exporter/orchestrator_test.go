@@ -9,6 +9,43 @@ import (
 	"github.com/samir-gandhi/davinci-terraform-converter/internal/api"
 )
 
+// mockLogger implements grpc.Logger for testing
+type mockLogger struct {
+	messages []string
+	warnings []string
+	errors   []string
+}
+
+func (m *mockLogger) Message(msg string, metadata map[string]string) error {
+	m.messages = append(m.messages, msg)
+	return nil
+}
+
+func (m *mockLogger) Success(msg string, metadata map[string]string) error {
+	m.messages = append(m.messages, "SUCCESS: "+msg)
+	return nil
+}
+
+func (m *mockLogger) Warn(msg string, metadata map[string]string) error {
+	m.warnings = append(m.warnings, msg)
+	return nil
+}
+
+func (m *mockLogger) UserError(msg string, metadata map[string]string) error {
+	m.errors = append(m.errors, msg)
+	return nil
+}
+
+func (m *mockLogger) UserFatal(msg string, metadata map[string]string) error {
+	m.errors = append(m.errors, "FATAL: "+msg)
+	return nil
+}
+
+func (m *mockLogger) PluginError(msg string, metadata map[string]string) error {
+	m.errors = append(m.errors, msg)
+	return nil
+}
+
 // TestExportEnvironmentFromAPI tests the full environment export orchestration
 func TestExportEnvironmentFromAPI(t *testing.T) {
 	// Require environment variables for API tests
@@ -41,7 +78,8 @@ func TestExportEnvironmentFromAPI(t *testing.T) {
 
 	// Test with skip-dependencies=false (use var.environment_id and references)
 	t.Run("WithDependencies", func(t *testing.T) {
-		hcl, err := ExportEnvironment(ctx, client, false)
+		logger := &mockLogger{}
+		hcl, err := ExportEnvironment(ctx, client, false, logger)
 		if err != nil {
 			t.Fatalf("ExportEnvironment failed: %v", err)
 		}
@@ -79,7 +117,8 @@ func TestExportEnvironmentFromAPI(t *testing.T) {
 
 	// Test with skip-dependencies=true (use raw UUIDs)
 	t.Run("SkipDependencies", func(t *testing.T) {
-		hcl, err := ExportEnvironment(ctx, client, true)
+		logger := &mockLogger{}
+		hcl, err := ExportEnvironment(ctx, client, true, logger)
 		if err != nil {
 			t.Fatalf("ExportEnvironment failed: %v", err)
 		}
@@ -142,7 +181,8 @@ func TestExportEnvironmentOrdering(t *testing.T) {
 		t.Fatalf("Failed to create API client: %v", err)
 	}
 
-	hcl, err := ExportEnvironment(ctx, client, false)
+	logger := &mockLogger{}
+	hcl, err := ExportEnvironment(ctx, client, false, logger)
 	if err != nil {
 		t.Fatalf("ExportEnvironment failed: %v", err)
 	}

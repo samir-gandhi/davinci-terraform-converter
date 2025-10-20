@@ -3,16 +3,16 @@ package exporter
 import (
 	"context"
 	"fmt"
-	"os"
 	"strings"
 
+	"github.com/pingidentity/pingcli/shared/grpc"
 	"github.com/samir-gandhi/davinci-terraform-converter/internal/api"
 	"github.com/samir-gandhi/davinci-terraform-converter/internal/resolver"
 )
 
 // ExportEnvironment exports all DaVinci resources from an environment in dependency order
 // Returns complete Terraform configuration including provider setup and all resources
-func ExportEnvironment(ctx context.Context, client *api.Client, skipDeps bool) (string, error) {
+func ExportEnvironment(ctx context.Context, client *api.Client, skipDeps bool, logger grpc.Logger) (string, error) {
 	var hcl strings.Builder
 
 	// Add header comment
@@ -50,59 +50,111 @@ func ExportEnvironment(ctx context.Context, client *api.Client, skipDeps bool) (
 	}
 	missingTracker.SetIncludedTypes(includedTypes)
 
+	// Log export start
+	if err := logger.Message("Exporting DaVinci resources...", nil); err != nil {
+		return "", fmt.Errorf("failed to log message: %w", err)
+	}
+
 	// Export resources in dependency order, building the graph as we go
 
 	// 1. Variables
+	if err := logger.Message("Fetching variables...", nil); err != nil {
+		return "", fmt.Errorf("failed to log message: %w", err)
+	}
 	variables, err := ExportVariables(ctx, client, skipDeps, graph)
 	if err != nil {
+		logger.PluginError("Failed to export variables", map[string]string{"error": err.Error()})
 		return "", fmt.Errorf("failed to export variables: %w", err)
+	}
+	varCount := strings.Count(variables, "resource \"pingone_davinci_variable\"")
+	if err := logger.Message(fmt.Sprintf("✓ Found %d variables", varCount), nil); err != nil {
+		return "", fmt.Errorf("failed to log message: %w", err)
 	}
 	hcl.WriteString(variables)
 	hcl.WriteString("\n")
 
 	// 2. Connector Instances
+	if err := logger.Message("Fetching connector instances...", nil); err != nil {
+		return "", fmt.Errorf("failed to log message: %w", err)
+	}
 	connectors, err := ExportConnectorInstances(ctx, client, skipDeps, graph)
 	if err != nil {
+		logger.PluginError("Failed to export connector instances", map[string]string{"error": err.Error()})
 		return "", fmt.Errorf("failed to export connector instances: %w", err)
+	}
+	connCount := strings.Count(connectors, "resource \"pingone_davinci_connector_instance\"")
+	if err := logger.Message(fmt.Sprintf("✓ Found %d connector instances", connCount), nil); err != nil {
+		return "", fmt.Errorf("failed to log message: %w", err)
 	}
 	hcl.WriteString(connectors)
 	hcl.WriteString("\n")
 
 	// 3. Flows
+	if err := logger.Message("Fetching flows...", nil); err != nil {
+		return "", fmt.Errorf("failed to log message: %w", err)
+	}
 	flows, err := ExportFlows(ctx, client, skipDeps, graph)
 	if err != nil {
+		logger.PluginError("Failed to export flows", map[string]string{"error": err.Error()})
 		return "", fmt.Errorf("failed to export flows: %w", err)
+	}
+	flowCount := strings.Count(flows, "resource \"pingone_davinci_flow\"")
+	if err := logger.Message(fmt.Sprintf("✓ Found %d flows", flowCount), nil); err != nil {
+		return "", fmt.Errorf("failed to log message: %w", err)
 	}
 	hcl.WriteString(flows)
 	hcl.WriteString("\n")
 
 	// 4. Applications
+	if err := logger.Message("Fetching applications...", nil); err != nil {
+		return "", fmt.Errorf("failed to log message: %w", err)
+	}
 	applications, err := ExportApplications(ctx, client, skipDeps, graph)
 	if err != nil {
+		logger.PluginError("Failed to export applications", map[string]string{"error": err.Error()})
 		return "", fmt.Errorf("failed to export applications: %w", err)
+	}
+	appCount := strings.Count(applications, "resource \"pingone_davinci_application\"")
+	if err := logger.Message(fmt.Sprintf("✓ Found %d applications", appCount), nil); err != nil {
+		return "", fmt.Errorf("failed to log message: %w", err)
 	}
 	hcl.WriteString(applications)
 	hcl.WriteString("\n")
 
 	// 5. Flow Policies
+	if err := logger.Message("Fetching flow policies...", nil); err != nil {
+		return "", fmt.Errorf("failed to log message: %w", err)
+	}
 	flowPolicies, err := ExportFlowPolicies(ctx, client, skipDeps, graph)
 	if err != nil {
+		logger.PluginError("Failed to export flow policies", map[string]string{"error": err.Error()})
 		return "", fmt.Errorf("failed to export flow policies: %w", err)
+	}
+	policyCount := strings.Count(flowPolicies, "resource \"pingone_davinci_application_flow_policy\"")
+	if err := logger.Message(fmt.Sprintf("✓ Found %d flow policies", policyCount), nil); err != nil {
+		return "", fmt.Errorf("failed to log message: %w", err)
 	}
 	hcl.WriteString(flowPolicies)
 
 	// Get the final HCL output
 	finalHCL := hcl.String()
 
-	// Validate dependency graph and print reports to stderr
+	// Log validation
+	if err := logger.Message("\nValidating dependency graph...", nil); err != nil {
+		return "", fmt.Errorf("failed to log message: %w", err)
+	}
+
+	// Validate dependency graph
 	if err := graph.ValidateGraph(); err != nil {
-		fmt.Fprintf(os.Stderr, "\n⚠ Warning: Dependency validation found issues:\n%v\n\n", err)
+		if warnErr := logger.Warn(fmt.Sprintf("Dependency validation found issues: %v", err), nil); warnErr != nil {
+			return "", fmt.Errorf("failed to log warning: %w", warnErr)
+		}
 	}
 
 	// Count TODO comments in generated HCL
 	todoCount := strings.Count(finalHCL, "# TODO:")
 
-	// Print validation report to stderr with TODO count
+	// Generate and log validation report with TODO count
 	report := graph.GenerateValidationReport()
 	// Insert TODO count after Total Dependencies line
 	if todoCount > 0 {
@@ -116,11 +168,27 @@ func ExportEnvironment(ctx context.Context, client *api.Client, skipDeps bool) (
 			}
 		}
 	}
-	fmt.Fprintln(os.Stderr, report)
 
-	// Print missing dependencies summary to stderr if any
+	// Log validation report
+	if err := logger.Message("\n"+report, nil); err != nil {
+		return "", fmt.Errorf("failed to log validation report: %w", err)
+	}
+
+	// Log missing dependencies summary if any
 	if len(missingTracker.GetMissing()) > 0 {
-		fmt.Fprintln(os.Stderr, missingTracker.GenerateSummaryReport())
+		summaryReport := missingTracker.GenerateSummaryReport()
+		if err := logger.Message("\n"+summaryReport, nil); err != nil {
+			return "", fmt.Errorf("failed to log missing dependencies summary: %w", err)
+		}
+	}
+
+	// Log completion
+	totalResources := varCount + connCount + flowCount + appCount + policyCount
+	if err := logger.Message(fmt.Sprintf("\n✓ Export complete - %d resources generated", totalResources), map[string]string{
+		"resources": fmt.Sprintf("%d", totalResources),
+		"todos":     fmt.Sprintf("%d", todoCount),
+	}); err != nil {
+		return "", fmt.Errorf("failed to log completion: %w", err)
 	}
 
 	return finalHCL, nil

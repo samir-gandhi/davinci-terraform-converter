@@ -15,63 +15,392 @@ mode: agent
 
 ---
 
-## Phase 5.1: Complete CLI Integration
+## Phase 5.1: Ping CLI Plugin Integration
 
-**Goal**: Wire all components together in Cobra command.
+**Goal**: Finalize integration with Ping CLI as a plugin command.
+
+### Current Implementation Status
+
+The DaVinci converter is already implemented as a Ping CLI plugin:
+
+**Implemented**:
+- ✅ Plugin structure using `hashicorp/go-plugin`
+- ✅ gRPC-based communication with host
+- ✅ Command metadata (Use, Short, Long, Example)
+- ✅ Logger integration via `grpc.Logger` interface
+
+**Current Architecture**:
+```go
+// cmd/convert.go implements grpc.PingCliCommand interface
+
+type DaVinciConvertCommand struct{}
+
+// Configuration returns command metadata to Ping CLI host
+func (c *DaVinciConvertCommand) Configuration() (*grpc.PingCliCommandConfiguration, error)
+
+// Run executes the command with args and logger from host
+func (c *DaVinciConvertCommand) Run(args []string, logger grpc.Logger) error
+```
+
+### Logger Integration Requirements
+
+The Ping CLI logger must be used for ALL user-facing output:
+
+**Logger Methods Available**:
+```go
+// grpc.Logger interface methods:
+logger.Message(message string, metadata map[string]string) error  // Standard output
+logger.Warn(message string, metadata map[string]string) error     // Warnings
+logger.PluginError(message string, metadata map[string]string) error  // Errors
+```
+
+**DO NOT use**:
+- `fmt.Println()` - bypasses plugin logging
+- `fmt.Fprintf(os.Stderr, ...)` - bypasses plugin logging
+- `log.Printf()` - bypasses plugin logging
+
+**Current Issues to Fix**:
+
+1. **Validation reports go to stderr** - Should use logger instead:
+```go
+// CURRENT (internal/exporter/orchestrator.go):
+fmt.Fprintln(os.Stderr, report)
+
+// SHOULD BE:
+logger.Message(report, nil)
+```
+
+2. **Progress messages not logged**:
+```go
+// ADD to exporter:
+logger.Message("Fetching flows...", nil)
+logger.Message(fmt.Sprintf("✓ Found %d flows", len(flows)), nil)
+```
+
+3. **Error context lost** - Add metadata:
+```go
+// CURRENT:
+return fmt.Errorf("failed to fetch flows: %w", err)
+
+// ENHANCED:
+logger.PluginError("Failed to fetch flows", map[string]string{
+    "environment_id": environmentID,
+    "error": err.Error(),
+})
+return err
+```
+
+### Implementation Tasks
+
+**Task 1: Pass Logger Through Call Stack**
+
+Update function signatures to accept logger:
+
+```go
+// Before
+func ExportEnvironment(ctx context.Context, client *api.Client, skipDeps bool) (string, error)
+
+// After
+func ExportEnvironment(ctx context.Context, client *api.Client, skipDeps bool, logger grpc.Logger) (string, error)
+```
+
+Propagate through:
+- `internal/exporter/orchestrator.go` - Main export function
+- All exporter methods that need progress reporting
+- Validation report generation
+
+**Task 2: Replace Direct Output with Logger**
+
+In `internal/exporter/orchestrator.go`:
+
+```go
+// Before
+fmt.Fprintln(os.Stderr, "Dependency Graph Validation Report")
+fmt.Fprintln(os.Stderr, strings.Repeat("=", 60))
+fmt.Fprintln(os.Stderr, fmt.Sprintf("Total Resources: %d", totalResources))
+
+// After
+report := GenerateValidationReport(graph, missingTracker, todoCount)
+if err := logger.Message(report, nil); err != nil {
+    return "", fmt.Errorf("failed to log validation report: %w", err)
+}
+```
+
+**Task 3: Add Progress Reporting**
+
+Enhance export process with progress updates:
+
+```go
+func ExportEnvironment(ctx context.Context, client *api.Client, skipDeps bool, logger grpc.Logger) (string, error) {
+    graph := resolver.NewDependencyGraph()
+    missingTracker := resolver.NewMissingDependencyTracker()
+    
+    // Log start
+    logger.Message("Exporting DaVinci environment...", nil)
+    
+    // Export variables
+    logger.Message("Fetching variables...", nil)
+    variables, err := client.ReadAllVariables(ctx)
+    if err != nil {
+        logger.PluginError("Failed to fetch variables", map[string]string{"error": err.Error()})
+        return "", err
+    }
+    logger.Message(fmt.Sprintf("✓ Found %d variables", len(variables)), nil)
+    
+    // Export connectors
+    logger.Message("Fetching connector instances...", nil)
+    connectors, err := client.ReadAllConnectorInstances(ctx)
+    if err != nil {
+        logger.PluginError("Failed to fetch connectors", map[string]string{"error": err.Error()})
+        return "", err
+    }
+    logger.Message(fmt.Sprintf("✓ Found %d connector instances", len(connectors)), nil)
+    
+    // ... continue for all resource types
+    
+    // Log validation
+    logger.Message("\nValidating dependency graph...", nil)
+    if err := graph.ValidateGraph(); err != nil {
+        logger.Warn(fmt.Sprintf("Validation warnings: %v", err), nil)
+    }
+    
+    // Log completion
+    logger.Message("\n✓ Export complete", map[string]string{
+        "resources": fmt.Sprintf("%d", totalResources),
+        "todos": fmt.Sprintf("%d", todoCount),
+    })
+    
+    return finalHCL, nil
+}
+```
+
+**Task 4: Structured Error Reporting**
+
+Use metadata for machine-readable error context:
+
+```go
+// Authentication errors
+logger.PluginError("Authentication failed", map[string]string{
+    "environment_id": environmentID,
+    "region": region,
+    "hint": "Verify client credentials and permissions",
+})
+
+// Network errors
+logger.PluginError("Network timeout", map[string]string{
+    "endpoint": endpoint,
+    "region": region,
+    "hint": "Check internet connection and region setting",
+})
+
+// API errors
+logger.PluginError("API request failed", map[string]string{
+    "status_code": fmt.Sprintf("%d", statusCode),
+    "endpoint": endpoint,
+    "error": errMsg,
+})
+```
+
+**Task 5: Verbose Mode Integration**
+
+Add verbose logging controlled by Ping CLI flags:
+
+```go
+// In cmd/convert.go, check for verbose flag
+verbose := false
+for i, arg := range args {
+    if arg == "--verbose" || arg == "-v" {
+        verbose = true
+        args = append(args[:i], args[i+1:]...) // Remove flag
+        break
+    }
+}
+
+// Pass verbose to exporter
+hcl, err := exporter.ExportEnvironment(ctx, client, skipDeps, logger, verbose)
+
+// In exporter, log details only if verbose
+if verbose {
+    logger.Message(fmt.Sprintf("Processing flow: %s (ID: %s)", flow.Name, flow.FlowID), nil)
+    logger.Message(fmt.Sprintf("  Nodes: %d", len(flow.GraphData.Elements.Nodes)), nil)
+    logger.Message(fmt.Sprintf("  Dependencies: %d", len(dependencies)), nil)
+}
+```
+
+### Testing Logger Integration
+
+**Unit Tests**:
+
+Create mock logger for testing:
+```go
+// internal/exporter/orchestrator_test.go
+
+type mockLogger struct {
+    messages []string
+    warnings []string
+    errors   []string
+}
+
+func (m *mockLogger) Message(msg string, metadata map[string]string) error {
+    m.messages = append(m.messages, msg)
+    return nil
+}
+
+func (m *mockLogger) Warn(msg string, metadata map[string]string) error {
+    m.warnings = append(m.warnings, msg)
+    return nil
+}
+
+func (m *mockLogger) PluginError(msg string, metadata map[string]string) error {
+    m.errors = append(m.errors, msg)
+    return nil
+}
+
+func TestExportEnvironment_LoggerIntegration(t *testing.T) {
+    logger := &mockLogger{}
+    ctx := context.Background()
+    client := setupMockClient()
+    
+    hcl, err := ExportEnvironment(ctx, client, false, logger)
+    require.NoError(t, err)
+    
+    // Verify progress messages logged
+    assert.Contains(t, logger.messages[0], "Exporting DaVinci environment")
+    assert.Contains(t, logger.messages[1], "Fetching variables")
+    assert.Contains(t, logger.messages[len(logger.messages)-1], "Export complete")
+    
+    // Verify no direct stdout/stderr output
+    // (would fail if fmt.Println used)
+}
+```
+
+**Integration Tests**:
+
+Test with actual Ping CLI plugin framework:
+```go
+// cmd/convert_integration_test.go
+
+func TestPluginCommand_LoggerOutput(t *testing.T) {
+    // Setup plugin client
+    client := plugin.NewClient(&plugin.ClientConfig{
+        HandshakeConfig: grpc.HandshakeConfig,
+        Plugins: map[string]plugin.Plugin{
+            grpc.ENUM_PINGCLI_COMMAND_GRPC: &grpc.PingCliCommandGrpcPlugin{},
+        },
+        Cmd: exec.Command("./davinci-convert"),
+    })
+    defer client.Kill()
+    
+    // Get RPC client
+    rpcClient, err := client.Client()
+    require.NoError(t, err)
+    
+    // Get plugin interface
+    raw, err := rpcClient.Dispense(grpc.ENUM_PINGCLI_COMMAND_GRPC)
+    require.NoError(t, err)
+    
+    cmd := raw.(grpc.PingCliCommand)
+    
+    // Capture logger output
+    logOutput := &strings.Builder{}
+    logger := &testLogger{writer: logOutput}
+    
+    // Run command
+    err = cmd.Run([]string{"--flow-json", "test.json"}, logger)
+    require.NoError(t, err)
+    
+    // Verify all output went through logger
+    output := logOutput.String()
+    assert.Contains(t, output, "Converting flow")
+    assert.Contains(t, output, "✓ Conversion complete")
+}
+```
+
+### Success Criteria
+
+- ✅ All user-facing output uses `grpc.Logger`
+- ✅ No direct `fmt.Println()` or `fmt.Fprintf(os.Stderr)` calls
+- ✅ Progress messages logged for all major operations
+- ✅ Error messages include structured metadata
+- ✅ Validation reports logged through logger
+- ✅ Verbose mode provides detailed logging
+- ✅ Logger integration tested with mock logger
+- ✅ Plugin works correctly in Ping CLI environment
+
+---
+
+## Phase 5.2: Complete CLI Integration
+
+**Goal**: Wire all components together in command implementation.
 
 ### Support Two Modes
 
-Update `cmd/convert.go`:
+The command already supports both modes - needs logger integration:
 
-**File Mode** (original behavior):
+**File Mode** (already implemented):
 ```go
-if flowJSONPath != "" {
+func (c *DaVinciConvertCommand) runFileMode(logger grpc.Logger, flowJSON, out string, skipDeps bool) error {
+    // Log start
+    logger.Message("Converting DaVinci flow from file...", nil)
+    
     // Read flow from file
-    data, err := os.ReadFile(flowJSONPath)
+    data, err := os.ReadFile(flowJSON)
     if err != nil {
+        logger.PluginError("Failed to read flow file", map[string]string{
+            "file": flowJSON,
+            "error": err.Error(),
+        })
         return fmt.Errorf("failed to read flow file: %w", err)
     }
     
     // Convert single flow
     hcl, err := converter.Convert(string(data))
     if err != nil {
+        logger.PluginError("Conversion failed", map[string]string{"error": err.Error()})
         return fmt.Errorf("conversion failed: %w", err)
     }
     
+    // Log success
+    logger.Message("✓ Conversion complete", nil)
+    
     // Output HCL
-    return writeOutput(hcl)
+    return writeOutput(hcl, out, logger)
 }
 ```
 
-**Export Mode** (new functionality):
+**Export Mode** (already implemented - needs logger enhancement):
 ```go
-if exportMode {
-    // Validate required flags
-    if err := validateExportFlags(); err != nil {
-        return err
+func (c *DaVinciConvertCommand) runExportMode(logger grpc.Logger, environmentID, region, clientID, clientSecret, out string, skipDeps bool) error {
+    // Validate credentials (already implemented)
+    // Log progress (already implemented)
+    
+    // Create API client
+    ctx := context.Background()
+    client, err := api.NewClientSingleEnvironment(ctx, environmentID, region, clientID, clientSecret)
+    if err != nil {
+        logger.PluginError("Failed to create API client", map[string]string{
+            "environment_id": environmentID,
+            "region": region,
+            "error": err.Error(),
+        })
+        return fmt.Errorf("failed to create API client: %w", err)
     }
     
-    // Initialize API client
-    client, err := api.NewClient(ctx, environmentID, region, clientID, clientSecret)
+    // Export all resources - NEEDS LOGGER PARAMETER
+    hcl, err := exporter.ExportEnvironment(ctx, client, skipDeps, logger) // ADD logger
     if err != nil {
-        return fmt.Errorf("failed to initialize API client: %w", err)
+        logger.PluginError("Export failed", map[string]string{
+            "environment_id": environmentID,
+            "error": err.Error(),
+        })
+        return fmt.Errorf("failed to export environment: %w", err)
     }
     
-    // Export all resources
-    exporter := exporter.NewExporter(client)
-    exportResult, err := exporter.Export(ctx)
-    if err != nil {
-        return fmt.Errorf("export failed: %w", err)
-    }
-    
-    // Build dependency graph and convert
-    hcl, err := converter.ConvertExport(exportResult)
-    if err != nil {
-        return fmt.Errorf("conversion failed: %w", err)
-    }
+    // Log completion
+    logger.Message("✓ Export complete", nil)
     
     // Output HCL
-    return writeOutput(hcl)
+    return writeOutput(hcl, out, logger)
 }
 ```
 
@@ -829,15 +1158,36 @@ for _, flow := range flows {
 
 ## Success Criteria
 
-- ✅ CLI supports both file mode and export mode
+### Phase 5.1: Ping CLI Plugin Integration
+- ✅ All output uses `grpc.Logger` (no direct fmt.Println/stderr)
+- ✅ Progress messages logged for all operations
+- ✅ Error messages include structured metadata
+- ✅ Validation reports logged through logger
+- ✅ Verbose mode implemented
+- ✅ Logger mock tests passing
+- ✅ Plugin integration tests passing
+
+### Phase 5.2: CLI Integration
+- ✅ Both file mode and export mode functional
 - ✅ Clear error messages for all common issues
+- ✅ Logger integrated throughout call stack
+- ✅ Command-line flag parsing working
+
+### Phase 5.3: Integration Tests
 - ✅ Integration tests verify all components work together
 - ✅ End-to-end tests with mock API pass
+- ✅ Plugin framework tests pass
+
+### Phase 5.4: Documentation
 - ✅ Documentation covers all usage patterns
 - ✅ Examples provided for common scenarios
+- ✅ Ping CLI plugin usage documented
+- ✅ Troubleshooting guide complete
+
+### Phase 5.5: Performance
 - ✅ Performance is acceptable for large environments (100+ flows)
-- ✅ Selective export works with include/exclude filters (Phase 3.6)
-- ✅ HAL link parsing discovers dependencies correctly (Phase 3.6)
+- ✅ Progress reporting works smoothly
+- ✅ Concurrent API calls functional (if implemented)
 
 ---
 

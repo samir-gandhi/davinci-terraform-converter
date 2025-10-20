@@ -30,8 +30,52 @@ import (
 // Version information - set at build time via ldflags or goreleaser
 var (
 	version = "dev"
-	commit  = "dev"
+	commit  = "none"
+	date    = "unknown"
 )
+
+// simpleLogger implements grpc.Logger for standalone mode
+type simpleLogger struct{}
+
+func (l *simpleLogger) Message(msg string, metadata map[string]string) error {
+	fmt.Fprintln(os.Stderr, msg)
+	return nil
+}
+
+func (l *simpleLogger) Success(msg string, metadata map[string]string) error {
+	fmt.Fprintf(os.Stderr, "✓ %s\n", msg)
+	return nil
+}
+
+func (l *simpleLogger) Warn(msg string, metadata map[string]string) error {
+	fmt.Fprintf(os.Stderr, "⚠ Warning: %s\n", msg)
+	return nil
+}
+
+func (l *simpleLogger) UserError(msg string, metadata map[string]string) error {
+	fmt.Fprintf(os.Stderr, "✗ Error: %s\n", msg)
+	if metadata != nil && len(metadata) > 0 {
+		fmt.Fprintf(os.Stderr, "  Details: %v\n", metadata)
+	}
+	return nil
+}
+
+func (l *simpleLogger) UserFatal(msg string, metadata map[string]string) error {
+	fmt.Fprintf(os.Stderr, "✗ Fatal: %s\n", msg)
+	if metadata != nil && len(metadata) > 0 {
+		fmt.Fprintf(os.Stderr, "  Details: %v\n", metadata)
+	}
+	os.Exit(1)
+	return nil
+}
+
+func (l *simpleLogger) PluginError(msg string, metadata map[string]string) error {
+	fmt.Fprintf(os.Stderr, "✗ Error: %s\n", msg)
+	if metadata != nil && len(metadata) > 0 {
+		fmt.Fprintf(os.Stderr, "  Details: %v\n", metadata)
+	}
+	return nil
+}
 
 // main is the entry point for the binary. It detects whether to run in
 // plugin mode or standalone CLI mode based on the environment and arguments.
@@ -208,7 +252,8 @@ func handleExportMode(environmentID, region, clientID, clientSecret, outPath str
 	}
 
 	// Export all resources
-	hcl, err := exporter.ExportEnvironment(ctx, client, skipDependencies)
+	logger := &simpleLogger{}
+	hcl, err := exporter.ExportEnvironment(ctx, client, skipDependencies, logger)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error exporting environment: %v\n", err)
 		os.Exit(1)

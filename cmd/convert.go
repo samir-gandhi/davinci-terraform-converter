@@ -193,7 +193,7 @@ func (c *DaVinciConvertCommand) runExportMode(logger grpc.Logger, environmentID,
 	}
 
 	// Export all resources
-	hcl, err := exporter.ExportEnvironment(ctx, client, skipDeps)
+	hcl, err := exporter.ExportEnvironment(ctx, client, skipDeps, logger)
 	if err != nil {
 		return fmt.Errorf("failed to export environment: %w", err)
 	}
