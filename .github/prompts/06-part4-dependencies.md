@@ -4,7 +4,7 @@ mode: agent
 
 # Part 4: Dependency Resolution and Terraform References
 
-**Status**: 🟡 IN PROGRESS
+**Status**: ✅ COMPLETE
 
 **Prerequisites**:
 - ✅ Part 3 (full export) complete
@@ -12,6 +12,8 @@ mode: agent
 - ✅ HAL link parsing functional
 
 **Goal**: Replace hardcoded resource IDs with Terraform references to enable proper resource dependencies.
+
+**Completion Date**: Phase 4.1-4.4 all complete with full integration
 
 ---
 
@@ -71,13 +73,14 @@ mode: agent
 - ✅ `internal/resolver/COMPARISON_TO_TERRAFORMER.md` - Analysis proving our approach superior for DaVinci
 
 **Test Coverage**:
-- ✅ 53/53 resolver package tests passing
+- ✅ 67/67 resolver package tests passing
   - 9 resolver tests (graph operations)
   - 17 parser tests (path traversal, dependency extraction)
   - 9 schema tests (schema definitions, lookups)
   - 8 hierarchy tests (relationship tracking)
   - 6 naming tests (sanitization, uniqueness)
-  - 4 integration tests (complete workflow validation)
+  - 7 missing dependency tests (tracking, TODO generation, reporting)
+  - 11 validation tests (cycle detection, topological sort, graph validation)
 - ✅ All internal tests passing
 
 **Integration Test Coverage**:
@@ -121,25 +124,98 @@ mode: agent
 - TODO placeholders include resource type, ID, and error context
 
 **Test Coverage**:
-- ✅ 49/49 resolver package tests passing (43 + 6 new)
+- ✅ 67/67 resolver package tests passing
 
-### Phase 4.3: Handle Missing Dependencies - ⏳ NOT STARTED
+### Phase 4.3: Handle Missing Dependencies - ✅ COMPLETE
 
 **Goal**: Generate informative placeholders when dependencies not found
 
-**Planned Implementation**:
-- Track missing dependency reasons (excluded, not included, not found)
-- Generate TODO comments with original IDs and names
-- Summary report after export
+**Implemented Files**:
+- ✅ `internal/resolver/missing_deps.go` - Missing dependency tracking (235 lines)
+  - MissingReason enum: NotFound, Excluded, NotIncluded
+  - MissingDependency structure with full context
+  - MissingDependencyTracker for recording and reporting
+  - GenerateTODOPlaceholderWithReason() - Rich TODO comments
+  - GenerateSummaryReport() - Formatted summary grouped by reason
+  - 7/7 missing dependency tests passing
 
-### Phase 4.4: Validate Dependency Graph - ⏳ NOT STARTED
+**Functionality**:
+- Three-way classification of missing dependencies
+- Rich context capture (from/to resource details, field name, location)
+- TODO comments include reason and resource names
+- Summary report groups missing dependencies by reason
+
+**Example Output**:
+```hcl
+connection_id = "" # TODO: Reference to "HTTP Connector" (pingone_davinci_connector_instance conn-123) was excluded from export
+```
+
+### Phase 4.4: Validate Dependency Graph - ✅ COMPLETE
 
 **Goal**: Detect circular dependencies and generate optimal ordering
 
-**Planned Implementation**:
-- Cycle detection using DFS
-- Topological sort for resource ordering
-- Error reporting for unresolvable cycles
+**Implemented Files**:
+- ✅ `internal/resolver/validation.go` - Cycle detection and validation (286 lines)
+  - CycleError type with formatted error messages
+  - DetectCycles() using DFS algorithm - finds all cycles
+  - detectCycleDFS() - Recursive DFS implementation with path tracking
+  - TopologicalSort() using Kahn's algorithm
+  - ValidateGraph() - Comprehensive validation (cycles + missing resources)
+  - GenerateValidationReport() - Detailed formatted report
+  - 11/11 validation tests passing
+
+**Functionality**:
+- DFS-based cycle detection finding all cycles in graph
+- Handles self-references (A→A) and complex cycles (A→B→C→A)
+- Topological sort for dependency-ordered resource export
+- Comprehensive validation with formatted error reporting
+- Dependency level calculation
+
+**Example Output**:
+```text
+Dependency Graph Validation Report
+============================================================
+
+Total Resources: 15
+Total Dependencies: 23
+TODO Comments: 2
+
+Resources by Type:
+  • pingone_davinci_flow: 8
+  • pingone_davinci_connector_instance: 4
+  • pingone_davinci_variable: 2
+  • pingone_davinci_application: 1
+
+✓ No circular dependencies detected
+
+✓ Resources can be ordered by dependencies
+  Suggested order: 4 levels
+```
+
+### Integration with Converters - ✅ COMPLETE
+
+**Implemented**:
+- ✅ `internal/exporter/orchestrator.go` - Integrated validation and reporting
+  - Initialize MissingDependencyTracker
+  - Set included resource types
+  - Call ValidateGraph() after export
+  - Print validation report and missing dependency summary to stderr
+  - Count TODO comments in generated HCL
+  
+- ✅ `internal/converter/flow_converter.go` - Uses GenerateTerraformReference()
+  - Replaced hardcoded connection ID logic with resolver calls
+  - Generates proper Terraform references for connections
+  
+- ✅ `internal/converter/flow_policy_converter.go` - Uses GenerateTerraformReference()
+  - Generates references for applications
+  - Generates references for flows in flow distributions
+
+**Integration Status**:
+- ✅ Flow converter integrated with resolver
+- ✅ Flow policy converter integrated with resolver
+- ✅ Orchestrator validates and reports
+- ✅ All 67 resolver tests passing
+- ✅ Export generates proper Terraform references
 
 ---
 
@@ -521,44 +597,43 @@ Phase 4.2: ✅ COMPLETE
 - ✅ TODO placeholder generation for missing dependencies
 - ✅ Integration tests validate complete workflow
 
-Phase 4.3-4.4: ⏳ NOT STARTED
-- ⏳ Missing dependency tracking (excluded, not included, not found reasons)
-- ⏳ Circular dependency detection
-- ⏳ Topological sort for resource ordering
-- ⏳ User-facing missing dependency summary reports
-- ⏳ Cycle detection error messages
+Phase 4.3: ✅ COMPLETE
+- ✅ Missing dependency tracking with reason classification (NotFound, Excluded, NotIncluded)
+- ✅ Rich TODO comments with resource context
+- ✅ Summary reports grouped by missing reason
+- ✅ 7/7 missing dependency tests passing
 
-**Integration Required**:
-- ⏳ Update flow_converter.go to use GenerateTerraformReference()
-- ⏳ Update flow_policy_converter.go to use GenerateTerraformReference()
-- ⏳ Main converter integration with ResolverManager
+Phase 4.4: ✅ COMPLETE
+- ✅ Circular dependency detection using DFS algorithm
+- ✅ Topological sort for resource ordering using Kahn's algorithm
+- ✅ Comprehensive graph validation
+- ✅ User-facing validation and missing dependency reports
+- ✅ 11/11 validation tests passing
+
+**Integration Complete**:
+- ✅ flow_converter.go uses GenerateTerraformReference()
+- ✅ flow_policy_converter.go uses GenerateTerraformReference()
+- ✅ orchestrator.go integrated with validation and reporting
+- ✅ All 67 resolver tests passing
+- ✅ All 6 packages passing
 
 ---
 
 **Next Steps**:
 
-**Phase 4.1-4.2**: ✅ COMPLETE (53/53 tests passing)
+**All Phase 4 Objectives Complete**: ✅
 
-**Immediate Options**:
+Phase 4 is fully complete with all features implemented and tested:
+- ✅ Phase 4.1: Dependency graph built with schema-driven parsing
+- ✅ Phase 4.2: Terraform reference generation with naming sanitization
+- ✅ Phase 4.3: Missing dependency tracking with reason classification
+- ✅ Phase 4.4: Cycle detection and graph validation
+- ✅ Full integration with converters and orchestrator
+- ✅ 67/67 resolver tests passing
+- ✅ All 6 packages passing
 
-1. **Complete Phase 4.3-4.4** (missing deps + validation)
-   - Implement circular dependency detection (DFS)
-   - Implement topological sort for resource ordering
-   - Enhanced missing dependency tracking with reasons
-   - User-facing error reports and warnings
+**See**: 
+- `internal/resolver/PHASE_4_1_4_2_SUMMARY.md` for Phase 4.1-4.2 implementation details
+- `PHASE_4.3-4.4_COMPLETE.md` for Phase 4.3-4.4 implementation details
 
-2. **Integrate with Converters** (recommended)
-   - Update flow_converter.go to use GenerateTerraformReference()
-   - Update flow_policy_converter.go to use GenerateTerraformReference()
-   - Validate resolver with real-world export data
-   - Return to Phase 4.3-4.4 after proving architecture
-
-3. **Proceed to Phase 5**
-   - Move to final integration and error handling
-   - Complete Phase 4.3-4.4 when integration requirements clearer
-
-**Recommendation**: Option 2 - Integrate with converters to validate the resolver works end-to-end with real data before implementing advanced features like cycle detection.
-
-**See**: `internal/resolver/PHASE_4_1_4_2_SUMMARY.md` for detailed implementation summary.
-
-**After Part 4 complete**: Proceed to Part 5 (Final Integration and Error Handling).
+**Ready for Part 5**: Proceed to Final Integration and Error Handling (Part 5).

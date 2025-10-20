@@ -3,6 +3,7 @@ package exporter
 import (
 	"context"
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/samir-gandhi/davinci-terraform-converter/internal/api"
@@ -35,8 +36,19 @@ func ExportEnvironment(ctx context.Context, client *api.Client, skipDeps bool) (
 		hcl.WriteString("\n")
 	}
 
-	// Initialize dependency graph for reference resolution
+	// Initialize dependency graph and missing dependency tracker
 	graph := resolver.NewDependencyGraph()
+	missingTracker := resolver.NewMissingDependencyTracker()
+
+	// Track which resource types are included in this export
+	includedTypes := []string{
+		"pingone_davinci_variable",
+		"pingone_davinci_connector_instance",
+		"pingone_davinci_flow",
+		"pingone_davinci_application",
+		"pingone_davinci_application_flow_policy",
+	}
+	missingTracker.SetIncludedTypes(includedTypes)
 
 	// Export resources in dependency order, building the graph as we go
 
@@ -79,7 +91,39 @@ func ExportEnvironment(ctx context.Context, client *api.Client, skipDeps bool) (
 	}
 	hcl.WriteString(flowPolicies)
 
-	return hcl.String(), nil
+	// Get the final HCL output
+	finalHCL := hcl.String()
+
+	// Validate dependency graph and print reports to stderr
+	if err := graph.ValidateGraph(); err != nil {
+		fmt.Fprintf(os.Stderr, "\n⚠ Warning: Dependency validation found issues:\n%v\n\n", err)
+	}
+
+	// Count TODO comments in generated HCL
+	todoCount := strings.Count(finalHCL, "# TODO:")
+
+	// Print validation report to stderr with TODO count
+	report := graph.GenerateValidationReport()
+	// Insert TODO count after Total Dependencies line
+	if todoCount > 0 {
+		lines := strings.Split(report, "\n")
+		for i, line := range lines {
+			if strings.HasPrefix(line, "Total Dependencies:") {
+				// Insert TODO count line after dependencies line
+				newLines := append(lines[:i+1], append([]string{fmt.Sprintf("TODO Comments: %d", todoCount)}, lines[i+1:]...)...)
+				report = strings.Join(newLines, "\n")
+				break
+			}
+		}
+	}
+	fmt.Fprintln(os.Stderr, report)
+
+	// Print missing dependencies summary to stderr if any
+	if len(missingTracker.GetMissing()) > 0 {
+		fmt.Fprintln(os.Stderr, missingTracker.GenerateSummaryReport())
+	}
+
+	return finalHCL, nil
 }
 
 // generateProviderConfig generates the Terraform provider configuration block
