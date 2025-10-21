@@ -1,25 +1,29 @@
 # DaVinci Terraform Converter
 
-A CLI tool for converting PingOne DaVinci flows from their native JSON format to HCL (HashiCorp Configuration Language) compatible with the PingOne Terraform Provider.
+A CLI tool for converting PingOne DaVinci resources to HCL (HashiCorp Configuration Language) compatible with the PingOne Terraform Provider.
 
 **Dual Mode Operation:**
-- **Standalone CLI**: Run directly from command line
-- **PingCLI Plugin**: Integrate with `pingcli` tool
+- **Standalone CLI**: Run directly from command line as `davinci-convert`
+- **PingCLI Plugin**: Integrate with `pingcli tf` commands
 
 ## Overview
 
-This tool ingests a DaVinci flow JSON file (single flow or multi-flow export) and generates HCL code for the `pingone_davinci_flow` resource. It preserves all flow structure including nodes, edges, settings, and variables.
+This tool provides two primary workflows:
+
+1. **File Conversion** (`davinci-to-hcl`): Convert DaVinci flow JSON files to HCL
+2. **API Export** (`export`): Export complete DaVinci environments from PingOne API to HCL
 
 **Features:**
-- ✅ Single flow conversion
-- ✅ Multi-flow export support (parent flow + subflows)
-- ✅ Complete attribute preservation (nodes, edges, settings, variables)
-- ✅ Automatic resource name sanitization
-- ✅ Multiple output modes (stdout, file, directory)
-- ✅ **API Export Mode**: Export flows and connector instances directly from PingOne DaVinci
+- ✅ Complete environment export from PingOne DaVinci API
+- ✅ Export flows, connector instances, variables, applications, and flow policies
+- ✅ Automatic dependency resolution with Terraform references
+- ✅ Two-environment authentication model (worker app + target environment)
+- ✅ Service-based architecture (extensible to future Ping products)
+- ✅ Skip-dependencies mode for standalone resource testing
 - ✅ OAuth2 authentication with PingOne SDK
-- ✅ Skip-dependencies flag for standalone resource testing
+- ✅ Resource name sanitization
 - ✅ Secret masking in connector properties
+- ✅ Comprehensive validation and error reporting
 
 ## Installation
 
@@ -45,129 +49,465 @@ After installation, the binary will be available as `davinci-terraform-converter
 
 ## Usage
 
-### Version Information
+### Command Structure
 
-Check the installed version and git commit:
+The tool provides two primary commands:
 
-```bash
-davinci-terraform-converter --version
-# Output: davinci-convert version dev (commit: 4fb29ab...)
-```
+**1. `davinci-to-hcl` - Convert DaVinci flow JSON files to HCL**
+
+Use this for file-based conversion of exported flow JSON.
+
+**2. `export` - Export resources from PingOne DaVinci API to HCL**
+
+Use this for complete environment exports with automatic dependency resolution.
 
 ### Standalone CLI Mode
 
-The binary can be run directly without `pingcli`:
+#### File Conversion (davinci-to-hcl)
 
 ```bash
-# Convert single flow to stdout
-davinci-terraform-converter --flow-json flow.json
+# Convert flow JSON to HCL (stdout)
+davinci-convert davinci-to-hcl --flow-json flow.json
 
-# Convert single flow to file
-davinci-terraform-converter --flow-json flow.json --out output.tf
+# Convert and save to file
+davinci-convert davinci-to-hcl --flow-json flow.json --out output.tf
 
-# Convert multi-flow export to separate files in directory
-davinci-terraform-converter --flow-json multiflow-export.json --out-dir ./flows
-
-# Convert multi-flow export to single combined file
-davinci-terraform-converter --flow-json multiflow-export.json --out combined.tf
+# Skip dependencies (use hardcoded IDs)
+davinci-convert davinci-to-hcl --flow-json flow.json --skip-dependencies
 ```
 
-**Note:** If you built with `make build` only (not installed), use `./davinci-convert` instead.
+#### API Export (export)
+
+```bash
+# Export all services (defaults to all available: pingone-davinci)
+davinci-convert export \
+  --pingone-worker-environment-id "abc123..." \
+  --pingone-export-environment-id "def456..." \
+  --pingone-worker-client-id "client-id" \
+  --pingone-worker-client-secret "client-secret" \
+  --pingone-region-code "NA" \
+  --out environment.tf
+
+# Export with skip-dependencies (hardcoded UUIDs)
+davinci-convert export \
+  --pingone-worker-environment-id "abc123..." \
+  --pingone-export-environment-id "def456..." \
+  --pingone-worker-client-id "client-id" \
+  --pingone-worker-client-secret "client-secret" \
+  --skip-dependencies
+
+# Use environment variables (see Configuration section)
+davinci-convert export --out environment.tf
+```
 
 ### PingCLI Plugin Mode
 
-When launched by `pingcli`, it operates as a plugin:
+When used with `pingcli`, commands are namespaced under `tf`:
 
 ```bash
-# Convert a DaVinci flow to HCL and output to stdout
-pingcli davinci convert --flow-json ./my-flow.json
+# Convert DaVinci flow JSON to HCL
+pingcli tf davinci-to-hcl --flow-json flow.json --out output.tf
 
-# Convert a DaVinci flow to HCL and save to a file
-pingcli davinci convert --flow-json ./my-flow.json --out ./output.tf
+# Export environment from API
+pingcli tf export \
+  --pingone-worker-environment-id "abc123..." \
+  --pingone-export-environment-id "def456..." \
+  --pingone-worker-client-id "client-id" \
+  --pingone-worker-client-secret "client-secret" \
+  --out environment.tf
 ```
 
-### Flags
+### Configuration
 
-- `-f, --flow-json` (required): Path to input DaVinci flow JSON file
-- `-o, --out` (optional): Path to output HCL file (defaults to stdout)
-- `-d, --out-dir` (optional): Directory for multi-flow output (creates separate .tf files)
-- `--skip-dependencies` (optional): Export with hardcoded environment IDs instead of `var.environment_id` references. Useful for testing individual resources before full environment export is available.
-- `-h, --help`: Show help message
-- `-v, --version`: Show version information
+#### Environment Variables
 
-### Skip Dependencies Flag
-
-The `--skip-dependencies` flag is useful when exporting individual resources (flows, connector instances, etc.) without a complete environment configuration:
+Configuration follows Ping CLI standards with `PINGCLI_` prefix:
 
 ```bash
-# Export flow with hardcoded environment ID
-davinci-terraform-converter --flow-json flow.json --skip-dependencies
-
-# This generates:
-# resource "pingone_davinci_flow" "my_flow" {
-#   environment_id = "62f10a04-6c54-40c2-a97d-80a98522ff9a"  # Actual ID
-#   name = "My Flow"
-# }
-
-# Without --skip-dependencies (default):
-# resource "pingone_davinci_flow" "my_flow" {
-#   environment_id = var.environment_id  # Variable reference
-#   name = "My Flow"
-# }
-```
-
-**When to use:**
-- Testing individual resource imports
-- Exporting resources to different environments
-- Before full environment export capability is available
-
-**Note:** When full environment export is supported, `var.environment_id` (default behavior) will be preferred for portability.
-
-## API Export Mode (In Development)
-
-The tool now supports direct export from PingOne DaVinci environments via API:
-
-### Prerequisites
-
-Set up PingOne OAuth2 credentials as environment variables:
-
-```bash
+# Worker environment (for authentication)
+export PINGCLI_PINGONE_WORKER_ENVIRONMENT_ID="abc123-def456-..."
 export PINGCLI_PINGONE_WORKER_CLIENT_ID="your-client-id"
 export PINGCLI_PINGONE_WORKER_CLIENT_SECRET="your-client-secret"
-export PINGCLI_PINGONE_WORKER_ENVIRONMENT_ID="auth-environment-id"
-export PINGCLI_PINGONE_EXPORT_ENVIRONMENT_ID="target-environment-id"
-export PINGONE_REGION="NA"  # or EU, AP, CA
+
+# Export environment (target resources)
+export PINGCLI_PINGONE_EXPORT_ENVIRONMENT_ID="target-env-id"
+
+# Region (NA, EU, AP, CA, AU)
+export PINGCLI_PINGONE_REGION_CODE="NA"
 ```
 
-### Current API Export Capabilities
+**Priority:** Command-line flags > Environment variables > Defaults
 
-**Flows:**
-- Export all flows from a DaVinci environment
-- Generates 442KB HCL from 8 flows (real environment test)
-- Includes flow graph data, nodes, edges, and settings
+#### Two-Environment Model
 
-**Connector Instances:**
-- Export all connector instances from a DaVinci environment
-- Generates 4.6KB HCL from 20 instances (real environment test)
-- Includes connector properties with secret masking
+The export command uses a two-environment architecture:
 
-**Coming Soon:**
-- Variables export
-- Applications export
-- Flow policies export
-- Complete environment export
+- **Worker Environment**: Contains OAuth2 worker app for authentication
+- **Export Environment**: Target environment containing resources to export
 
-### Running Acceptance Tests
+**Benefits:**
+- Isolate credentials from exported resources
+- Export from multiple environments with same worker app
+- Support dev/staging/prod workflows
+- Single-environment convenience (export environment defaults to worker environment)
 
-Acceptance tests validate against real PingOne API:
+**Example:**
 
 ```bash
-# Run acceptance tests (requires environment variables)
-go test -tags=acceptance ./tests/acceptance -v
+# Two environments (recommended for production)
+davinci-convert export \
+  --pingone-worker-environment-id "auth-env-id" \
+  --pingone-export-environment-id "prod-env-id" \
+  ...
 
-# Skip acceptance tests (runs unit tests only)
-go test ./...
+# Single environment (development convenience)
+davinci-convert export \
+  --pingone-worker-environment-id "dev-env-id" \
+  ...
 ```
+
+### Flags Reference
+
+#### davinci-to-hcl Command
+
+| Flag | Required | Description |
+|------|----------|-------------|
+| `--flow-json` | Yes | Path to input DaVinci flow JSON file |
+| `--out` | No | Output file path (defaults to stdout) |
+| `--skip-dependencies` | No | Use hardcoded IDs instead of variable references |
+
+#### export Command
+
+| Flag | Required | Default | Description |
+|------|----------|---------|-------------|
+| `--services` | No | `["pingone-davinci"]` | Services to export (currently only pingone-davinci) |
+| `--pingone-worker-environment-id` | Yes* | - | Worker environment ID for authentication |
+| `--pingone-export-environment-id` | No | Worker env | Target environment ID for resource export |
+| `--pingone-worker-client-id` | Yes* | - | OAuth2 client ID |
+| `--pingone-worker-client-secret` | Yes* | - | OAuth2 client secret |
+| `--pingone-region-code` | No | `NA` | Region: NA, EU, AP, CA, AU |
+| `--out` | No | stdout | Output file path |
+| `--skip-dependencies` | No | false | Use hardcoded UUIDs instead of Terraform references |
+
+\* Required unless set via environment variables
+
+### Skip Dependencies Mode
+
+The `--skip-dependencies` flag controls how resource dependencies are handled:
+
+**Without `--skip-dependencies` (default):**
+```hcl
+resource "pingone_davinci_flow" "my_flow" {
+  environment_id = var.environment_id
+  connection_id  = pingone_davinci_connector_instance.httpconnector_abc123.id
+}
+```
+
+**With `--skip-dependencies`:**
+```hcl
+resource "pingone_davinci_flow" "my_flow" {
+  environment_id = "62f10a04-6c54-40c2-a97d-80a98522ff9a"
+  connection_id  = "abc123-def456-ghi789-..."
+}
+```
+
+
+**When to use:**
+
+- Testing individual resource imports
+- Standalone resource files without full environment
+- Quick prototyping
+
+**Note:** API exports include full environment context, so skip-dependencies produces fully standalone HCL. File conversions (`davinci-to-hcl`) of standalone JSON files may still require `var.environment_id` if the JSON lacks environment metadata.
+
+## Output Examples
+
+### Export Command Output
+
+A typical full environment export produces comprehensive HCL:
+
+```hcl
+# Variables (standalone, no dependencies)
+resource "pingone_davinci_variable" "companyname" {
+  environment_id = var.environment_id
+  name           = "companyName"
+  description    = "Company branding variable"
+  type           = "string"
+  value          = "Ping Identity"
+}
+
+# Connector Instances (standalone, may have masked secrets)
+resource "pingone_davinci_connector_instance" "httpconnector_abc123" {
+  environment_id = var.environment_id
+  connector_id   = "httpConnector"
+  name           = "HTTP Connector"
+
+  property {
+    name  = "oauth2"
+    value = jsonencode({
+      "properties": {
+        "providerName": {
+          "value": "generic"
+        }
+      }
+    })
+  }
+
+  property {
+    name  = "password"
+    value = ""  # TODO: Sensitive value masked
+  }
+}
+
+# Flows (references connectors and variables)
+resource "pingone_davinci_flow" "signin_flow" {
+  environment_id = var.environment_id
+  name           = "Sign-In Flow"
+  description    = "Primary user authentication flow"
+
+  connection_link {
+    id   = pingone_davinci_connector_instance.httpconnector_abc123.id
+    name = "HTTP Connector"
+  }
+
+  graph_data = jsonencode({
+    # ... flow graph data ...
+  })
+}
+
+# Applications (standalone)
+resource "pingone_davinci_application" "web_app" {
+  environment_id = var.environment_id
+  name           = "Web Application"
+  oauth {
+    enabled = true
+  }
+}
+
+# Flow Policies (references flows and applications)
+resource "pingone_davinci_application_flow_policy_assignment" "web_app_policy" {
+  environment_id = var.environment_id
+  application_id = pingone_davinci_application.web_app.id
+  flow_policy_id = pingone_davinci_flow_policy.signin_policy.id
+  priority       = 1
+}
+```
+
+### davinci-to-hcl Output
+
+Flow JSON file conversion:
+
+```hcl
+resource "pingone_davinci_flow" "simple_demo_flow" {
+  environment_id = var.environment_id
+  name           = "Simple Demo Flow"
+  description    = "A simple flow for demonstration"
+
+  graph_data = jsonencode({
+    "elements": {
+      "nodes": [
+        {
+          "data": {
+            "id": "httpNode",
+            "nodeType": "CONNECTION",
+            "connectionId": "conn-abc-123",
+            "connectorId": "httpConnector",
+            "capabilityName": "customHtmlMessage",
+            "properties": {
+              "message": {
+                "value": "Welcome to the flow!"
+              }
+            }
+          }
+        }
+      ],
+      "edges": [
+        {
+          "data": {
+            "id": "edge1",
+            "source": "httpNode",
+            "target": "evalNode"
+          }
+        }
+      ]
+    }
+  })
+
+  settings = jsonencode({
+    "csp": "default-src 'self';",
+    "logLevel": 4
+  })
+}
+```
+
+## Real-World Usage
+
+### Complete Environment Export
+
+Export all DaVinci resources from a production environment:
+
+```bash
+# Set credentials
+export PINGCLI_PINGONE_WORKER_ENVIRONMENT_ID="worker-env-id"
+export PINGCLI_PINGONE_EXPORT_ENVIRONMENT_ID="prod-env-id"
+export PINGCLI_PINGONE_WORKER_CLIENT_ID="client-id"
+export PINGCLI_PINGONE_WORKER_CLIENT_SECRET="client-secret"
+export PINGCLI_PINGONE_REGION_CODE="NA"
+
+# Export
+davinci-convert export --out production-environment.tf
+
+# Review output
+# Example output: 62 resources, 10,534 lines HCL
+# - 5 variables
+# - 20 connector instances
+# - 30 flows
+# - 3 applications
+# - 4 flow policies
+```
+
+### Selective Export with Skip Dependencies
+
+Export for testing without full environment setup:
+
+```bash
+davinci-convert export \
+  --pingone-worker-environment-id "dev-env" \
+  --skip-dependencies \
+  --out standalone-test.tf
+
+# Produces fully standalone HCL with hardcoded UUIDs
+# Can be applied immediately without variables.tf
+```
+
+### Incremental Development Workflow
+
+1. **Export baseline:**
+   ```bash
+   davinci-convert export --out baseline.tf
+   ```
+
+2. **Make changes in DaVinci UI**
+
+3. **Export updated state:**
+   ```bash
+   davinci-convert export --out updated.tf
+   ```
+
+4. **Compare:**
+   ```bash
+   diff baseline.tf updated.tf
+   ```
+
+5. **Apply to Terraform:**
+   ```bash
+   terraform import pingone_davinci_flow.new_flow <flow-id>
+   terraform plan
+   ```
+
+## Troubleshooting
+
+### Authentication Issues
+
+**Problem:** `Authentication failed`
+
+**Solutions:**
+- Verify worker environment ID is correct
+- Verify OAuth2 client credentials
+- Ensure client has `PingOne API` scope
+- Verify region code matches environment region
+
+**Check credentials:**
+```bash
+echo $PINGCLI_PINGONE_WORKER_ENVIRONMENT_ID
+echo $PINGCLI_PINGONE_WORKER_CLIENT_ID
+```
+
+### Missing Dependencies
+
+**Problem:** TODO placeholders in generated HCL
+
+**Cause:** Resources reference external dependencies not exported
+
+**Solutions:**
+- Export from complete environment (not partial)
+- Manually add missing resources
+- Use `--skip-dependencies` for testing
+
+### API Rate Limiting
+
+**Problem:** Export fails with rate limit errors
+
+**Solutions:**
+- Reduce concurrency (future feature)
+- Add delays between requests
+- Contact Ping support for rate limit increase
+
+### Sensitive Data Warnings
+
+**Problem:** Connector properties show `# TODO: Sensitive value masked`
+
+**Cause:** Passwords and secrets are masked for security
+
+**Solution:** Manually populate sensitive values after generation:
+```hcl
+property {
+  name  = "password"
+  value = var.http_connector_password  # Use Terraform variable
+}
+```
+
+## Documentation
+
+- [ARCHITECTURE.md](ARCHITECTURE.md) - System architecture and design
+- [IMPLEMENTATION.md](IMPLEMENTATION.md) - Implementation status and completed work
+- [docs/KNOWN_LIMITATIONS.md](docs/KNOWN_LIMITATIONS.md) - Current limitations and workarounds
+- [docs/SKIP_DEPENDENCIES.md](docs/SKIP_DEPENDENCIES.md) - Skip-dependencies mode details
+
+## Examples
+
+Example flow files in `.github/prompts/`:
+
+- `simple-demo-flow.json` - Simple single flow
+- `PingOne_Sign On with Sessions_multiflow.json` - Real production multi-flow export
+
+## Development
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for development environment setup, testing guidelines, and contribution process.
+
+### Quick Start
+
+```bash
+# Install dependencies
+make deps
+
+# Run tests
+make test
+
+# Build binary
+make build
+
+# Run linters
+make lint
+
+# Full development check
+make devcheck
+```
+
+## References
+
+- [PingCLI](https://github.com/pingidentity/pingcli)
+- [PingOne Go SDK](https://github.com/pingidentity/pingone-go-client)
+- [PingOne Terraform Provider](https://github.com/pingidentity/terraform-provider-pingone)
+- [DaVinci Documentation](https://docs.pingidentity.com/davinci/)
+- [HashiCorp go-plugin](https://github.com/hashicorp/go-plugin)
+
+## License
+
+Copyright © 2025 Ping Identity Corporation
+
+See LICENSE file for details.
+
 
 ## Input Formats
 

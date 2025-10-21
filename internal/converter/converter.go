@@ -45,7 +45,7 @@ func Convert(flowJSON []byte) (string, error) {
 }
 
 // ConvertWithOptions takes a DaVinci flow JSON byte array and converts it to HCL with options.
-// If skipDependencies is true, connection IDs will be hardcoded instead of Terraform references.
+// If skipDependencies is true, connection IDs and environment_id will be hardcoded instead of Terraform references.
 func ConvertWithOptions(flowJSON []byte, skipDependencies bool) (string, error) {
 	// Unmarshal the JSON into a generic map for flexibility
 	var flowData map[string]interface{}
@@ -53,8 +53,25 @@ func ConvertWithOptions(flowJSON []byte, skipDependencies bool) (string, error) 
 		return "", fmt.Errorf("failed to unmarshal flow JSON: %w", err)
 	}
 
+	// Determine environment ID based on skipDependencies flag
+	var envID string
+	if skipDependencies {
+		// Extract environment ID from JSON for hardcoded value
+		if env, ok := flowData["environment"].(map[string]interface{}); ok {
+			if id, ok := env["id"].(string); ok {
+				envID = id // Pass raw UUID, ConvertFlowToHCL will quote it
+			}
+		}
+		// If no environment ID found in JSON, still use var (shouldn't happen in real flow exports)
+		if envID == "" {
+			envID = "var.environment_id"
+		}
+	} else {
+		envID = "var.environment_id"
+	}
+
 	// Use the new ConvertFlowToHCL function
-	hcl, err := ConvertFlowToHCL(flowData, "var.environment_id", skipDependencies, nil)
+	hcl, err := ConvertFlowToHCL(flowData, envID, skipDependencies, nil)
 	if err != nil {
 		return "", fmt.Errorf("failed to generate HCL: %w", err)
 	}

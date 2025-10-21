@@ -1,0 +1,265 @@
+# DaVinci Terraform Converter - Examples
+
+This directory contains example scripts and Terraform configurations demonstrating various usage patterns.
+
+## Example Scripts
+
+### 01-single-flow-conversion.sh
+
+Demonstrates file-based flow conversion using `davinci-to-hcl` command.
+
+**Use cases:**
+- Convert exported flow JSON files to HCL
+- Quick prototyping with standalone files
+- Testing conversion logic
+
+**Run:**
+```bash
+./01-single-flow-conversion.sh
+```
+
+### 02-full-environment-export.sh
+
+Demonstrates complete environment export using `export` command.
+
+**Use cases:**
+- Export entire DaVinci environment to Terraform
+- Migrate existing environments to Infrastructure as Code
+- Backup configurations
+
+**Prerequisites:**
+```bash
+export PINGCLI_PINGONE_WORKER_ENVIRONMENT_ID="..."
+export PINGCLI_PINGONE_WORKER_CLIENT_ID="..."
+export PINGCLI_PINGONE_WORKER_CLIENT_SECRET="..."
+export PINGCLI_PINGONE_EXPORT_ENVIRONMENT_ID="..."  # Optional
+export PINGCLI_PINGONE_REGION_CODE="NA"            # Optional
+```
+
+**Run:**
+```bash
+./02-full-environment-export.sh
+```
+
+### 03-two-environment-export.sh
+
+Demonstrates two-environment authentication model.
+
+**Use cases:**
+- Export production using shared worker app
+- Isolate credentials from exported resources
+- Multi-environment workflows (dev/staging/prod)
+
+**Prerequisites:**
+Same as `02-full-environment-export.sh`
+
+**Run:**
+```bash
+./03-two-environment-export.sh
+```
+
+### 04-pingcli-plugin-usage.sh
+
+Demonstrates plugin mode integration with `pingcli`.
+
+**Prerequisites:**
+- `pingcli` installed and in PATH
+- Plugin installed (`make install`)
+
+**Run:**
+```bash
+./04-pingcli-plugin-usage.sh path/to/flow.json
+```
+
+## Terraform Configuration
+
+The `terraform/` directory contains example Terraform configuration for applying exported HCL.
+
+### provider.tf
+
+PingOne Terraform provider configuration.
+
+**Key components:**
+- Provider version constraint
+- Authentication configuration
+- Region setup
+
+### variables.tf
+
+Variable definitions for Terraform configuration.
+
+**Variables:**
+- `pingone_client_id`: OAuth2 client ID (sensitive)
+- `pingone_client_secret`: OAuth2 client secret (sensitive)
+- `pingone_environment_id`: Target environment
+- `pingone_region_code`: Region code
+- `environment_id`: DaVinci environment (usually same as PingOne environment)
+
+### terraform.tfvars.example
+
+Example variable values file.
+
+**Setup:**
+```bash
+cd terraform/
+cp terraform.tfvars.example terraform.tfvars
+# Edit terraform.tfvars with your values
+```
+
+**⚠️ WARNING:** Never commit `terraform.tfvars` to version control. Add to `.gitignore`.
+
+## Complete Workflow Example
+
+### Step 1: Export Environment
+
+```bash
+# Set credentials
+export PINGCLI_PINGONE_WORKER_ENVIRONMENT_ID="worker-env-id"
+export PINGCLI_PINGONE_EXPORT_ENVIRONMENT_ID="target-env-id"
+export PINGCLI_PINGONE_WORKER_CLIENT_ID="client-id"
+export PINGCLI_PINGONE_WORKER_CLIENT_SECRET="client-secret"
+
+# Export
+davinci-convert export --out davinci-resources.tf
+```
+
+### Step 2: Set Up Terraform Configuration
+
+```bash
+# Create workspace
+mkdir my-davinci-terraform
+cd my-davinci-terraform
+
+# Copy Terraform configuration
+cp ../examples/terraform/*.tf .
+cp ../examples/terraform/terraform.tfvars.example terraform.tfvars
+
+# Edit terraform.tfvars with your credentials
+vim terraform.tfvars
+
+# Copy exported resources
+cp ../davinci-resources.tf .
+```
+
+### Step 3: Initialize Terraform
+
+```bash
+terraform init
+```
+
+### Step 4: Plan Changes
+
+```bash
+terraform plan
+```
+
+**Expected output:**
+- Resources to create: X
+- Resources to change: 0
+- Resources to destroy: 0
+
+### Step 5: Apply Configuration
+
+```bash
+# Review plan carefully
+terraform plan -out=tfplan
+
+# Apply
+terraform apply tfplan
+```
+
+## Troubleshooting Examples
+
+### Export with Verbose Logging
+
+```bash
+# Enable verbose output
+davinci-convert export --out environment.tf 2>&1 | tee export.log
+```
+
+### Compare Exports
+
+```bash
+# Export twice
+davinci-convert export --out export1.tf
+sleep 5
+davinci-convert export --out export2.tf
+
+# Compare
+diff export1.tf export2.tf
+```
+
+### Test with Skip Dependencies
+
+```bash
+# Export for testing (hardcoded UUIDs)
+davinci-convert export --skip-dependencies --out test.tf
+
+# Create minimal test
+cd test-workspace/
+cp ../examples/terraform/provider.tf .
+
+# Variables not required with skip-dependencies
+terraform init
+terraform plan
+```
+
+## Advanced Examples
+
+### Selective Resource Import
+
+```bash
+# Export full environment
+davinci-convert export --out full.tf
+
+# Extract specific resource type
+grep -A 50 'pingone_davinci_flow "signin"' full.tf > signin-flow.tf
+
+# Import manually
+terraform import pingone_davinci_flow.signin <flow-id>
+```
+
+### Multi-Environment Management
+
+```bash
+# Export dev environment
+PINGCLI_PINGONE_EXPORT_ENVIRONMENT_ID="dev-env" \
+  davinci-convert export --out dev.tf
+
+# Export staging environment
+PINGCLI_PINGONE_EXPORT_ENVIRONMENT_ID="staging-env" \
+  davinci-convert export --out staging.tf
+
+# Export prod environment
+PINGCLI_PINGONE_EXPORT_ENVIRONMENT_ID="prod-env" \
+  davinci-convert export --out prod.tf
+
+# Compare environments
+diff dev.tf staging.tf
+diff staging.tf prod.tf
+```
+
+### Incremental Updates
+
+```bash
+# Export baseline
+davinci-convert export --out baseline.tf
+
+# Make changes in DaVinci UI
+
+# Export updated state
+davinci-convert export --out updated.tf
+
+# Generate diff
+diff baseline.tf updated.tf > changes.patch
+
+# Review changes
+less changes.patch
+```
+
+## References
+
+- [Main README](../README.md)
+- [Architecture Documentation](../ARCHITECTURE.md)
+- [Implementation Status](../IMPLEMENTATION.md)
+- [PingOne Terraform Provider](https://registry.terraform.io/providers/pingidentity/pingone/latest/docs)

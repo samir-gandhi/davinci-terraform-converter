@@ -5,9 +5,11 @@ package cmd
 
 import (
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/pingidentity/pingcli/shared/grpc"
+	"github.com/samir-gandhi/davinci-terraform-converter/internal/converter"
 	"github.com/spf13/pflag"
 )
 
@@ -87,7 +89,7 @@ func (c *DaVinciToHclCommand) runConvert(logger grpc.Logger, flowJSON, out strin
 		return fmt.Errorf("--flow-json flag is required for file-based conversion")
 	}
 
-	// For now, just print a message to confirm the command structure is working
+	// Log conversion start
 	message := fmt.Sprintf("Executing DaVinci flow conversion for file: %s", flowJSON)
 	if out != "" {
 		message += fmt.Sprintf("\nOutput will be written to: %s", out)
@@ -100,6 +102,43 @@ func (c *DaVinciToHclCommand) runConvert(logger grpc.Logger, flowJSON, out strin
 
 	if err := logger.Message(message, nil); err != nil {
 		return err
+	}
+
+	// Read the flow JSON file
+	flowJSONBytes, err := os.ReadFile(flowJSON)
+	if err != nil {
+		logger.PluginError("Failed to read flow JSON file", map[string]string{
+			"file":  flowJSON,
+			"error": err.Error(),
+		})
+		return fmt.Errorf("failed to read flow JSON file: %w", err)
+	}
+
+	// Convert the flow JSON to HCL
+	hcl, err := converter.ConvertWithOptions(flowJSONBytes, skipDeps)
+	if err != nil {
+		logger.PluginError("Failed to convert flow JSON to HCL", map[string]string{
+			"file":  flowJSON,
+			"error": err.Error(),
+		})
+		return fmt.Errorf("failed to convert flow JSON to HCL: %w", err)
+	}
+
+	// Write output
+	if out != "" {
+		if err := os.WriteFile(out, []byte(hcl), 0644); err != nil {
+			logger.PluginError("Failed to write output file", map[string]string{
+				"file":  out,
+				"error": err.Error(),
+			})
+			return fmt.Errorf("failed to write output file: %w", err)
+		}
+		if err := logger.Success(fmt.Sprintf("Successfully converted flow to HCL: %s", out), nil); err != nil {
+			return err
+		}
+	} else {
+		// Output to stdout
+		fmt.Println(hcl)
 	}
 
 	return nil
