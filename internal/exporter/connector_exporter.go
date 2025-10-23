@@ -8,11 +8,17 @@ import (
 
 	"github.com/samir-gandhi/davinci-terraform-converter/internal/api"
 	"github.com/samir-gandhi/davinci-terraform-converter/internal/converter"
+	"github.com/samir-gandhi/davinci-terraform-converter/internal/importgen"
 	"github.com/samir-gandhi/davinci-terraform-converter/internal/resolver"
 )
 
 // ExportConnectorInstances retrieves connector instances from the API and converts them to Terraform HCL
 func ExportConnectorInstances(ctx context.Context, client *api.Client, skipDeps bool, graph *resolver.DependencyGraph) (string, error) {
+	return ExportConnectorInstancesWithImports(ctx, client, skipDeps, graph, nil)
+}
+
+// ExportConnectorInstancesWithImports exports connector instances with optional import blocks
+func ExportConnectorInstancesWithImports(ctx context.Context, client *api.Client, skipDeps bool, graph *resolver.DependencyGraph, importGen *importgen.ImportBlockGenerator) (string, error) {
 	if client == nil {
 		return "", fmt.Errorf("API client is required")
 	}
@@ -37,6 +43,30 @@ func ExportConnectorInstances(ctx context.Context, client *api.Client, skipDeps 
 
 	// Second pass: Retrieve detailed connector instance data and convert each instance
 	for _, summary := range instanceSummaries {
+		// Get the actual resource name from the graph (includes deduplication suffix if needed)
+		actualName, err := graph.GetReferenceName("pingone_davinci_connector_instance", summary.InstanceID)
+		if err != nil {
+			return "", fmt.Errorf("failed to get resource name for connector instance %s: %w", summary.InstanceID, err)
+		}
+
+		// Generate import block if import generator provided
+		if importGen != nil {
+			// Skip import for special connector IDs that don't follow UUID format
+			// User Pool connector uses "defaultUserPool" which isn't a valid UUID
+			if !isSpecialConnectorID(summary.InstanceID) {
+				importBlock, err := importGen.GenerateImportBlock(
+					"pingone_davinci_connector_instance",
+					actualName,
+					summary.InstanceID,
+					client.EnvironmentID,
+				)
+				if err != nil {
+					return "", fmt.Errorf("failed to generate import block for connector instance %s: %w", summary.InstanceID, err)
+				}
+				hclBlocks = append(hclBlocks, importBlock)
+			}
+		}
+
 		instanceDetail, err := client.GetConnectorInstance(ctx, summary.InstanceID)
 		if err != nil {
 			return "", fmt.Errorf("failed to get connector instance %s (%s): %w", summary.Name, summary.InstanceID, err)
@@ -59,6 +89,21 @@ func ExportConnectorInstances(ctx context.Context, client *api.Client, skipDeps 
 
 	// Join all HCL blocks with blank lines between them
 	return strings.Join(hclBlocks, "\n\n"), nil
+}
+
+// isSpecialConnectorID checks if a connector instance ID is a special case that doesn't follow UUID format
+func isSpecialConnectorID(instanceID string) bool {
+	// User Pool connector uses "defaultUserPool" instead of UUID
+	specialIDs := []string{
+		"defaultUserPool",
+	}
+
+	for _, specialID := range specialIDs {
+		if instanceID == specialID {
+			return true
+		}
+	}
+	return false
 }
 
 // convertInstanceDetailToJSON converts connector instance detail to JSON format expected by converter

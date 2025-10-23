@@ -9,11 +9,17 @@ import (
 
 	"github.com/samir-gandhi/davinci-terraform-converter/internal/api"
 	"github.com/samir-gandhi/davinci-terraform-converter/internal/converter"
+	"github.com/samir-gandhi/davinci-terraform-converter/internal/importgen"
 	"github.com/samir-gandhi/davinci-terraform-converter/internal/resolver"
 )
 
 // ExportApplications exports all DaVinci applications from the API to HCL format
 func ExportApplications(ctx context.Context, client *api.Client, skipDeps bool, graph *resolver.DependencyGraph) (string, error) {
+	return ExportApplicationsWithImports(ctx, client, skipDeps, graph, nil)
+}
+
+// ExportApplicationsWithImports exports applications with optional import blocks
+func ExportApplicationsWithImports(ctx context.Context, client *api.Client, skipDeps bool, graph *resolver.DependencyGraph, importGen *importgen.ImportBlockGenerator) (string, error) {
 	if client == nil {
 		return "", fmt.Errorf("client cannot be nil")
 	}
@@ -40,6 +46,28 @@ func ExportApplications(ctx context.Context, client *api.Client, skipDeps bool, 
 
 	// Second pass: Convert each application to HCL
 	for _, application := range applications {
+		appID := application.GetId()
+
+		// Get the actual resource name from the graph (includes deduplication suffix if needed)
+		actualName, err := graph.GetReferenceName("pingone_davinci_application", appID)
+		if err != nil {
+			return "", fmt.Errorf("failed to get resource name for application %s: %w", appID, err)
+		}
+
+		// Generate import block if import generator provided
+		if importGen != nil {
+			importBlock, err := importGen.GenerateImportBlock(
+				"pingone_davinci_application",
+				actualName,
+				appID,
+				client.EnvironmentID,
+			)
+			if err != nil {
+				return "", fmt.Errorf("failed to generate import block for application %s: %w", appID, err)
+			}
+			hclBlocks = append(hclBlocks, importBlock)
+		}
+
 		// Convert SDK response to JSON format expected by converter
 		appJSON, err := convertApplicationToJSON(&application)
 		if err != nil {

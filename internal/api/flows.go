@@ -24,6 +24,7 @@ type FlowDetail struct {
 	Name        string
 	Description string
 	GraphData   map[string]interface{} // The full flow graph structure
+	Settings    map[string]interface{} // Flow settings
 	// Add other relevant fields as needed
 }
 
@@ -201,6 +202,10 @@ func (c *Client) GetFlow(ctx context.Context, flowID string) (*FlowDetail, error
 
 	if graphData, ok := rawResponse["graphData"].(map[string]interface{}); ok {
 		detail.GraphData = graphData
+	}
+
+	if settings, ok := rawResponse["settings"].(map[string]interface{}); ok {
+		detail.Settings = settings
 	}
 
 	return detail, nil

@@ -8,11 +8,17 @@ import (
 
 	"github.com/samir-gandhi/davinci-terraform-converter/internal/api"
 	"github.com/samir-gandhi/davinci-terraform-converter/internal/converter"
+	"github.com/samir-gandhi/davinci-terraform-converter/internal/importgen"
 	"github.com/samir-gandhi/davinci-terraform-converter/internal/resolver"
 )
 
 // ExportFlowPolicies exports all flow policies to Terraform HCL
 func ExportFlowPolicies(ctx context.Context, client *api.Client, skipDeps bool, graph *resolver.DependencyGraph) (string, error) {
+	return ExportFlowPoliciesWithImports(ctx, client, skipDeps, graph, nil)
+}
+
+// ExportFlowPoliciesWithImports exports flow policies with optional import blocks
+func ExportFlowPoliciesWithImports(ctx context.Context, client *api.Client, skipDeps bool, graph *resolver.DependencyGraph, importGen *importgen.ImportBlockGenerator) (string, error) {
 	policies, err := client.ListFlowPolicies(ctx)
 	if err != nil {
 		return "", fmt.Errorf("failed to list flow policies: %w", err)
@@ -33,15 +39,35 @@ func ExportFlowPolicies(ctx context.Context, client *api.Client, skipDeps bool, 
 
 	// Second pass: Convert each flow policy to HCL
 	for _, policy := range policies {
-		detail, err := client.GetFlowPolicy(ctx, policy.ApplicationID, policy.PolicyID)
-		if err != nil {
-			return "", fmt.Errorf("failed to get flow policy %s: %w", policy.PolicyID, err)
-		}
-
 		// Get the sanitized resource name from the graph
 		resourceName, err := graph.GetReferenceName("pingone_davinci_application_flow_policy", policy.PolicyID)
 		if err != nil {
 			return "", fmt.Errorf("failed to get resource name for flow policy %s: %w", policy.PolicyID, err)
+		}
+
+		// Generate import block if import generator provided
+		// Note: Flow policy assignments have a special 3-part ID format
+		if importGen != nil {
+			metadata := map[string]string{
+				"application_id": policy.ApplicationID,
+			}
+			importBlock, err := importGen.GenerateImportBlockWithMetadata(
+				"pingone_davinci_application_flow_policy",
+				resourceName,
+				policy.PolicyID,
+				client.EnvironmentID,
+				metadata,
+			)
+			if err != nil {
+				return "", fmt.Errorf("failed to generate import block for flow policy %s: %w", policy.PolicyID, err)
+			}
+			builder.WriteString(importBlock)
+			builder.WriteString("\n\n")
+		}
+
+		detail, err := client.GetFlowPolicy(ctx, policy.ApplicationID, policy.PolicyID)
+		if err != nil {
+			return "", fmt.Errorf("failed to get flow policy %s: %w", policy.PolicyID, err)
 		}
 
 		// Get environment ID - pass raw string for var reference or quoted UUID

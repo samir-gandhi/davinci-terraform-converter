@@ -44,6 +44,12 @@ func Convert(flowJSON []byte) (string, error) {
 	return ConvertWithOptions(flowJSON, false)
 }
 
+// ConvertOptions contains options for conversion
+type ConvertOptions struct {
+	SkipDependencies bool
+	GenerateImports  bool
+}
+
 // ConvertWithOptions takes a DaVinci flow JSON byte array and converts it to HCL with options.
 // If skipDependencies is true, connection IDs and environment_id will be hardcoded instead of Terraform references.
 func ConvertWithOptions(flowJSON []byte, skipDependencies bool) (string, error) {

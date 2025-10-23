@@ -7,12 +7,27 @@ import (
 
 	"github.com/pingidentity/pingcli/shared/grpc"
 	"github.com/samir-gandhi/davinci-terraform-converter/internal/api"
+	"github.com/samir-gandhi/davinci-terraform-converter/internal/importgen"
 	"github.com/samir-gandhi/davinci-terraform-converter/internal/resolver"
 )
+
+// ExportOptions contains options for environment export
+type ExportOptions struct {
+	SkipDependencies bool
+	GenerateImports  bool
+}
 
 // ExportEnvironment exports all DaVinci resources from an environment in dependency order
 // Returns complete Terraform configuration including provider setup and all resources
 func ExportEnvironment(ctx context.Context, client *api.Client, skipDeps bool, logger grpc.Logger) (string, error) {
+	return ExportEnvironmentWithOptions(ctx, client, ExportOptions{
+		SkipDependencies: skipDeps,
+		GenerateImports:  false,
+	}, logger)
+}
+
+// ExportEnvironmentWithOptions exports all DaVinci resources with additional options
+func ExportEnvironmentWithOptions(ctx context.Context, client *api.Client, opts ExportOptions, logger grpc.Logger) (string, error) {
 	var hcl strings.Builder
 
 	// Add header comment
@@ -28,8 +43,14 @@ func ExportEnvironment(ctx context.Context, client *api.Client, skipDeps bool, l
 	hcl.WriteString("# 5. Flow Policies (depends on applications and flows)\n")
 	hcl.WriteString("\n")
 
+	// Initialize import block generator if needed
+	var importGen *importgen.ImportBlockGenerator
+	if opts.GenerateImports {
+		importGen = importgen.NewImportBlockGenerator()
+	}
+
 	// Add provider configuration
-	if !skipDeps {
+	if !opts.SkipDependencies {
 		hcl.WriteString(generateProviderConfig(client.Region))
 		hcl.WriteString("\n")
 		hcl.WriteString(generateVariableConfig())
@@ -61,7 +82,7 @@ func ExportEnvironment(ctx context.Context, client *api.Client, skipDeps bool, l
 	if err := logger.Message("Fetching variables...", nil); err != nil {
 		return "", fmt.Errorf("failed to log message: %w", err)
 	}
-	variables, err := ExportVariables(ctx, client, skipDeps, graph)
+	variables, err := ExportVariablesWithImports(ctx, client, opts.SkipDependencies, graph, importGen)
 	if err != nil {
 		logger.PluginError("Failed to export variables", map[string]string{"error": err.Error()})
 		return "", fmt.Errorf("failed to export variables: %w", err)
@@ -77,7 +98,7 @@ func ExportEnvironment(ctx context.Context, client *api.Client, skipDeps bool, l
 	if err := logger.Message("Fetching connector instances...", nil); err != nil {
 		return "", fmt.Errorf("failed to log message: %w", err)
 	}
-	connectors, err := ExportConnectorInstances(ctx, client, skipDeps, graph)
+	connectors, err := ExportConnectorInstancesWithImports(ctx, client, opts.SkipDependencies, graph, importGen)
 	if err != nil {
 		logger.PluginError("Failed to export connector instances", map[string]string{"error": err.Error()})
 		return "", fmt.Errorf("failed to export connector instances: %w", err)
@@ -93,7 +114,7 @@ func ExportEnvironment(ctx context.Context, client *api.Client, skipDeps bool, l
 	if err := logger.Message("Fetching flows...", nil); err != nil {
 		return "", fmt.Errorf("failed to log message: %w", err)
 	}
-	flows, err := ExportFlows(ctx, client, skipDeps, graph)
+	flows, err := ExportFlowsWithImports(ctx, client, opts.SkipDependencies, graph, importGen)
 	if err != nil {
 		logger.PluginError("Failed to export flows", map[string]string{"error": err.Error()})
 		return "", fmt.Errorf("failed to export flows: %w", err)
@@ -109,7 +130,7 @@ func ExportEnvironment(ctx context.Context, client *api.Client, skipDeps bool, l
 	if err := logger.Message("Fetching applications...", nil); err != nil {
 		return "", fmt.Errorf("failed to log message: %w", err)
 	}
-	applications, err := ExportApplications(ctx, client, skipDeps, graph)
+	applications, err := ExportApplicationsWithImports(ctx, client, opts.SkipDependencies, graph, importGen)
 	if err != nil {
 		logger.PluginError("Failed to export applications", map[string]string{"error": err.Error()})
 		return "", fmt.Errorf("failed to export applications: %w", err)
@@ -125,7 +146,7 @@ func ExportEnvironment(ctx context.Context, client *api.Client, skipDeps bool, l
 	if err := logger.Message("Fetching flow policies...", nil); err != nil {
 		return "", fmt.Errorf("failed to log message: %w", err)
 	}
-	flowPolicies, err := ExportFlowPolicies(ctx, client, skipDeps, graph)
+	flowPolicies, err := ExportFlowPoliciesWithImports(ctx, client, opts.SkipDependencies, graph, importGen)
 	if err != nil {
 		logger.PluginError("Failed to export flow policies", map[string]string{"error": err.Error()})
 		return "", fmt.Errorf("failed to export flow policies: %w", err)

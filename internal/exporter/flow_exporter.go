@@ -9,11 +9,17 @@ import (
 
 	"github.com/samir-gandhi/davinci-terraform-converter/internal/api"
 	"github.com/samir-gandhi/davinci-terraform-converter/internal/converter"
+	"github.com/samir-gandhi/davinci-terraform-converter/internal/importgen"
 	"github.com/samir-gandhi/davinci-terraform-converter/internal/resolver"
 )
 
 // ExportFlows retrieves flows from the API and converts them to Terraform HCL
 func ExportFlows(ctx context.Context, client *api.Client, skipDeps bool, graph *resolver.DependencyGraph) (string, error) {
+	return ExportFlowsWithImports(ctx, client, skipDeps, graph, nil)
+}
+
+// ExportFlowsWithImports exports flows with optional import blocks
+func ExportFlowsWithImports(ctx context.Context, client *api.Client, skipDeps bool, graph *resolver.DependencyGraph, importGen *importgen.ImportBlockGenerator) (string, error) {
 	if client == nil {
 		return "", fmt.Errorf("API client is required")
 	}
@@ -38,6 +44,26 @@ func ExportFlows(ctx context.Context, client *api.Client, skipDeps bool, graph *
 
 	// Second pass: Retrieve detailed flow data and convert each flow
 	for _, summary := range flowSummaries {
+		// Get the actual resource name from the graph (includes deduplication suffix if needed)
+		actualName, err := graph.GetReferenceName("pingone_davinci_flow", summary.FlowID)
+		if err != nil {
+			return "", fmt.Errorf("failed to get resource name for flow %s: %w", summary.FlowID, err)
+		}
+
+		// Generate import block if import generator provided
+		if importGen != nil {
+			importBlock, err := importGen.GenerateImportBlock(
+				"pingone_davinci_flow",
+				actualName,
+				summary.FlowID,
+				client.EnvironmentID,
+			)
+			if err != nil {
+				return "", fmt.Errorf("failed to generate import block for flow %s: %w", summary.FlowID, err)
+			}
+			hclBlocks = append(hclBlocks, importBlock)
+		}
+
 		flowDetail, err := client.GetFlow(ctx, summary.FlowID)
 		if err != nil {
 			return "", fmt.Errorf("failed to get flow %s (%s): %w", summary.Name, summary.FlowID, err)
@@ -112,6 +138,11 @@ func convertFlowDetailToMap(flow *api.FlowDetail) (map[string]interface{}, error
 	// Add graph data if present
 	if flow.GraphData != nil {
 		flowMap["graphData"] = flow.GraphData
+	}
+
+	// Add settings if present
+	if flow.Settings != nil {
+		flowMap["settings"] = flow.Settings
 	}
 
 	return flowMap, nil
