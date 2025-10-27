@@ -638,12 +638,6 @@ func quoteString(s string) string {
 	return fmt.Sprintf("%q", s)
 }
 
-// generateResourceName is deprecated - use utils.SanitizeResourceName instead
-// Kept for backwards compatibility in case external code references it
-func generateResourceName(name string) string {
-	return utils.SanitizeResourceName(name)
-}
-
 func generateConnectionReference(connectorID, connectionID string) string {
 	// Generate Terraform reference for connection_id
 	// Format: pingone_davinci_connector_instance.<connector_id>_<connection_id>.id

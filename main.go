@@ -23,7 +23,6 @@ import (
 var (
 	version = "dev"
 	commit  = "none"
-	date    = "unknown"
 )
 
 // simpleLogger implements grpc.Logger for standalone mode
@@ -46,7 +45,7 @@ func (l *simpleLogger) Warn(msg string, metadata map[string]string) error {
 
 func (l *simpleLogger) UserError(msg string, metadata map[string]string) error {
 	fmt.Fprintf(os.Stderr, "✗ Error: %s\n", msg)
-	if metadata != nil && len(metadata) > 0 {
+	if len(metadata) > 0 {
 		fmt.Fprintf(os.Stderr, "  Details: %v\n", metadata)
 	}
 	return nil
@@ -54,7 +53,7 @@ func (l *simpleLogger) UserError(msg string, metadata map[string]string) error {
 
 func (l *simpleLogger) UserFatal(msg string, metadata map[string]string) error {
 	fmt.Fprintf(os.Stderr, "✗ Fatal: %s\n", msg)
-	if metadata != nil && len(metadata) > 0 {
+	if len(metadata) > 0 {
 		fmt.Fprintf(os.Stderr, "  Details: %v\n", metadata)
 	}
 	os.Exit(1)
@@ -63,7 +62,7 @@ func (l *simpleLogger) UserFatal(msg string, metadata map[string]string) error {
 
 func (l *simpleLogger) PluginError(msg string, metadata map[string]string) error {
 	fmt.Fprintf(os.Stderr, "✗ Error: %s\n", msg)
-	if metadata != nil && len(metadata) > 0 {
+	if len(metadata) > 0 {
 		fmt.Fprintf(os.Stderr, "  Details: %v\n", metadata)
 	}
 	return nil
@@ -175,16 +174,4 @@ Global Flags:
 
 For more information, visit: https://github.com/samir-gandhi/davinci-terraform-converter
 `)
-}
-
-// The following functions are kept for backward compatibility but may be removed in future versions
-
-// Deprecated: Use runAsStandalone with subcommands instead
-func runAsStandaloneLegacy() {
-	// This function is kept for reference but is no longer used
-	// The new implementation uses subcommands (davinci-to-hcl/export)
-	fmt.Fprintln(os.Stderr, "Legacy standalone mode no longer supported.")
-	fmt.Fprintln(os.Stderr, "Use: davinci-convert davinci-to-hcl --help")
-	fmt.Fprintln(os.Stderr, "Or:  davinci-convert export --help")
-	os.Exit(1)
 }

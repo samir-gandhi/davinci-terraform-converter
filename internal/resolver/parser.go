@@ -95,9 +95,7 @@ func traversePath(currentValues []interface{}, pathParts []string) []interface{}
 			// Value should be an array
 			if arr, ok := value.([]interface{}); ok {
 				// Add all array elements for further traversal
-				for _, elem := range arr {
-					nextValues = append(nextValues, elem)
-				}
+				nextValues = append(nextValues, arr...)
 			}
 		} else {
 			// Regular field navigation

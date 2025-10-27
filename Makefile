@@ -1,56 +1,66 @@
-# Makefile for DaVinci Terraform Converter
+TEST?=$$(go list ./...)
+PKG_NAME=davinci-terraform-converter
+BINARY=davinci-convert
+VERSION=0.1.0
 
-.PHONY: help
-help: ## Display this help message
-	@echo "Available targets:"
-	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}'
+default: install
 
-.PHONY: build
-build: ## Build the plugin binary
-	go build -o davinci-convert .
+build:
+	@echo "==> Building..."
+	go mod tidy
+	go build -v -o $(BINARY) .
 
-.PHONY: install
-install: build ## Build and install the plugin binary to GOBIN
-	go install .
+install: build
+	@echo "==> Installing..."
+	go install -ldflags="-X main.version=$(VERSION)"
 
-.PHONY: test-all
-test-all: ## Run all tests
-	go test -tags acceptance ./...
+test: build
+	@echo "==> Running unit tests..."
+	go test $(TEST) $(TESTARGS) -timeout=5m
 
+testacc: build
+	@echo "==> Running acceptance tests..."
+	go test -tags acceptance $(TEST) -v $(TESTARGS) -timeout 120m
 
-.PHONY: test-verbose
-test-verbose: ## Run all tests with verbose output
-	go test -v ./...
-
-.PHONY: test-coverage
-test-coverage: ## Run tests with coverage report
-	go test -tags acceptance -coverprofile=coverage.out ./...
+testcoverage: build
+	@echo "==> Running tests with coverage..."
+	go test -tags acceptance -coverprofile=coverage.out $(TEST) $(TESTARGS) -timeout=120m
 	go tool cover -html=coverage.out -o coverage.html
 	@echo "Coverage report generated: coverage.html"
 
-.PHONY: clean
-clean: ## Clean build artifacts and test outputs
-	rm -f davinci-convert
+vet:
+	@echo "==> Running go vet..."
+	@go vet ./... ; if [ $$? -ne 0 ]; then \
+		echo ""; \
+		echo "Vet found suspicious constructs. Please check the reported constructs"; \
+		echo "and fix them if necessary before submitting the code for review."; \
+		exit 1; \
+	fi
+
+depscheck:
+	@echo "==> Checking source code with go mod tidy..."
+	@go mod tidy
+	@git diff --exit-code -- go.mod go.sum || \
+		(echo; echo "Unexpected difference in go.mod/go.sum files. Run 'go mod tidy' command or revert any go.mod/go.sum changes and commit."; exit 1)
+
+lint: golangcilint
+
+golangcilint:
+	@echo "==> Checking source code with golangci-lint..."
+	@golangci-lint run ./...
+
+fmt:
+	@echo "==> Formatting Go code..."
+	@go fmt ./...
+
+clean:
+	@echo "==> Cleaning build artifacts..."
+	rm -f $(BINARY)
 	rm -f coverage.out coverage.html
 	go clean -testcache
 
-.PHONY: fmt
-fmt: ## Format Go code
-	go fmt ./...
+devcheck: build vet fmt lint test testacc
 
-.PHONY: vet
-vet: ## Run go vet
-	go vet ./...
+devchecknotest: build vet fmt lint test
 
-.PHONY: lint
-lint: fmt vet ## Run all linting tools
-
-.PHONY: deps
-deps: ## Download dependencies
-	go mod download
-	go mod tidy
-
-.PHONY: all
-all: clean deps lint test-all build ## Run all checks and build
-
-.DEFAULT_GOAL := help
+.PHONY: build install test testacc testcoverage vet depscheck lint golangcilint fmt clean devcheck devchecknotest

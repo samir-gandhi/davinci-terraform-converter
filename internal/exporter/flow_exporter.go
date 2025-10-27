@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"regexp"
 	"strings"
 
 	"github.com/samir-gandhi/davinci-terraform-converter/internal/api"
@@ -92,38 +91,6 @@ func ExportFlowsWithImports(ctx context.Context, client *api.Client, skipDeps bo
 
 	// Combine all HCL blocks with blank lines between them
 	return strings.Join(hclBlocks, "\n\n"), nil
-}
-
-// ensureUniqueFlowResourceName checks if a resource name is already used and appends a suffix if needed
-func ensureUniqueFlowResourceName(hcl string, usedNames map[string]int) string {
-	// Extract resource name from HCL (format: resource "type" "name" {)
-	re := regexp.MustCompile(`resource\s+"([^"]+)"\s+"([^"]+)"`)
-	matches := re.FindStringSubmatch(hcl)
-
-	if len(matches) < 3 {
-		return hcl // No resource declaration found, return as-is
-	}
-
-	resourceType := matches[1]
-	originalName := matches[2]
-	key := resourceType + "." + originalName
-
-	// Check if name has been used
-	if count, exists := usedNames[key]; exists {
-		// Name already used, append counter suffix
-		usedNames[key] = count + 1
-		newName := fmt.Sprintf("%s_%d", originalName, count+1)
-		newKey := resourceType + "." + newName
-		usedNames[newKey] = 0
-
-		// Replace the resource name in HCL
-		hcl = re.ReplaceAllString(hcl, fmt.Sprintf(`resource "%s" "%s"`, resourceType, newName))
-	} else {
-		// First use of this name
-		usedNames[key] = 0
-	}
-
-	return hcl
 }
 
 // convertFlowDetailToMap converts FlowDetail to map[string]interface{} for the converter

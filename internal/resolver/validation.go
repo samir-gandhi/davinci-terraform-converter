@@ -210,7 +210,7 @@ func (g *DependencyGraph) GenerateValidationReportWithMissing(tracker *MissingDe
 	// Resource counts
 	report.WriteString(fmt.Sprintf("Total Resources: %d\n", len(g.resources)))
 	report.WriteString(fmt.Sprintf("Total Dependencies: %d\n", len(g.dependencies)))
-	
+
 	// Missing dependencies count
 	if tracker != nil {
 		missing := tracker.GetMissing()

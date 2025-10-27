@@ -107,30 +107,36 @@ func (c *DaVinciToHclCommand) runConvert(logger grpc.Logger, flowJSON, out strin
 	// Read the flow JSON file
 	flowJSONBytes, err := os.ReadFile(flowJSON)
 	if err != nil {
-		logger.PluginError("Failed to read flow JSON file", map[string]string{
+		if logErr := logger.PluginError("Failed to read flow JSON file", map[string]string{
 			"file":  flowJSON,
 			"error": err.Error(),
-		})
+		}); logErr != nil {
+			return fmt.Errorf("failed to log error: %w", logErr)
+		}
 		return fmt.Errorf("failed to read flow JSON file: %w", err)
 	}
 
 	// Convert the flow JSON to HCL
 	hcl, err := converter.ConvertWithOptions(flowJSONBytes, skipDeps)
 	if err != nil {
-		logger.PluginError("Failed to convert flow JSON to HCL", map[string]string{
+		if logErr := logger.PluginError("Failed to convert flow JSON to HCL", map[string]string{
 			"file":  flowJSON,
 			"error": err.Error(),
-		})
+		}); logErr != nil {
+			return fmt.Errorf("failed to log error: %w", logErr)
+		}
 		return fmt.Errorf("failed to convert flow JSON to HCL: %w", err)
 	}
 
 	// Write output
 	if out != "" {
 		if err := os.WriteFile(out, []byte(hcl), 0644); err != nil {
-			logger.PluginError("Failed to write output file", map[string]string{
+			if logErr := logger.PluginError("Failed to write output file", map[string]string{
 				"file":  out,
 				"error": err.Error(),
-			})
+			}); logErr != nil {
+				return fmt.Errorf("failed to log error: %w", logErr)
+			}
 			return fmt.Errorf("failed to write output file: %w", err)
 		}
 		if err := logger.Success(fmt.Sprintf("Successfully converted flow to HCL: %s", out), nil); err != nil {

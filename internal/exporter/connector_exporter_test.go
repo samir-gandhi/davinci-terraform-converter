@@ -1,8 +1,8 @@
 package exporter
 
 import (
-"github.com/samir-gandhi/davinci-terraform-converter/internal/resolver"
 	"context"
+	"github.com/samir-gandhi/davinci-terraform-converter/internal/resolver"
 	"strings"
 	"testing"
 

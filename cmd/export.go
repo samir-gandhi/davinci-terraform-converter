@@ -196,12 +196,14 @@ func (c *ExportCommand) runExport(logger grpc.Logger, services []string, workerE
 	ctx := context.Background()
 	client, err := api.NewClient(ctx, workerEnvironmentID, exportEnvironmentID, regionCode, clientID, clientSecret)
 	if err != nil {
-		logger.PluginError("Failed to create API client", map[string]string{
+		if logErr := logger.PluginError("Failed to create API client", map[string]string{
 			"worker_environment_id": workerEnvironmentID,
 			"export_environment_id": exportEnvironmentID,
 			"region_code":           regionCode,
 			"error":                 err.Error(),
-		})
+		}); logErr != nil {
+			return fmt.Errorf("failed to log error: %w", logErr)
+		}
 		return fmt.Errorf("failed to create API client: %w", err)
 	}
 
@@ -217,10 +219,12 @@ func (c *ExportCommand) runExport(logger grpc.Logger, services []string, workerE
 	// Write output
 	if out != "" {
 		if err := os.WriteFile(out, []byte(hcl), 0644); err != nil {
-			logger.PluginError("Failed to write output file", map[string]string{
+			if logErr := logger.PluginError("Failed to write output file", map[string]string{
 				"file":  out,
 				"error": err.Error(),
-			})
+			}); logErr != nil {
+				return fmt.Errorf("failed to log error: %w", logErr)
+			}
 			return fmt.Errorf("failed to write output file: %w", err)
 		}
 		if err := logger.Message(fmt.Sprintf("✓ Successfully exported to: %s (%d bytes)", out, len(hcl)), nil); err != nil {

@@ -36,18 +36,18 @@ type MissingDependency struct {
 	FromType string
 	FromID   string
 	FromName string // Human-readable name if available
-	
+
 	// Target resource that is missing
 	ToType string
 	ToID   string
 	ToName string // Human-readable name if available
-	
+
 	// Why is it missing
 	Reason MissingReason
-	
+
 	// Field where dependency is referenced
 	FieldName string
-	
+
 	// Location in JSON structure
 	Location string
 }
@@ -55,7 +55,7 @@ type MissingDependency struct {
 // MissingDependencyTracker tracks missing dependencies during export
 type MissingDependencyTracker struct {
 	missing []MissingDependency
-	
+
 	// For tracking excluded/not-included resources
 	excludedResources map[string]map[string]bool // type -> id -> true
 	includedTypes     map[string]bool            // type -> included
@@ -94,12 +94,12 @@ func (t *MissingDependencyTracker) DetermineMissingReason(resourceType, resource
 			return Excluded
 		}
 	}
-	
+
 	// Check if type not included in export
 	if len(t.includedTypes) > 0 && !t.includedTypes[resourceType] {
 		return NotIncluded
 	}
-	
+
 	// Otherwise, resource doesn't exist
 	return NotFound
 }
@@ -133,15 +133,15 @@ func (t *MissingDependencyTracker) GetMissing() []MissingDependency {
 func GenerateTODOPlaceholderWithReason(dep MissingDependency) string {
 	var msg strings.Builder
 	msg.WriteString(`"" # TODO: Reference to `)
-	
+
 	// Add name if available
 	if dep.ToName != "" {
 		msg.WriteString(fmt.Sprintf(`"%s" `, dep.ToName))
 	}
-	
+
 	// Add type and ID
 	msg.WriteString(fmt.Sprintf(`(%s %s) `, dep.ToType, dep.ToID))
-	
+
 	// Add reason
 	switch dep.Reason {
 	case Excluded:
@@ -151,7 +151,7 @@ func GenerateTODOPlaceholderWithReason(dep MissingDependency) string {
 	case NotFound:
 		msg.WriteString("not found in environment")
 	}
-	
+
 	return msg.String()
 }
 
@@ -160,29 +160,29 @@ func (t *MissingDependencyTracker) GenerateSummaryReport() string {
 	if len(t.missing) == 0 {
 		return "✓ All dependencies resolved successfully\n"
 	}
-	
+
 	var report strings.Builder
-	
+
 	// Group by reason
 	byReason := make(map[MissingReason][]MissingDependency)
 	for _, dep := range t.missing {
 		byReason[dep.Reason] = append(byReason[dep.Reason], dep)
 	}
-	
+
 	report.WriteString(fmt.Sprintf("\n⚠ Missing Dependencies Summary (%d total)\n", len(t.missing)))
 	report.WriteString(strings.Repeat("=", 60) + "\n\n")
-	
+
 	// Report excluded dependencies
 	if excluded := byReason[Excluded]; len(excluded) > 0 {
 		report.WriteString(fmt.Sprintf("Excluded Resources (%d):\n", len(excluded)))
 		for _, dep := range excluded {
-			report.WriteString(fmt.Sprintf("  • %s → %s", formatResource(dep.FromType, dep.FromName, dep.FromID), 
+			report.WriteString(fmt.Sprintf("  • %s → %s", formatResource(dep.FromType, dep.FromName, dep.FromID),
 				formatResource(dep.ToType, dep.ToName, dep.ToID)))
 			report.WriteString(fmt.Sprintf(" [field: %s]\n", dep.FieldName))
 		}
 		report.WriteString("\n")
 	}
-	
+
 	// Report not included dependencies
 	if notIncluded := byReason[NotIncluded]; len(notIncluded) > 0 {
 		report.WriteString(fmt.Sprintf("Not Included in Export (%d):\n", len(notIncluded)))
@@ -193,7 +193,7 @@ func (t *MissingDependencyTracker) GenerateSummaryReport() string {
 		}
 		report.WriteString("\n")
 	}
-	
+
 	// Report not found dependencies
 	if notFound := byReason[NotFound]; len(notFound) > 0 {
 		report.WriteString(fmt.Sprintf("Not Found in Environment (%d):\n", len(notFound)))
@@ -204,10 +204,10 @@ func (t *MissingDependencyTracker) GenerateSummaryReport() string {
 		}
 		report.WriteString("\n")
 	}
-	
+
 	report.WriteString("Note: Resources with missing dependencies have TODO comments in generated HCL\n")
 	report.WriteString("Review and manually resolve these references before applying\n")
-	
+
 	return report.String()
 }
 

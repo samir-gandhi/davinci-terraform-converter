@@ -84,7 +84,9 @@ func ExportEnvironmentWithOptions(ctx context.Context, client *api.Client, opts 
 	}
 	variables, err := ExportVariablesWithImports(ctx, client, opts.SkipDependencies, graph, importGen)
 	if err != nil {
-		logger.PluginError("Failed to export variables", map[string]string{"error": err.Error()})
+		if logErr := logger.PluginError("Failed to export variables", map[string]string{"error": err.Error()}); logErr != nil {
+			return "", fmt.Errorf("failed to log error: %w", logErr)
+		}
 		return "", fmt.Errorf("failed to export variables: %w", err)
 	}
 	varCount := strings.Count(variables, "resource \"pingone_davinci_variable\"")
@@ -100,7 +102,9 @@ func ExportEnvironmentWithOptions(ctx context.Context, client *api.Client, opts 
 	}
 	connectors, err := ExportConnectorInstancesWithImports(ctx, client, opts.SkipDependencies, graph, importGen)
 	if err != nil {
-		logger.PluginError("Failed to export connector instances", map[string]string{"error": err.Error()})
+		if logErr := logger.PluginError("Failed to export connector instances", map[string]string{"error": err.Error()}); logErr != nil {
+			return "", fmt.Errorf("failed to log error: %w", logErr)
+		}
 		return "", fmt.Errorf("failed to export connector instances: %w", err)
 	}
 	connCount := strings.Count(connectors, "resource \"pingone_davinci_connector_instance\"")
@@ -116,7 +120,9 @@ func ExportEnvironmentWithOptions(ctx context.Context, client *api.Client, opts 
 	}
 	flows, err := ExportFlowsWithImports(ctx, client, opts.SkipDependencies, graph, importGen)
 	if err != nil {
-		logger.PluginError("Failed to export flows", map[string]string{"error": err.Error()})
+		if logErr := logger.PluginError("Failed to export flows", map[string]string{"error": err.Error()}); logErr != nil {
+			return "", fmt.Errorf("failed to log error: %w", logErr)
+		}
 		return "", fmt.Errorf("failed to export flows: %w", err)
 	}
 	flowCount := strings.Count(flows, "resource \"pingone_davinci_flow\"")
@@ -132,7 +138,9 @@ func ExportEnvironmentWithOptions(ctx context.Context, client *api.Client, opts 
 	}
 	applications, err := ExportApplicationsWithImports(ctx, client, opts.SkipDependencies, graph, importGen)
 	if err != nil {
-		logger.PluginError("Failed to export applications", map[string]string{"error": err.Error()})
+		if logErr := logger.PluginError("Failed to export applications", map[string]string{"error": err.Error()}); logErr != nil {
+			return "", fmt.Errorf("failed to log error: %w", logErr)
+		}
 		return "", fmt.Errorf("failed to export applications: %w", err)
 	}
 	appCount := strings.Count(applications, "resource \"pingone_davinci_application\"")
@@ -148,7 +156,9 @@ func ExportEnvironmentWithOptions(ctx context.Context, client *api.Client, opts 
 	}
 	flowPolicies, err := ExportFlowPoliciesWithImports(ctx, client, opts.SkipDependencies, graph, importGen)
 	if err != nil {
-		logger.PluginError("Failed to export flow policies", map[string]string{"error": err.Error()})
+		if logErr := logger.PluginError("Failed to export flow policies", map[string]string{"error": err.Error()}); logErr != nil {
+			return "", fmt.Errorf("failed to log error: %w", logErr)
+		}
 		return "", fmt.Errorf("failed to export flow policies: %w", err)
 	}
 	policyCount := strings.Count(flowPolicies, "resource \"pingone_davinci_application_flow_policy\"")
