@@ -93,21 +93,26 @@ func TestGenerateImportBlock_Application(t *testing.T) {
 	assert.Equal(t, expected, result)
 }
 
-func TestGenerateImportBlock_FlowPolicy(t *testing.T) {
+func TestGenerateImportBlock_ApplicationFlowPolicy(t *testing.T) {
 	gen := NewImportBlockGenerator()
 
-	result, err := gen.GenerateImportBlock(
-		"pingone_davinci_flow_policy",
+	metadata := map[string]string{
+		"application_id": "app-ghi789",
+	}
+
+	result, err := gen.GenerateImportBlockWithMetadata(
+		"pingone_davinci_application_flow_policy",
 		"signin_policy",
 		"policy-abc123",
 		"env-def456",
+		metadata,
 	)
 
 	require.NoError(t, err)
 
 	expected := `import {
-  to = pingone_davinci_flow_policy.signin_policy
-  id = "env-def456/policy-abc123"
+  to = pingone_davinci_application_flow_policy.signin_policy
+  id = "env-def456/app-ghi789/policy-abc123"
 }`
 
 	assert.Equal(t, expected, result)
@@ -233,7 +238,7 @@ func TestValidateResourceType_SupportedTypes(t *testing.T) {
 		"pingone_davinci_connector_instance",
 		"pingone_davinci_flow",
 		"pingone_davinci_application",
-		"pingone_davinci_flow_policy",
+		"pingone_davinci_application_flow_policy",
 		"pingone_davinci_application_flow_policy_assignment",
 	}
 
@@ -262,7 +267,7 @@ func TestGetSupportedResourceTypes(t *testing.T) {
 	assert.Contains(t, types, "pingone_davinci_connector_instance")
 	assert.Contains(t, types, "pingone_davinci_flow")
 	assert.Contains(t, types, "pingone_davinci_application")
-	assert.Contains(t, types, "pingone_davinci_flow_policy")
+	assert.Contains(t, types, "pingone_davinci_application_flow_policy")
 	assert.Contains(t, types, "pingone_davinci_application_flow_policy_assignment")
 }
 
@@ -370,12 +375,12 @@ func TestBuildImportID_AllResourceTypes(t *testing.T) {
 			expectError:  false,
 		},
 		{
-			name:         "Flow Policy",
-			resourceType: "pingone_davinci_flow_policy",
+			name:         "Application Flow Policy with metadata",
+			resourceType: "pingone_davinci_application_flow_policy",
 			envID:        "env-123",
 			resourceID:   "policy-456",
-			metadata:     nil,
-			expectedID:   "env-123/policy-456",
+			metadata:     map[string]string{"application_id": "app-789"},
+			expectedID:   "env-123/app-789/policy-456",
 			expectError:  false,
 		},
 		{

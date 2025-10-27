@@ -110,10 +110,6 @@ func (g *ImportBlockGenerator) buildImportID(
 		applicationID := metadata["application_id"]
 		return fmt.Sprintf("%s/%s/%s", environmentID, applicationID, resourceID), nil
 
-	case "pingone_davinci_flow_policy":
-		// Format: <environment_id>/<flow_policy_id>
-		return fmt.Sprintf("%s/%s", environmentID, resourceID), nil
-
 	case "pingone_davinci_application_flow_policy_assignment":
 		// Format: <environment_id>/<application_id>/<flow_policy_id>
 		// This is a special case requiring application_id from metadata
@@ -137,7 +133,6 @@ func (g *ImportBlockGenerator) ValidateResourceType(resourceType string) bool {
 		"pingone_davinci_flow",
 		"pingone_davinci_application",
 		"pingone_davinci_application_flow_policy",
-		"pingone_davinci_flow_policy",
 		"pingone_davinci_application_flow_policy_assignment",
 	}
 
@@ -157,7 +152,6 @@ func (g *ImportBlockGenerator) GetSupportedResourceTypes() []string {
 		"pingone_davinci_flow",
 		"pingone_davinci_application",
 		"pingone_davinci_application_flow_policy",
-		"pingone_davinci_flow_policy",
 		"pingone_davinci_application_flow_policy_assignment",
 	}
 }

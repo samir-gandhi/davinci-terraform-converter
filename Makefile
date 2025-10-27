@@ -13,9 +13,10 @@ build: ## Build the plugin binary
 install: build ## Build and install the plugin binary to GOBIN
 	go install .
 
-.PHONY: test
-test: ## Run all tests
-	go test ./...
+.PHONY: test-all
+test-all: ## Run all tests
+	go test -tags acceptance ./...
+
 
 .PHONY: test-verbose
 test-verbose: ## Run all tests with verbose output
@@ -23,7 +24,7 @@ test-verbose: ## Run all tests with verbose output
 
 .PHONY: test-coverage
 test-coverage: ## Run tests with coverage report
-	go test -coverprofile=coverage.out ./...
+	go test -tags acceptance -coverprofile=coverage.out ./...
 	go tool cover -html=coverage.out -o coverage.html
 	@echo "Coverage report generated: coverage.html"
 
@@ -50,6 +51,6 @@ deps: ## Download dependencies
 	go mod tidy
 
 .PHONY: all
-all: clean deps lint test build ## Run all checks and build
+all: clean deps lint test-all build ## Run all checks and build
 
 .DEFAULT_GOAL := help
