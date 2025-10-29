@@ -15,6 +15,7 @@ This tool provides two primary workflows:
 
 **Features:**
 
+- ✅ **Terraform module generation** (default) for shareable, reusable infrastructure
 - ✅ Complete environment export from PingOne DaVinci API
 - ✅ Export flows, connector instances, variables, applications, and flow policies
 - ✅ Automatic dependency resolution with Terraform references
@@ -80,9 +81,96 @@ davinci-convert davinci-to-hcl --flow-json flow.json --skip-dependencies
 
 #### API Export (export)
 
+**Default: Terraform Module Generation**
+
+By default, exports generate a complete Terraform module structure with child module and root module wrapper:
+
+```bash
+# Export as module (default behavior)
+davinci-convert export \
+  --pingone-worker-environment-id "abc123..." \
+  --pingone-export-environment-id "def456..." \
+  --pingone-worker-client-id "client-id" \
+  --pingone-worker-client-secret "client-secret" \
+  --pingone-region-code "NA"
+
+# Generates:
+# davinci-module/         (child module)
+#   ├── versions.tf       (Terraform and provider requirements)
+#   ├── variables.tf      (Input variables)
+#   ├── outputs.tf        (Output values)
+#   ├── flows.tf          (Flow resources)
+#   ├── connections.tf    (Connector instances)
+#   └── variables_dv.tf   (DaVinci variables)
+# module.tf               (Root module wrapper)
+# imports.tf              (Import blocks for existing resources)
+```
+
+**Module Generation Options:**
+
+```bash
+# Use custom module directory name
+davinci-convert export \
+  --module-dir "my-davinci-module" \
+  --out ./terraform
+
+# Generate module with actual values (for environment management)
+davinci-convert export \
+  --include-values \
+  --out ./envs/dev
+
+# Generate module without import blocks
+davinci-convert export \
+  --skip-imports \
+  --out ./terraform
+
+# Legacy single-file mode (disable module generation)
+davinci-convert export \
+  --module=false \
+  --out davinci.tf
+```
+
+**Module Use Cases:**
+
+1. **Shareable Module (Default)**
+   - Variables with empty defaults
+   - No hardcoded values
+   - Share across teams/environments
+   - Publish to registry
+
+2. **Environment Management (--include-values)**
+   - Variables populated with actual values from API
+   - Ready for immediate deployment
+   - Import blocks for existing resources
+   - Environment-specific configurations
+
+**Example module usage:**
+
+```hcl
+# module.tf (generated root module)
+module "davinci" {
+  source = "./davinci-module"
+
+  pingone_environment_id = ""  # TODO: Provide environment ID
+  
+  # Variables populated by --include-values
+  davinci_variable_company_name_value = "Acme Corp"
+  davinci_connection_http_base_url    = "https://api.example.com"
+}
+
+# Import resources (with --include-imports, default)
+import {
+  to = module.davinci.pingone_davinci_variable.company_name
+  id = "env-id/var-id"
+}
+```
+
+**Legacy Single-File Export:**
+
 ```bash
 # Export all services (defaults to all available: pingone-davinci)
 davinci-convert export \
+  --module=false \
   --pingone-worker-environment-id "abc123..." \
   --pingone-export-environment-id "def456..." \
   --pingone-worker-client-id "client-id" \
@@ -92,6 +180,7 @@ davinci-convert export \
 
 # Export without import blocks (for Terraform < 1.5)
 davinci-convert export \
+  --module=false \
   --pingone-worker-environment-id "abc123..." \
   --pingone-export-environment-id "def456..." \
   --pingone-worker-client-id "client-id" \
