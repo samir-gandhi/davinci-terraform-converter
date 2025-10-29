@@ -50,7 +50,7 @@ output.tf                                    # Single file with inline HCL
 
 ## Feature Gap Analysis
 
-### 1. ✅ **Module-Ready Variable Scaffolding** (CRITICAL)
+### 1. **Module-Ready Variable Scaffolding** (CRITICAL)
 
 #### What dvtf-pingctl Generates
 

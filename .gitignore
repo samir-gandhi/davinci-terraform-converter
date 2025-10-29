@@ -39,4 +39,6 @@ output/
 # Test fixtures (except sample files)
 *.json
 !.github/**/*.json
+!**/testdata/**/*.json
+!**/testdata/**/*.tf
 localsecrets
