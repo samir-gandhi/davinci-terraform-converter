@@ -22,9 +22,9 @@ type ExportedData struct {
 	FlowPoliciesHCL string
 
 	// Raw JSON data for regeneration with variable references
-	VariablesJSON    [][]byte // Array of variable JSON blobs
-	ConnectorsJSON   [][]byte // Array of connector JSON blobs
-	ResourceNames    map[string]string // Maps resource ID to sanitized resource name
+	VariablesJSON  [][]byte          // Array of variable JSON blobs
+	ConnectorsJSON [][]byte          // Array of connector JSON blobs
+	ResourceNames  map[string]string // Maps resource ID to sanitized resource name
 
 	// Metadata
 	EnvironmentID   string
