@@ -12,7 +12,7 @@ import (
 func TestExportVariables(t *testing.T) {
 	t.Run("Returns error when client is nil", func(t *testing.T) {
 		graph := resolver.NewDependencyGraph()
-		_, err := ExportVariables(context.Background(), nil, false, graph)
+		_, _, err := ExportVariables(context.Background(), nil, false, graph)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "client cannot be nil")
 	})

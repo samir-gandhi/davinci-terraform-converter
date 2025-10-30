@@ -6,6 +6,7 @@ import (
 
 	"github.com/pingidentity/pingcli/shared/grpc"
 	"github.com/samir-gandhi/davinci-terraform-converter/internal/api"
+	"github.com/samir-gandhi/davinci-terraform-converter/internal/converter"
 	"github.com/samir-gandhi/davinci-terraform-converter/internal/importgen"
 	"github.com/samir-gandhi/davinci-terraform-converter/internal/module"
 	"github.com/samir-gandhi/davinci-terraform-converter/internal/resolver"
@@ -13,17 +14,25 @@ import (
 
 // ExportedData contains structured export data for module generation
 type ExportedData struct {
-	// HCL sections by resource type
+	// HCL sections by resource type (will be regenerated with variable references for modules)
 	VariablesHCL    string
 	ConnectorsHCL   string
 	FlowsHCL        string
 	ApplicationsHCL string
 	FlowPoliciesHCL string
 
+	// Raw JSON data for regeneration with variable references
+	VariablesJSON    [][]byte // Array of variable JSON blobs
+	ConnectorsJSON   [][]byte // Array of connector JSON blobs
+	ResourceNames    map[string]string // Maps resource ID to sanitized resource name
+
 	// Metadata
 	EnvironmentID   string
 	Region          string
 	DependencyGraph *resolver.DependencyGraph
+
+	// Variable-eligible attributes extracted from resources
+	ExtractedVariables []converter.VariableEligibleAttribute
 }
 
 // ExportEnvironmentForModule exports DaVinci resources in a structure suitable for module generation
@@ -65,11 +74,12 @@ func ExportEnvironmentForModule(ctx context.Context, client *api.Client, opts Ex
 	if err := logger.Message("Fetching variables...", nil); err != nil {
 		return nil, fmt.Errorf("failed to log message: %w", err)
 	}
-	variables, err := ExportVariablesWithImports(ctx, client, opts.SkipDependencies, graph, importGen)
+	variablesHCL, variablesExtracted, err := ExportVariablesWithImports(ctx, client, opts.SkipDependencies, graph, importGen)
 	if err != nil {
 		return nil, fmt.Errorf("failed to export variables: %w", err)
 	}
-	data.VariablesHCL = variables
+	data.VariablesHCL = variablesHCL
+	data.ExtractedVariables = append(data.ExtractedVariables, variablesExtracted...)
 	if err := logger.Message("✓ Variables exported", nil); err != nil {
 		return nil, fmt.Errorf("failed to log message: %w", err)
 	}
@@ -78,11 +88,12 @@ func ExportEnvironmentForModule(ctx context.Context, client *api.Client, opts Ex
 	if err := logger.Message("Fetching connector instances...", nil); err != nil {
 		return nil, fmt.Errorf("failed to log message: %w", err)
 	}
-	connectors, err := ExportConnectorInstancesWithImports(ctx, client, opts.SkipDependencies, graph, importGen)
+	connectorsHCL, connectorsExtracted, err := ExportConnectorInstancesWithImports(ctx, client, opts.SkipDependencies, graph, importGen)
 	if err != nil {
 		return nil, fmt.Errorf("failed to export connector instances: %w", err)
 	}
-	data.ConnectorsHCL = connectors
+	data.ConnectorsHCL = connectorsHCL
+	data.ExtractedVariables = append(data.ExtractedVariables, connectorsExtracted...)
 	if err := logger.Message("✓ Connector instances exported", nil); err != nil {
 		return nil, fmt.Errorf("failed to log message: %w", err)
 	}
@@ -137,6 +148,7 @@ func ExportEnvironmentForModule(ctx context.Context, client *api.Client, opts Ex
 }
 
 // ConvertExportedDataToModuleStructure converts ExportedData to module.ModuleStructure
+// The HCL in ExportedData should already have variable references if generated in module mode
 func ConvertExportedDataToModuleStructure(data *ExportedData, config module.ModuleConfig) (*module.ModuleStructure, error) {
 	structure := &module.ModuleStructure{
 		Config: config,
@@ -149,10 +161,11 @@ func ConvertExportedDataToModuleStructure(data *ExportedData, config module.Modu
 		},
 	}
 
-	// Generate variables from dependency graph
-	// For now, we'll create basic variables
-	// TODO: Extract actual variables from resources once converters support it
-	variables := generateVariablesFromGraph(data.DependencyGraph)
+	// Convert extracted variable-eligible attributes to module variables
+	variables := make([]module.Variable, 0, len(data.ExtractedVariables))
+	for _, attr := range data.ExtractedVariables {
+		variables = append(variables, attr.ToModuleVariable())
+	}
 	structure.Variables = variables
 
 	// Generate outputs from dependency graph
@@ -165,11 +178,12 @@ func ConvertExportedDataToModuleStructure(data *ExportedData, config module.Modu
 }
 
 // generateVariablesFromGraph extracts variables from the dependency graph
+// DEPRECATED: Use ExtractedVariables field in ExportedData instead
 func generateVariablesFromGraph(graph *resolver.DependencyGraph) []module.Variable {
 	variables := []module.Variable{}
 
-	// TODO: In phase 2, iterate through graph resources and extract variable-eligible attributes
-	// For now, return empty list as resources don't yet expose their attributes
+	// This is now handled by variable extraction during resource export
+	// See ExportedData.ExtractedVariables
 
 	return variables
 }

@@ -13,24 +13,25 @@ import (
 )
 
 // ExportVariables exports all variables from the API to HCL format
-func ExportVariables(ctx context.Context, client *api.Client, skipDeps bool, graph *resolver.DependencyGraph) (string, error) {
+func ExportVariables(ctx context.Context, client *api.Client, skipDeps bool, graph *resolver.DependencyGraph) (string, []converter.VariableEligibleAttribute, error) {
 	return ExportVariablesWithImports(ctx, client, skipDeps, graph, nil)
 }
 
 // ExportVariablesWithImports exports all variables with optional import blocks
-func ExportVariablesWithImports(ctx context.Context, client *api.Client, skipDeps bool, graph *resolver.DependencyGraph, importGen *importgen.ImportBlockGenerator) (string, error) {
+// Returns HCL string and extracted variable-eligible attributes for module generation
+func ExportVariablesWithImports(ctx context.Context, client *api.Client, skipDeps bool, graph *resolver.DependencyGraph, importGen *importgen.ImportBlockGenerator) (string, []converter.VariableEligibleAttribute, error) {
 	if client == nil {
-		return "", fmt.Errorf("client cannot be nil")
+		return "", nil, fmt.Errorf("client cannot be nil")
 	}
 
 	// Get all variables from API
 	variables, err := client.ListVariables(ctx, client.EnvironmentID)
 	if err != nil {
-		return "", fmt.Errorf("failed to list variables: %w", err)
+		return "", nil, fmt.Errorf("failed to list variables: %w", err)
 	}
 
 	if len(variables) == 0 {
-		return "", nil
+		return "", nil, nil
 	}
 
 	// First pass: Register all variables in the dependency graph
@@ -42,6 +43,7 @@ func ExportVariablesWithImports(ctx context.Context, client *api.Client, skipDep
 	}
 
 	var hclBlocks []string
+	var extractedVariables []converter.VariableEligibleAttribute
 
 	// Second pass: Convert each variable to HCL with optional import blocks
 	for _, variable := range variables {
@@ -50,7 +52,7 @@ func ExportVariablesWithImports(ctx context.Context, client *api.Client, skipDep
 		// Get the actual resource name from the graph (includes deduplication suffix if needed)
 		actualName, err := graph.GetReferenceName("pingone_davinci_variable", variableID)
 		if err != nil {
-			return "", fmt.Errorf("failed to get resource name for variable %s: %w", variableID, err)
+			return "", nil, fmt.Errorf("failed to get resource name for variable %s: %w", variableID, err)
 		}
 
 		// Generate import block if import generator provided
@@ -62,7 +64,7 @@ func ExportVariablesWithImports(ctx context.Context, client *api.Client, skipDep
 				client.EnvironmentID,
 			)
 			if err != nil {
-				return "", fmt.Errorf("failed to generate import block for variable %s: %w", variableID, err)
+				return "", nil, fmt.Errorf("failed to generate import block for variable %s: %w", variableID, err)
 			}
 			hclBlocks = append(hclBlocks, importBlock)
 		}
@@ -70,20 +72,27 @@ func ExportVariablesWithImports(ctx context.Context, client *api.Client, skipDep
 		// Convert SDK response to JSON format expected by converter
 		variableJSON, err := convertVariableToJSON(&variable)
 		if err != nil {
-			return "", fmt.Errorf("failed to convert variable %s to JSON: %w", variable.GetId(), err)
+			return "", nil, fmt.Errorf("failed to convert variable %s to JSON: %w", variable.GetId(), err)
 		}
+
+		// Extract variable-eligible attributes for module generation
+		variableAttrs, err := converter.GetVariableEligibleAttributes(variableJSON, actualName)
+		if err != nil {
+			return "", nil, fmt.Errorf("failed to extract variable attributes for %s: %w", variable.GetId(), err)
+		}
+		extractedVariables = append(extractedVariables, variableAttrs...)
 
 		// Convert to HCL using existing converter
 		hcl, err := converter.ConvertVariableWithOptions(variableJSON, skipDeps)
 		if err != nil {
-			return "", fmt.Errorf("failed to convert variable %s to HCL: %w", variable.GetId(), err)
+			return "", nil, fmt.Errorf("failed to convert variable %s to HCL: %w", variable.GetId(), err)
 		}
 
 		hclBlocks = append(hclBlocks, hcl)
 	}
 
 	// Combine all HCL blocks with blank lines between them
-	return strings.Join(hclBlocks, "\n\n"), nil
+	return strings.Join(hclBlocks, "\n\n"), extractedVariables, nil
 }
 
 // convertVariableToJSON converts SDK DaVinciVariableResponse to JSON format expected by converter

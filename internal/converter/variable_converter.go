@@ -54,6 +54,65 @@ func ConvertVariableWithOptions(variableJSON []byte, skipDependencies bool) (str
 	return generateVariableHCL(variable, skipDependencies), nil
 }
 
+// GetVariableEligibleAttributes extracts variable-eligible attributes from a DaVinci variable
+// For DaVinci variables, the 'value' attribute should become a module variable
+func GetVariableEligibleAttributes(variableJSON []byte, resourceName string) ([]VariableEligibleAttribute, error) {
+	var variable VariableResponse
+	if err := json.Unmarshal(variableJSON, &variable); err != nil {
+		return nil, fmt.Errorf("failed to parse variable JSON: %w", err)
+	}
+
+	if variable.Name == "" {
+		return nil, fmt.Errorf("variable name is required")
+	}
+
+	// Use provided resource name or sanitize from variable name
+	if resourceName == "" {
+		resourceName = utils.SanitizeResourceName(variable.Name)
+	}
+
+	var attributes []VariableEligibleAttribute
+
+	// Extract the 'value' attribute if present and not a secret
+	hasValue := variable.Value != nil && !isEmptyValue(variable.Value) && variable.DataType != "secret"
+
+	if hasValue {
+		// Determine Terraform type
+		tfType := "string"
+		switch variable.DataType {
+		case "number":
+			tfType = "number"
+		case "boolean":
+			tfType = "bool"
+		default:
+			tfType = "string"
+		}
+
+		// Create variable name: davinci_variable_{resourceName}_value
+		varName := fmt.Sprintf("davinci_variable_%s_value", strings.TrimPrefix(resourceName, "pingcli__"))
+
+		attr := VariableEligibleAttribute{
+			ResourceType:  "variable",
+			ResourceName:  resourceName,
+			ResourceID:    variable.ID,
+			AttributePath: "value",
+			CurrentValue:  variable.Value,
+			VariableName:  varName,
+			VariableType:  tfType,
+			Description:   fmt.Sprintf("Value for %s DaVinci variable", variable.Name),
+			Sensitive:     false,
+			IsSecret:      false,
+		}
+
+		attributes = append(attributes, attr)
+	}
+
+	// Note: We DON'T extract 'name', 'context', 'data_type' as those should be hardcoded
+	// Only the value itself is parameterized
+
+	return attributes, nil
+}
+
 // generateVariableHCL generates the Terraform HCL for a variable
 func generateVariableHCL(variable VariableResponse, skipDependencies bool) string {
 	var hcl strings.Builder
@@ -248,4 +307,89 @@ func writeVariableValueBlock(hcl *strings.Builder, dataType string, value interf
 	}
 
 	return hasContent
+}
+
+// GenerateVariableHCLWithVariableReferences generates HCL with variable references instead of hardcoded values
+// This is used for module generation where values are parameterized
+func GenerateVariableHCLWithVariableReferences(variableJSON []byte, skipDependencies bool, variableName string) (string, error) {
+	var variable VariableResponse
+	if err := json.Unmarshal(variableJSON, &variable); err != nil {
+		return "", fmt.Errorf("failed to parse variable JSON: %w", err)
+	}
+
+	if variable.Name == "" {
+		return "", fmt.Errorf("variable name is required")
+	}
+
+	return generateVariableHCLWithVarReference(variable, skipDependencies, variableName), nil
+}
+
+// generateVariableHCLWithVarReference generates HCL using var.{name} for the value attribute
+func generateVariableHCLWithVarReference(variable VariableResponse, skipDependencies bool, varName string) string {
+	var hcl strings.Builder
+
+	// Resource name using pingcli format
+	resourceName := utils.SanitizeResourceName(variable.Name)
+	hcl.WriteString(fmt.Sprintf("resource \"pingone_davinci_variable\" \"%s\" {\n", resourceName))
+
+	// Environment ID
+	if skipDependencies {
+		hcl.WriteString(fmt.Sprintf("  environment_id = \"%s\"\n", variable.Environment.ID))
+	} else {
+		hcl.WriteString("  environment_id = var.environment_id\n")
+	}
+
+	hcl.WriteString("\n")
+
+	// Required attributes (always hardcoded)
+	hcl.WriteString(fmt.Sprintf("  name           = \"%s\"\n", variable.Name))
+	hcl.WriteString(fmt.Sprintf("  context        = \"%s\"\n", variable.Context))
+	hcl.WriteString(fmt.Sprintf("  data_type      = \"%s\"\n", variable.DataType))
+
+	// Value - use variable reference instead of hardcoded value
+	hasValue := variable.Value != nil && !isEmptyValue(variable.Value) && variable.DataType != "secret"
+
+	if hasValue && varName != "" {
+		hcl.WriteString("\n")
+		// Use variable reference for the value block based on data type
+		switch variable.DataType {
+		case "string":
+			hcl.WriteString("  value = {\n")
+			hcl.WriteString(fmt.Sprintf("    string_value = var.%s\n", varName))
+			hcl.WriteString("  }\n")
+		case "number":
+			hcl.WriteString("  value = {\n")
+			hcl.WriteString(fmt.Sprintf("    number_value = var.%s\n", varName))
+			hcl.WriteString("  }\n")
+		case "boolean":
+			hcl.WriteString("  value = {\n")
+			hcl.WriteString(fmt.Sprintf("    boolean_value = var.%s\n", varName))
+			hcl.WriteString("  }\n")
+		}
+	}
+
+	// Mutable
+	hcl.WriteString(fmt.Sprintf("  mutable        = %t\n", variable.Mutable))
+
+	// Optional: Min/Max
+	if variable.Min != nil {
+		hcl.WriteString(fmt.Sprintf("  min            = %d\n", *variable.Min))
+	}
+	if variable.Max != nil {
+		hcl.WriteString(fmt.Sprintf("  max            = %d\n", *variable.Max))
+	}
+
+	// Optional: Flow dependency
+	if variable.Flow != nil && variable.Flow.ID != "" {
+		hcl.WriteString("\n")
+		if skipDependencies {
+			hcl.WriteString(fmt.Sprintf("  flow_id = \"%s\"\n", variable.Flow.ID))
+		} else {
+			hcl.WriteString("  # flow_id will be resolved via dependency graph\n")
+		}
+	}
+
+	hcl.WriteString("}\n")
+
+	return hcl.String()
 }

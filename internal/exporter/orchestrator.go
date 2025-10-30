@@ -82,7 +82,7 @@ func ExportEnvironmentWithOptions(ctx context.Context, client *api.Client, opts 
 	if err := logger.Message("Fetching variables...", nil); err != nil {
 		return "", fmt.Errorf("failed to log message: %w", err)
 	}
-	variables, err := ExportVariablesWithImports(ctx, client, opts.SkipDependencies, graph, importGen)
+	variables, _, err := ExportVariablesWithImports(ctx, client, opts.SkipDependencies, graph, importGen)
 	if err != nil {
 		if logErr := logger.PluginError("Failed to export variables", map[string]string{"error": err.Error()}); logErr != nil {
 			return "", fmt.Errorf("failed to log error: %w", logErr)
@@ -100,7 +100,7 @@ func ExportEnvironmentWithOptions(ctx context.Context, client *api.Client, opts 
 	if err := logger.Message("Fetching connector instances...", nil); err != nil {
 		return "", fmt.Errorf("failed to log message: %w", err)
 	}
-	connectors, err := ExportConnectorInstancesWithImports(ctx, client, opts.SkipDependencies, graph, importGen)
+	connectors, _, err := ExportConnectorInstancesWithImports(ctx, client, opts.SkipDependencies, graph, importGen)
 	if err != nil {
 		if logErr := logger.PluginError("Failed to export connector instances", map[string]string{"error": err.Error()}); logErr != nil {
 			return "", fmt.Errorf("failed to log error: %w", logErr)
