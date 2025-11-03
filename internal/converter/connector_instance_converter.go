@@ -319,7 +319,7 @@ func GenerateConnectorInstanceHCLWithVariableReferences(instanceJSON []byte, ski
 	// Properties (if present) - with variable references
 	if len(instance.Properties) > 0 {
 		hcl.WriteString("\n")
-		writePropertiesBlockWithVariables(&hcl, instance.Properties, variableMap)
+		writePropertiesBlockWithVariables(&hcl, instance.Properties, variableMap, resourceName)
 	}
 
 	hcl.WriteString("}\n")
@@ -328,7 +328,7 @@ func GenerateConnectorInstanceHCLWithVariableReferences(instanceJSON []byte, ski
 }
 
 // writePropertiesBlockWithVariables writes the properties block with variable references where applicable
-func writePropertiesBlockWithVariables(hcl *strings.Builder, properties map[string]ConnectorPropertyValue, variableMap map[string]string) {
+func writePropertiesBlockWithVariables(hcl *strings.Builder, properties map[string]ConnectorPropertyValue, variableMap map[string]string, resourceName string) {
 	hcl.WriteString("  properties = jsonencode({\n")
 
 	// Sort keys for consistent output
@@ -352,7 +352,8 @@ func writePropertiesBlockWithVariables(hcl *strings.Builder, properties map[stri
 		value := prop.Value
 
 		// Check if this property has a variable mapping
-		propertyPath := fmt.Sprintf("properties.%s", key)
+		// Variable map key format: "connection.resourceName.properties.propertyName"
+		propertyPath := fmt.Sprintf("connection.%s.properties.%s", resourceName, key)
 		varName, hasVariable := variableMap[propertyPath]
 
 		var formattedValue string

@@ -36,6 +36,42 @@ The DaVinci Terraform Converter is a production-ready CLI tool that converts Pin
 - Application converter with OAuth configuration
 - Flow policy converter with distribution support
 
+### Module Generation with Variable References (Part 2.5)
+
+✅ **Variable Extraction**
+
+- Automatic extraction of sensitive and configurable values
+- Primitive type support (string, number, boolean)
+- Object types excluded from extraction
+- Sensitive property detection (clientSecret, apiKey patterns)
+- Variable eligibility attributes tracking (resource type, name, path)
+
+✅ **Module Variable Generation**
+
+- Module variable generation from extracted attributes
+- Proper typing (string, number, bool)
+- Automatic sensitive flag for credentials
+- Variable naming convention: `davinci_connection_{resourceName}_{propertyName}`
+- Sanitized resource names in variable names
+
+✅ **HCL Regeneration with Variable References**
+
+- Two-pass HCL generation (export + regenerate)
+- JSON storage during initial export
+- Variable map building with full resource paths
+- Variable reference substitution in regenerated HCL
+- Format: `var.davinci_variable_name_value` for variables
+- Format: `var.davinci_connection_name_property` for connector properties
+
+✅ **Implementation Details**
+
+- Variable map key format: `resourceType.resourceName.attributePath`
+- Example: `connection.pingcli__HTTP-0020-Connector.properties.baseUrl`
+- HCL variable references embedded in jsonencode blocks
+- Module variables written to variables.tf
+- Child resource HCL regenerated with references
+- Integration: Activated in module export workflow
+
 ### API Export (Part 3)
 
 ✅ **PingOne API Integration**

@@ -149,7 +149,7 @@ func TestGenerateVariableHCLWithVariableReferences(t *testing.T) {
 				`name           = "companyName"`,
 				`context        = "company"`,
 				`data_type      = "string"`,
-				`string_value = var.davinci_variable_companyName_value`,
+				`string = var.davinci_variable_companyName_value`,
 				`mutable        = true`,
 			},
 			notExpected: []string{
@@ -169,7 +169,7 @@ func TestGenerateVariableHCLWithVariableReferences(t *testing.T) {
 			}`,
 			varName: "davinci_variable_sessionTimeout_value",
 			expectedHCL: []string{
-				`number_value = var.davinci_variable_sessionTimeout_value`,
+				`float32 = var.davinci_variable_sessionTimeout_value`,
 				`mutable        = false`,
 			},
 			notExpected: []string{
@@ -189,7 +189,7 @@ func TestGenerateVariableHCLWithVariableReferences(t *testing.T) {
 			}`,
 			varName: "davinci_variable_enableFeature_value",
 			expectedHCL: []string{
-				`boolean_value = var.davinci_variable_enableFeature_value`,
+				`bool = var.davinci_variable_enableFeature_value`,
 			},
 		},
 	}
@@ -229,7 +229,6 @@ func TestToModuleVariable(t *testing.T) {
 	assert.Equal(t, "davinci_variable_companyName_value", modVar.Name)
 	assert.Equal(t, "string", modVar.Type)
 	assert.Equal(t, "Value for companyName DaVinci variable", modVar.Description)
-	assert.Equal(t, "Acme Corp", modVar.Default)
 	assert.False(t, modVar.Sensitive)
 	assert.False(t, modVar.IsSecret)
 	assert.Equal(t, "variable", modVar.ResourceType)
@@ -374,8 +373,8 @@ func TestGenerateConnectorInstanceHCLWithVariableReferences(t *testing.T) {
 	}`
 
 	variableMap := map[string]string{
-		"properties.baseUrl":  "davinci_connection_httpConnector_baseUrl",
-		"properties.clientId": "davinci_connection_httpConnector_clientId",
+		"connection.pingcli__httpConnector.properties.baseUrl":  "davinci_connection_httpConnector_baseUrl",
+		"connection.pingcli__httpConnector.properties.clientId": "davinci_connection_httpConnector_clientId",
 	}
 
 	hcl, err := GenerateConnectorInstanceHCLWithVariableReferences([]byte(instanceJSON), false, variableMap)

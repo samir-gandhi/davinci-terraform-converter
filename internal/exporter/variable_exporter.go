@@ -17,6 +17,43 @@ func ExportVariables(ctx context.Context, client *api.Client, skipDeps bool, gra
 	return ExportVariablesWithImports(ctx, client, skipDeps, graph, nil)
 }
 
+// ExportVariablesForModule exports variables with JSON data for module generation
+// Returns HCL, extracted variables, JSON map, and resource names map
+func ExportVariablesForModule(ctx context.Context, client *api.Client, skipDeps bool, graph *resolver.DependencyGraph, importGen *importgen.ImportBlockGenerator) (string, []converter.VariableEligibleAttribute, map[string][]byte, map[string]string, error) {
+	hcl, extracted, err := ExportVariablesWithImports(ctx, client, skipDeps, graph, importGen)
+	if err != nil {
+		return "", nil, nil, nil, err
+	}
+
+	// Re-fetch to get JSON (this is inefficient but keeps changes minimal)
+	variables, err := client.ListVariables(ctx, client.EnvironmentID)
+	if err != nil {
+		return "", nil, nil, nil, fmt.Errorf("failed to re-fetch variables for JSON: %w", err)
+	}
+
+	jsonMap := make(map[string][]byte)
+	namesMap := make(map[string]string)
+
+	for _, variable := range variables {
+		variableJSON, err := convertVariableToJSON(&variable)
+		if err != nil {
+			return "", nil, nil, nil, fmt.Errorf("failed to convert variable to JSON: %w", err)
+		}
+
+		variableID := variable.GetId().String()
+		jsonMap[variableID] = variableJSON
+
+		// Get actual resource name from graph
+		actualName, err := graph.GetReferenceName("pingone_davinci_variable", variableID)
+		if err != nil {
+			return "", nil, nil, nil, fmt.Errorf("failed to get resource name for variable %s: %w", variableID, err)
+		}
+		namesMap[variableID] = actualName
+	}
+
+	return hcl, extracted, jsonMap, namesMap, nil
+}
+
 // ExportVariablesWithImports exports all variables with optional import blocks
 // Returns HCL string and extracted variable-eligible attributes for module generation
 func ExportVariablesWithImports(ctx context.Context, client *api.Client, skipDeps bool, graph *resolver.DependencyGraph, importGen *importgen.ImportBlockGenerator) (string, []converter.VariableEligibleAttribute, error) {

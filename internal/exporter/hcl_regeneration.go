@@ -1,7 +1,6 @@
 package exporter
 
 import (
-	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -22,7 +21,7 @@ func RegenerateHCLWithVariableReferences(data *ExportedData, skipDependencies bo
 		// This is a TODO for future enhancement
 	}
 
-	// Regenerate Connectors HCL with variable references  
+	// Regenerate Connectors HCL with variable references
 	if data.ConnectorsHCL != "" && len(connectorVariableMap) > 0 {
 		// Parse each connector resource and regenerate
 		// For now, we'll need to store the original JSON data to regenerate
@@ -63,15 +62,15 @@ func buildConnectorVariableMap(extracted []converter.VariableEligibleAttribute) 
 func parseResourceBlocks(hcl string) ([]resourceBlock, error) {
 	// Simple parsing - split on "resource" keyword
 	blocks := []resourceBlock{}
-	
+
 	lines := strings.Split(hcl, "\n")
 	var currentBlock *resourceBlock
 	var blockContent strings.Builder
 	braceCount := 0
-	
+
 	for _, line := range lines {
 		trimmed := strings.TrimSpace(line)
-		
+
 		// Start of new resource block
 		if strings.HasPrefix(trimmed, "resource \"") {
 			// Save previous block if exists
@@ -79,7 +78,7 @@ func parseResourceBlocks(hcl string) ([]resourceBlock, error) {
 				currentBlock.HCL = blockContent.String()
 				blocks = append(blocks, *currentBlock)
 			}
-			
+
 			// Parse resource type and name
 			parts := strings.Split(trimmed, "\"")
 			if len(parts) >= 4 {
@@ -91,14 +90,14 @@ func parseResourceBlocks(hcl string) ([]resourceBlock, error) {
 				braceCount = 0
 			}
 		}
-		
+
 		if currentBlock != nil {
 			blockContent.WriteString(line + "\n")
-			
+
 			// Track braces to know when block ends
 			braceCount += strings.Count(line, "{")
 			braceCount -= strings.Count(line, "}")
-			
+
 			if braceCount == 0 && strings.Contains(line, "}") {
 				// Block complete
 				currentBlock.HCL = blockContent.String()
@@ -108,7 +107,7 @@ func parseResourceBlocks(hcl string) ([]resourceBlock, error) {
 			}
 		}
 	}
-	
+
 	return blocks, nil
 }
 
@@ -151,7 +150,7 @@ func regenerateResourceWithVars(block resourceBlock, variableMap map[string]stri
 			return converter.GenerateConnectorInstanceHCLWithVariableReferences(block.JSONData, skipDeps, variableMap)
 		}
 	}
-	
+
 	// If we can't regenerate, return original
 	return block.HCL, nil
 }

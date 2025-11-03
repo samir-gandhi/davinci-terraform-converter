@@ -41,7 +41,6 @@ func (v *VariableEligibleAttribute) ToModuleVariable() module.Variable {
 		Name:         v.VariableName,
 		Type:         v.VariableType,
 		Description:  v.Description,
-		Default:      v.CurrentValue,
 		Sensitive:    v.Sensitive,
 		IsSecret:     v.IsSecret,
 		ResourceType: v.ResourceType,

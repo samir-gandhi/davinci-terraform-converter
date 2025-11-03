@@ -3,6 +3,7 @@ package exporter
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/pingidentity/pingcli/shared/grpc"
 	"github.com/samir-gandhi/davinci-terraform-converter/internal/api"
@@ -22,9 +23,11 @@ type ExportedData struct {
 	FlowPoliciesHCL string
 
 	// Raw JSON data for regeneration with variable references
-	VariablesJSON  [][]byte          // Array of variable JSON blobs
-	ConnectorsJSON [][]byte          // Array of connector JSON blobs
-	ResourceNames  map[string]string // Maps resource ID to sanitized resource name
+	// Maps resource ID to its JSON representation
+	VariablesJSON  map[string][]byte // Variable ID -> JSON
+	ConnectorsJSON map[string][]byte // Connector instance ID -> JSON
+	FlowsJSON      map[string][]byte // Flow ID -> JSON
+	ResourceNames  map[string]string // Resource ID -> sanitized resource name
 
 	// Metadata
 	EnvironmentID   string
@@ -38,8 +41,12 @@ type ExportedData struct {
 // ExportEnvironmentForModule exports DaVinci resources in a structure suitable for module generation
 func ExportEnvironmentForModule(ctx context.Context, client *api.Client, opts ExportOptions, logger grpc.Logger) (*ExportedData, error) {
 	data := &ExportedData{
-		EnvironmentID: client.EnvironmentID,
-		Region:        client.Region,
+		EnvironmentID:  client.EnvironmentID,
+		Region:         client.Region,
+		VariablesJSON:  make(map[string][]byte),
+		ConnectorsJSON: make(map[string][]byte),
+		FlowsJSON:      make(map[string][]byte),
+		ResourceNames:  make(map[string]string),
 	}
 
 	// Initialize import block generator if needed
@@ -74,11 +81,16 @@ func ExportEnvironmentForModule(ctx context.Context, client *api.Client, opts Ex
 	if err := logger.Message("Fetching variables...", nil); err != nil {
 		return nil, fmt.Errorf("failed to log message: %w", err)
 	}
-	variablesHCL, variablesExtracted, err := ExportVariablesWithImports(ctx, client, opts.SkipDependencies, graph, importGen)
+	variablesHCL, variablesExtracted, variablesJSON, variableNames, err := ExportVariablesForModule(ctx, client, opts.SkipDependencies, graph, importGen)
 	if err != nil {
 		return nil, fmt.Errorf("failed to export variables: %w", err)
 	}
 	data.VariablesHCL = variablesHCL
+	data.VariablesJSON = variablesJSON
+	// Store variable names in ResourceNames map
+	for id, name := range variableNames {
+		data.ResourceNames[id] = name
+	}
 	data.ExtractedVariables = append(data.ExtractedVariables, variablesExtracted...)
 	if err := logger.Message("✓ Variables exported", nil); err != nil {
 		return nil, fmt.Errorf("failed to log message: %w", err)
@@ -88,11 +100,16 @@ func ExportEnvironmentForModule(ctx context.Context, client *api.Client, opts Ex
 	if err := logger.Message("Fetching connector instances...", nil); err != nil {
 		return nil, fmt.Errorf("failed to log message: %w", err)
 	}
-	connectorsHCL, connectorsExtracted, err := ExportConnectorInstancesWithImports(ctx, client, opts.SkipDependencies, graph, importGen)
+	connectorsHCL, connectorsExtracted, connectorsJSON, connectorNames, err := ExportConnectorInstancesForModule(ctx, client, opts.SkipDependencies, graph, importGen)
 	if err != nil {
 		return nil, fmt.Errorf("failed to export connector instances: %w", err)
 	}
 	data.ConnectorsHCL = connectorsHCL
+	data.ConnectorsJSON = connectorsJSON
+	// Merge connector names into ResourceNames map
+	for id, name := range connectorNames {
+		data.ResourceNames[id] = name
+	}
 	data.ExtractedVariables = append(data.ExtractedVariables, connectorsExtracted...)
 	if err := logger.Message("✓ Connector instances exported", nil); err != nil {
 		return nil, fmt.Errorf("failed to log message: %w", err)
@@ -148,16 +165,31 @@ func ExportEnvironmentForModule(ctx context.Context, client *api.Client, opts Ex
 }
 
 // ConvertExportedDataToModuleStructure converts ExportedData to module.ModuleStructure
-// The HCL in ExportedData should already have variable references if generated in module mode
+// Regenerates HCL with variable references for module resources
 func ConvertExportedDataToModuleStructure(data *ExportedData, config module.ModuleConfig) (*module.ModuleStructure, error) {
+	// Build variable map from extracted variables
+	variableMap := buildVariableMap(data.ExtractedVariables)
+
+	// Regenerate HCL with variable references
+	// For now, use skipDependencies=false (module mode always uses var.environment_id)
+	regeneratedVariablesHCL, err := regenerateVariablesHCL(data, variableMap, false)
+	if err != nil {
+		return nil, fmt.Errorf("failed to regenerate variables HCL: %w", err)
+	}
+
+	regeneratedConnectorsHCL, err := regenerateConnectorsHCL(data, variableMap, false)
+	if err != nil {
+		return nil, fmt.Errorf("failed to regenerate connectors HCL: %w", err)
+	}
+
 	structure := &module.ModuleStructure{
 		Config: config,
 		Resources: module.ModuleResources{
-			FlowsHCL:        data.FlowsHCL,
-			ConnectionsHCL:  data.ConnectorsHCL,
-			VariablesHCL:    data.VariablesHCL,
-			ApplicationsHCL: data.ApplicationsHCL,
-			FlowPoliciesHCL: data.FlowPoliciesHCL,
+			FlowsHCL:        data.FlowsHCL, // Flows don't have variable extraction yet
+			ConnectionsHCL:  regeneratedConnectorsHCL,
+			VariablesHCL:    regeneratedVariablesHCL,
+			ApplicationsHCL: data.ApplicationsHCL, // Applications don't have variable extraction yet
+			FlowPoliciesHCL: data.FlowPoliciesHCL, // Policies don't have variable extraction yet
 		},
 	}
 
@@ -175,6 +207,168 @@ func ConvertExportedDataToModuleStructure(data *ExportedData, config module.Modu
 	// TODO: Import blocks support - will need to parse from HCL or track separately
 
 	return structure, nil
+}
+
+// buildVariableMap creates a map from attribute path to variable name
+// Format: "resourceType.resourceName.attributePath" -> "variable_name"
+func buildVariableMap(extracted []converter.VariableEligibleAttribute) map[string]string {
+	varMap := make(map[string]string)
+
+	for _, attr := range extracted {
+		// Build key: "resourceType.resourceName.attributePath"
+		key := fmt.Sprintf("%s.%s.%s", attr.ResourceType, attr.ResourceName, attr.AttributePath)
+		varMap[key] = attr.VariableName
+	}
+
+	return varMap
+}
+
+// regenerateVariablesHCL regenerates DaVinci variable resources with variable references
+func regenerateVariablesHCL(data *ExportedData, variableMap map[string]string, skipDeps bool) (string, error) {
+	// Extract variable resources that need regeneration
+	variableAttrs := filterVariableAttributes(data.ExtractedVariables)
+
+	if len(variableAttrs) == 0 {
+		// No variables to regenerate, return original
+		return data.VariablesHCL, nil
+	}
+
+	// Regenerate each variable resource with variable references
+	var hclBlocks []string
+	processedIDs := make(map[string]bool)
+
+	for _, attr := range variableAttrs {
+		// Use the ResourceID from the attribute directly
+		variableID := attr.ResourceID
+
+		if variableID == "" {
+			return "", fmt.Errorf("missing resource ID for variable %s", attr.ResourceName)
+		}
+
+		// Skip if already processed
+		if processedIDs[variableID] {
+			continue
+		}
+		processedIDs[variableID] = true
+
+		// Get the JSON for this variable
+		variableJSON, ok := data.VariablesJSON[variableID]
+		if !ok {
+			return "", fmt.Errorf("missing JSON for variable %s (ID: %s)", attr.ResourceName, variableID)
+		}
+
+		// Get the variable name for this attribute (the module variable name)
+		// The variableName is already stored in the attribute
+		variableName := attr.VariableName
+
+		// Regenerate HCL with variable references
+		hcl, err := converter.GenerateVariableHCLWithVariableReferences(variableJSON, skipDeps, variableName)
+		if err != nil {
+			return "", fmt.Errorf("failed to regenerate variable %s: %w", attr.ResourceName, err)
+		}
+
+		hclBlocks = append(hclBlocks, hcl)
+	}
+
+	// Also include variables that weren't extracted (no variable-eligible attributes)
+	for variableID, variableJSON := range data.VariablesJSON {
+		if processedIDs[variableID] {
+			continue
+		}
+
+		// Generate without variable references (normal conversion)
+		hcl, err := converter.ConvertVariableWithOptions(variableJSON, skipDeps)
+		if err != nil {
+			return "", fmt.Errorf("failed to convert variable %s: %w", variableID, err)
+		}
+
+		hclBlocks = append(hclBlocks, hcl)
+	}
+
+	return strings.Join(hclBlocks, "\n\n"), nil
+}
+
+// regenerateConnectorsHCL regenerates connector instance resources with variable references
+func regenerateConnectorsHCL(data *ExportedData, variableMap map[string]string, skipDeps bool) (string, error) {
+	// Extract connector resources that need regeneration
+	connectorAttrs := filterConnectorAttributes(data.ExtractedVariables)
+
+	if len(connectorAttrs) == 0 {
+		// No connectors to regenerate, return original
+		return data.ConnectorsHCL, nil
+	}
+
+	// Regenerate each connector resource with variable references
+	var hclBlocks []string
+	processedIDs := make(map[string]bool)
+
+	for _, attr := range connectorAttrs {
+		// Use the ResourceID from the attribute directly
+		connectorID := attr.ResourceID
+
+		if connectorID == "" {
+			return "", fmt.Errorf("missing resource ID for connector %s", attr.ResourceName)
+		}
+
+		// Skip if already processed
+		if processedIDs[connectorID] {
+			continue
+		}
+		processedIDs[connectorID] = true
+
+		// Get the JSON for this connector
+		connectorJSON, ok := data.ConnectorsJSON[connectorID]
+		if !ok {
+			return "", fmt.Errorf("missing JSON for connector %s (ID: %s)", attr.ResourceName, connectorID)
+		}
+
+		// Regenerate HCL with variable references
+		hcl, err := converter.GenerateConnectorInstanceHCLWithVariableReferences(connectorJSON, skipDeps, variableMap)
+		if err != nil {
+			return "", fmt.Errorf("failed to regenerate connector %s: %w", attr.ResourceName, err)
+		}
+
+		hclBlocks = append(hclBlocks, hcl)
+	}
+
+	// Also include connectors that weren't extracted (no variable-eligible attributes)
+	for connectorID, connectorJSON := range data.ConnectorsJSON {
+		if processedIDs[connectorID] {
+			continue
+		}
+
+		// Generate without variable references (normal conversion)
+		hcl, err := converter.ConvertConnectorInstanceWithOptions(connectorJSON, skipDeps)
+		if err != nil {
+			return "", fmt.Errorf("failed to convert connector %s: %w", connectorID, err)
+		}
+
+		hclBlocks = append(hclBlocks, hcl)
+	}
+
+	return strings.Join(hclBlocks, "\n\n"), nil
+}
+
+// filterConnectorAttributes filters extracted attributes for connector instances
+func filterConnectorAttributes(extracted []converter.VariableEligibleAttribute) []converter.VariableEligibleAttribute {
+	var result []converter.VariableEligibleAttribute
+	for _, attr := range extracted {
+		if attr.ResourceType == "connection" {
+			result = append(result, attr)
+		}
+	}
+	return result
+}
+
+// filterVariableAttributes filters extracted attributes for DaVinci variables
+func filterVariableAttributes(extracted []converter.VariableEligibleAttribute) []converter.VariableEligibleAttribute {
+	var result []converter.VariableEligibleAttribute
+	for _, attr := range extracted {
+		if attr.ResourceType == "variable" {
+			result = append(result, attr)
+		}
+	}
+	return result
 }
 
 // generateVariablesFromGraph extracts variables from the dependency graph

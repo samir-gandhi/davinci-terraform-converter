@@ -17,6 +17,47 @@ func ExportConnectorInstances(ctx context.Context, client *api.Client, skipDeps 
 	return ExportConnectorInstancesWithImports(ctx, client, skipDeps, graph, nil)
 }
 
+// ExportConnectorInstancesForModule exports connector instances with JSON data for module generation
+// Returns HCL, extracted variables, JSON map, and resource names map
+func ExportConnectorInstancesForModule(ctx context.Context, client *api.Client, skipDeps bool, graph *resolver.DependencyGraph, importGen *importgen.ImportBlockGenerator) (string, []converter.VariableEligibleAttribute, map[string][]byte, map[string]string, error) {
+	hcl, extracted, err := ExportConnectorInstancesWithImports(ctx, client, skipDeps, graph, importGen)
+	if err != nil {
+		return "", nil, nil, nil, err
+	}
+
+	// Re-fetch to get JSON and build maps (inefficient but keeps changes minimal)
+	instanceSummaries, err := client.ListConnectorInstances(ctx)
+	if err != nil {
+		return "", nil, nil, nil, fmt.Errorf("failed to re-fetch connector instances for JSON: %w", err)
+	}
+
+	jsonMap := make(map[string][]byte)
+	namesMap := make(map[string]string)
+
+	for _, summary := range instanceSummaries {
+		// Get the actual resource name from the graph
+		actualName, err := graph.GetReferenceName("pingone_davinci_connector_instance", summary.InstanceID)
+		if err != nil {
+			return "", nil, nil, nil, fmt.Errorf("failed to get resource name for connector instance %s: %w", summary.InstanceID, err)
+		}
+
+		instanceDetail, err := client.GetConnectorInstance(ctx, summary.InstanceID)
+		if err != nil {
+			return "", nil, nil, nil, fmt.Errorf("failed to get connector instance %s: %w", summary.InstanceID, err)
+		}
+
+		instanceJSON, err := convertInstanceDetailToJSON(instanceDetail, client.EnvironmentID)
+		if err != nil {
+			return "", nil, nil, nil, fmt.Errorf("failed to convert instance to JSON: %w", err)
+		}
+
+		jsonMap[summary.InstanceID] = instanceJSON
+		namesMap[summary.InstanceID] = actualName
+	}
+
+	return hcl, extracted, jsonMap, namesMap, nil
+}
+
 // ExportConnectorInstancesWithImports exports connector instances with optional import blocks
 // Returns HCL string and extracted variable-eligible attributes for module generation
 func ExportConnectorInstancesWithImports(ctx context.Context, client *api.Client, skipDeps bool, graph *resolver.DependencyGraph, importGen *importgen.ImportBlockGenerator) (string, []converter.VariableEligibleAttribute, error) {

@@ -74,9 +74,11 @@ func GetVariableEligibleAttributes(variableJSON []byte, resourceName string) ([]
 	var attributes []VariableEligibleAttribute
 
 	// Extract the 'value' attribute if present and not a secret
+	// Only extract primitive types (string, number, boolean) - not objects
 	hasValue := variable.Value != nil && !isEmptyValue(variable.Value) && variable.DataType != "secret"
+	isPrimitive := variable.DataType == "string" || variable.DataType == "number" || variable.DataType == "boolean"
 
-	if hasValue {
+	if hasValue && isPrimitive {
 		// Determine Terraform type
 		tfType := "string"
 		switch variable.DataType {
@@ -355,15 +357,19 @@ func generateVariableHCLWithVarReference(variable VariableResponse, skipDependen
 		switch variable.DataType {
 		case "string":
 			hcl.WriteString("  value = {\n")
-			hcl.WriteString(fmt.Sprintf("    string_value = var.%s\n", varName))
+			hcl.WriteString(fmt.Sprintf("    string = var.%s\n", varName))
 			hcl.WriteString("  }\n")
 		case "number":
 			hcl.WriteString("  value = {\n")
-			hcl.WriteString(fmt.Sprintf("    number_value = var.%s\n", varName))
+			hcl.WriteString(fmt.Sprintf("    float32 = var.%s\n", varName))
 			hcl.WriteString("  }\n")
 		case "boolean":
 			hcl.WriteString("  value = {\n")
-			hcl.WriteString(fmt.Sprintf("    boolean_value = var.%s\n", varName))
+			hcl.WriteString(fmt.Sprintf("    bool = var.%s\n", varName))
+			hcl.WriteString("  }\n")
+		case "object":
+			hcl.WriteString("  value = {\n")
+			hcl.WriteString(fmt.Sprintf("    json_object = var.%s\n", varName))
 			hcl.WriteString("  }\n")
 		}
 	}
