@@ -159,20 +159,19 @@ func TestGeneratorOutputsTF(t *testing.T) {
 func TestGeneratorModuleTF(t *testing.T) {
 	tmpDir := t.TempDir()
 
+	// Test verifies module.tf always uses variable references
+	// regardless of IncludeValues flag (values come from tfvars)
 	tests := []struct {
 		name          string
 		includeValues bool
-		expectedEnv   string
 	}{
 		{
 			name:          "Without values",
 			includeValues: false,
-			expectedEnv:   "pingone_environment_id = \"\"",
 		},
 		{
 			name:          "With values",
 			includeValues: true,
-			expectedEnv:   "pingone_environment_id = \"test-env-123\"",
 		},
 	}
 
@@ -208,11 +207,13 @@ func TestGeneratorModuleTF(t *testing.T) {
 			modulePath := filepath.Join(tmpDir, "module.tf")
 			content, err := os.ReadFile(modulePath)
 			require.NoError(t, err)
+			contentStr := string(content)
 
-			// Verify content
-			assert.Contains(t, string(content), "module \"davinci\"")
-			assert.Contains(t, string(content), "source = \"./test-module\"")
-			assert.Contains(t, string(content), tt.expectedEnv)
+			// Verify content - always uses variable references
+			assert.Contains(t, contentStr, "module \"davinci\"")
+			assert.Contains(t, contentStr, "source = \"./test-module\"")
+			assert.Contains(t, contentStr, "pingone_environment_id = var.environment_id")
+			assert.Contains(t, contentStr, "test_var = var.test_var")
 		})
 	}
 }
@@ -357,4 +358,339 @@ func TestFullModuleGeneration(t *testing.T) {
 	// Check root module files
 	assert.FileExists(t, filepath.Join(tmpDir, "module.tf"))
 	assert.FileExists(t, filepath.Join(tmpDir, "imports.tf"))
+}
+
+// TestGenerator_GenerateRootVariablesTF verifies that root module variables.tf is generated correctly
+func TestGenerator_GenerateRootVariablesTF(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	config := ModuleConfig{
+		OutputDir:     tmpDir,
+		ModuleDirName: "davinci-module",
+	}
+	generator := NewGenerator(config)
+
+	// Create test variables
+	variables := []Variable{
+		{
+			Name:         "davinci_variable_company_name_value",
+			Type:         "string",
+			Description:  "Value for DaVinci variable: CompanyName",
+			Sensitive:    false,
+			IsSecret:     false,
+			ResourceType: "variable",
+			ResourceName: "company_name",
+		},
+		{
+			Name:         "davinci_variable_secret_key_value",
+			Type:         "string",
+			Description:  "Value for DaVinci variable: SecretKey",
+			Sensitive:    true,
+			IsSecret:     true,
+			ResourceType: "variable",
+			ResourceName: "secret_key",
+		},
+		{
+			Name:         "davinci_connection_http_base_url",
+			Type:         "string",
+			Description:  "Base URL for HTTP connection",
+			Sensitive:    false,
+			IsSecret:     false,
+			ResourceType: "connection",
+			ResourceName: "http_connector",
+		},
+	}
+
+	// Generate root variables.tf
+	err := generator.generateRootVariablesTF(variables)
+	require.NoError(t, err)
+
+	// Verify file exists
+	rootVariablesPath := filepath.Join(tmpDir, "variables.tf")
+	require.FileExists(t, rootVariablesPath)
+
+	// Read and verify content
+	content, err := os.ReadFile(rootVariablesPath)
+	require.NoError(t, err)
+	contentStr := string(content)
+
+	// Verify environment_id variable is present
+	assert.Contains(t, contentStr, `variable "environment_id"`)
+	assert.Contains(t, contentStr, "PingOne environment ID")
+
+	// Verify davinci variable
+	assert.Contains(t, contentStr, `variable "davinci_variable_company_name_value"`)
+	assert.Contains(t, contentStr, "Value for DaVinci variable: CompanyName")
+
+	// Verify secret variable
+	assert.Contains(t, contentStr, `variable "davinci_variable_secret_key_value"`)
+	assert.Contains(t, contentStr, "Value for DaVinci variable: SecretKey")
+	assert.Contains(t, contentStr, "sensitive   = true")
+
+	// Verify connection variable
+	assert.Contains(t, contentStr, `variable "davinci_connection_http_base_url"`)
+	assert.Contains(t, contentStr, "Base URL for HTTP connection")
+
+	// Verify grouping comments present
+	assert.Contains(t, contentStr, "# Variable Variables")
+	assert.Contains(t, contentStr, "# Connection Variables")
+}
+
+// TestGenerator_GenerateModuleTF_UsesVariableReferences verifies that module.tf uses variable references
+func TestGenerator_GenerateModuleTF_UsesVariableReferences(t *testing.T) {
+	tests := []struct {
+		name          string
+		includeValues bool
+	}{
+		{
+			name:          "without include-values flag",
+			includeValues: false,
+		},
+		{
+			name:          "with include-values flag",
+			includeValues: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tmpDir := t.TempDir()
+
+			config := ModuleConfig{
+				OutputDir:     tmpDir,
+				ModuleDirName: "davinci-module",
+				IncludeValues: tt.includeValues,
+				EnvironmentID: "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+			}
+			generator := NewGenerator(config)
+
+			// Create test module structure
+			structure := &ModuleStructure{
+				Config: config,
+				Variables: []Variable{
+					{
+						Name:         "davinci_variable_company_name_value",
+						Type:         "string",
+						Description:  "Value for DaVinci variable: CompanyName",
+						Default:      "ACME Corporation",
+						ResourceType: "variable",
+						ResourceName: "company_name",
+					},
+					{
+						Name:         "davinci_variable_secret_key_value",
+						Type:         "string",
+						Description:  "Value for DaVinci variable: SecretKey",
+						Sensitive:    true,
+						IsSecret:     true,
+						ResourceType: "variable",
+						ResourceName: "secret_key",
+					},
+				},
+			}
+
+			// Generate module.tf
+			err := generator.generateModuleTF(structure)
+			require.NoError(t, err)
+
+			// Read and verify content
+			moduleTFPath := filepath.Join(tmpDir, "module.tf")
+			require.FileExists(t, moduleTFPath)
+			content, err := os.ReadFile(moduleTFPath)
+			require.NoError(t, err)
+			contentStr := string(content)
+
+			// Verify module block
+			assert.Contains(t, contentStr, `module "davinci" {`)
+			assert.Contains(t, contentStr, `source = "./davinci-module"`)
+
+			// Verify environment_id uses variable reference
+			assert.Contains(t, contentStr, "pingone_environment_id = var.environment_id")
+			// Should NOT contain hardcoded environment ID
+			assert.NotContains(t, contentStr, `pingone_environment_id = "a1b2c3d4-e5f6-7890-abcd-ef1234567890"`)
+
+			// Verify variables use variable references
+			assert.Contains(t, contentStr, "davinci_variable_company_name_value = var.davinci_variable_company_name_value")
+			assert.Contains(t, contentStr, "davinci_variable_secret_key_value = var.davinci_variable_secret_key_value")
+
+			// Should NOT contain empty strings or hardcoded values
+			assert.NotContains(t, contentStr, `davinci_variable_company_name_value = ""`)
+			assert.NotContains(t, contentStr, `davinci_variable_company_name_value = "ACME Corporation"`)
+			assert.NotContains(t, contentStr, `davinci_variable_secret_key_value = ""`)
+		})
+	}
+}
+
+// TestGenerator_GenerateTFVarsTemplate_WithoutValues verifies tfvars template generation without values
+func TestGenerator_GenerateTFVarsTemplate_WithoutValues(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	config := ModuleConfig{
+		OutputDir:     tmpDir,
+		ModuleDirName: "davinci-module",
+		IncludeValues: false,
+		EnvironmentID: "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+	}
+	generator := NewGenerator(config)
+
+	// Create test module structure with variables
+	structure := &ModuleStructure{
+		Config: config,
+		Variables: []Variable{
+			{
+				Name:         "davinci_variable_company_name_value",
+				Type:         "string",
+				Description:  "Value for DaVinci variable: CompanyName",
+				Default:      nil, // No default when values not included
+				ResourceType: "variable",
+				ResourceName: "company_name",
+			},
+			{
+				Name:         "davinci_variable_secret_key_value",
+				Type:         "string",
+				Description:  "Value for DaVinci variable: SecretKey",
+				Sensitive:    true,
+				IsSecret:     true,
+				ResourceType: "variable",
+				ResourceName: "secret_key",
+			},
+			{
+				Name:         "davinci_variable_port_value",
+				Type:         "number",
+				Description:  "Port number",
+				ResourceType: "variable",
+				ResourceName: "port",
+			},
+			{
+				Name:         "davinci_variable_enabled_value",
+				Type:         "bool",
+				Description:  "Feature enabled flag",
+				ResourceType: "variable",
+				ResourceName: "enabled",
+			},
+		},
+	}
+
+	// Generate tfvars template
+	err := generator.generateTFVarsFile(structure)
+	require.NoError(t, err)
+
+	// Verify file exists
+	tfvarsPath := filepath.Join(tmpDir, "ping-export-terraform.tfvars")
+	require.FileExists(t, tfvarsPath)
+
+	// Read and verify content
+	content, err := os.ReadFile(tfvarsPath)
+	require.NoError(t, err)
+	contentStr := string(content)
+
+	// Verify environment_id with empty value and TODO comment
+	assert.Contains(t, contentStr, `environment_id = ""`)
+	assert.Contains(t, contentStr, "# TODO: Provide PingOne environment ID")
+
+	// Verify string variable with empty value
+	assert.Contains(t, contentStr, `davinci_variable_company_name_value = ""`)
+
+	// Verify secret variable with special marker
+	assert.Contains(t, contentStr, `davinci_variable_secret_key_value = ""`)
+	assert.Contains(t, contentStr, "# Secret value")
+
+	// Verify number variable with zero
+	assert.Contains(t, contentStr, `davinci_variable_port_value = 0`)
+
+	// Verify bool variable with false
+	assert.Contains(t, contentStr, `davinci_variable_enabled_value = false`)
+
+	// Verify grouping comments
+	assert.Contains(t, contentStr, "# Variable Variables")
+}
+
+// TestGenerator_GenerateTFVarsTemplate_WithValues verifies tfvars generation with actual values
+func TestGenerator_GenerateTFVarsTemplate_WithValues(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	config := ModuleConfig{
+		OutputDir:     tmpDir,
+		ModuleDirName: "davinci-module",
+		IncludeValues: true,
+		EnvironmentID: "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+	}
+	generator := NewGenerator(config)
+
+	// Create test module structure with variables having default values
+	structure := &ModuleStructure{
+		Config: config,
+		Variables: []Variable{
+			{
+				Name:         "davinci_variable_company_name_value",
+				Type:         "string",
+				Description:  "Value for DaVinci variable: CompanyName",
+				Default:      "ACME Corporation",
+				ResourceType: "variable",
+				ResourceName: "company_name",
+			},
+			{
+				Name:         "davinci_variable_secret_key_value",
+				Type:         "string",
+				Description:  "Value for DaVinci variable: SecretKey",
+				Default:      "********", // Masked by API
+				Sensitive:    true,
+				IsSecret:     true,
+				ResourceType: "variable",
+				ResourceName: "secret_key",
+			},
+			{
+				Name:         "davinci_variable_port_value",
+				Type:         "number",
+				Description:  "Port number",
+				Default:      8080,
+				ResourceType: "variable",
+				ResourceName: "port",
+			},
+			{
+				Name:         "davinci_variable_enabled_value",
+				Type:         "bool",
+				Description:  "Feature enabled flag",
+				Default:      true,
+				ResourceType: "variable",
+				ResourceName: "enabled",
+			},
+		},
+	}
+
+	// Generate tfvars with values
+	err := generator.generateTFVarsFile(structure)
+	require.NoError(t, err)
+
+	// Verify file exists
+	tfvarsPath := filepath.Join(tmpDir, "ping-export-terraform.tfvars")
+	require.FileExists(t, tfvarsPath)
+
+	// Read and verify content
+	content, err := os.ReadFile(tfvarsPath)
+	require.NoError(t, err)
+	contentStr := string(content)
+
+	// Verify environment_id with actual value
+	assert.Contains(t, contentStr, `environment_id = "a1b2c3d4-e5f6-7890-abcd-ef1234567890"`)
+	assert.NotContains(t, contentStr, "# TODO: Provide PingOne environment ID")
+
+	// Verify non-secret string variable with actual value
+	assert.Contains(t, contentStr, `davinci_variable_company_name_value = "ACME Corporation"`)
+	assert.NotContains(t, contentStr, `davinci_variable_company_name_value = ""`)
+
+	// Verify secret variable still empty (even with --include-values)
+	assert.Contains(t, contentStr, `davinci_variable_secret_key_value = ""`)
+	assert.Contains(t, contentStr, "# Secret value")
+	assert.NotContains(t, contentStr, "********")
+
+	// Verify number variable with actual value
+	assert.Contains(t, contentStr, `davinci_variable_port_value = 8080`)
+	assert.NotContains(t, contentStr, `davinci_variable_port_value = 0`)
+
+	// Verify bool variable with actual value
+	assert.Contains(t, contentStr, `davinci_variable_enabled_value = true`)
+	assert.NotContains(t, contentStr, `davinci_variable_enabled_value = false`)
+
+	// Verify grouping comments
+	assert.Contains(t, contentStr, "# Variable Variables")
 }

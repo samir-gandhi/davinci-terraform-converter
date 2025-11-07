@@ -71,12 +71,19 @@ func TestModuleGenerationBasic(t *testing.T) {
 	// Verify imports.tf does NOT exist (IncludeImports = false)
 	assert.NoFileExists(t, filepath.Join(tmpDir, "imports.tf"))
 
-	// Verify module.tf content
+	// Verify module.tf content uses variable references
 	moduleContent, err := os.ReadFile(filepath.Join(tmpDir, "module.tf"))
 	require.NoError(t, err)
 	assert.Contains(t, string(moduleContent), "module \"davinci\"")
 	assert.Contains(t, string(moduleContent), "source = \"./davinci-module\"")
-	assert.Contains(t, string(moduleContent), "pingone_environment_id = \"\"") // Empty without --include-values
+	assert.Contains(t, string(moduleContent), "pingone_environment_id = var.environment_id") // Uses variable reference
+	assert.Contains(t, string(moduleContent), "test_variable = var.test_variable")
+
+	// Verify tfvars file exists with empty values
+	tfvarsContent, err := os.ReadFile(filepath.Join(tmpDir, "ping-export-terraform.tfvars"))
+	require.NoError(t, err)
+	assert.Contains(t, string(tfvarsContent), `environment_id = ""`)
+	assert.Contains(t, string(tfvarsContent), "# TODO: Provide PingOne environment ID")
 }
 
 // TestModuleGenerationWithValues tests module generation with actual values
@@ -112,11 +119,17 @@ func TestModuleGenerationWithValues(t *testing.T) {
 	err := generator.Generate(structure)
 	require.NoError(t, err)
 
-	// Verify module.tf has actual values
+	// Verify module.tf uses variable references
 	moduleContent, err := os.ReadFile(filepath.Join(tmpDir, "module.tf"))
 	require.NoError(t, err)
-	assert.Contains(t, string(moduleContent), "pingone_environment_id = \"abc-123-def-456\"")
-	assert.Contains(t, string(moduleContent), "davinci_variable_company_name_value = \"Acme Corp\"")
+	assert.Contains(t, string(moduleContent), "pingone_environment_id = var.environment_id")
+	assert.Contains(t, string(moduleContent), "davinci_variable_company_name_value = var.davinci_variable_company_name_value")
+
+	// Verify tfvars file has actual values
+	tfvarsContent, err := os.ReadFile(filepath.Join(tmpDir, "ping-export-terraform.tfvars"))
+	require.NoError(t, err)
+	assert.Contains(t, string(tfvarsContent), `environment_id = "abc-123-def-456"`)
+	assert.Contains(t, string(tfvarsContent), `davinci_variable_company_name_value = "Acme Corp"`)
 }
 
 // TestModuleGenerationWithImports tests module generation with import blocks
@@ -322,10 +335,17 @@ func TestModuleGenerationSecretHandling(t *testing.T) {
 	err := generator.Generate(structure)
 	require.NoError(t, err)
 
-	// Verify module.tf has TODO comment for secret
+	// Verify module.tf uses variable reference
 	moduleContent, err := os.ReadFile(filepath.Join(tmpDir, "module.tf"))
 	require.NoError(t, err)
-	assert.Contains(t, string(moduleContent), "davinci_connection_http_secret_key = \"\"  # TODO: Provide secret value")
+	assert.Contains(t, string(moduleContent), "davinci_connection_http_secret_key = var.davinci_connection_http_secret_key")
+
+	// Verify tfvars has empty secret value with comment
+	tfvarsContent, err := os.ReadFile(filepath.Join(tmpDir, "ping-export-terraform.tfvars"))
+	require.NoError(t, err)
+	assert.Contains(t, string(tfvarsContent), `davinci_connection_http_secret_key = ""`)
+	assert.Contains(t, string(tfvarsContent), "# Secret value")
+	assert.NotContains(t, string(tfvarsContent), "should-not-appear")
 
 	// Verify variables.tf has sensitive = true
 	variablesContent, err := os.ReadFile(filepath.Join(tmpDir, "davinci-module", "variables.tf"))
