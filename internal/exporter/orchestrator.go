@@ -82,7 +82,7 @@ func ExportEnvironmentWithOptions(ctx context.Context, client *api.Client, opts 
 	if err := logger.Message("Fetching variables...", nil); err != nil {
 		return "", fmt.Errorf("failed to log message: %w", err)
 	}
-	variables, _, err := ExportVariablesWithImports(ctx, client, opts.SkipDependencies, graph, importGen)
+	variables, _, _, err := ExportVariablesWithImports(ctx, client, opts.SkipDependencies, graph, importGen)
 	if err != nil {
 		if logErr := logger.PluginError("Failed to export variables", map[string]string{"error": err.Error()}); logErr != nil {
 			return "", fmt.Errorf("failed to log error: %w", logErr)
@@ -100,7 +100,7 @@ func ExportEnvironmentWithOptions(ctx context.Context, client *api.Client, opts 
 	if err := logger.Message("Fetching connector instances...", nil); err != nil {
 		return "", fmt.Errorf("failed to log message: %w", err)
 	}
-	connectors, _, err := ExportConnectorInstancesWithImports(ctx, client, opts.SkipDependencies, graph, importGen)
+	connectors, _, _, err := ExportConnectorInstancesWithImports(ctx, client, opts.SkipDependencies, graph, importGen)
 	if err != nil {
 		if logErr := logger.PluginError("Failed to export connector instances", map[string]string{"error": err.Error()}); logErr != nil {
 			return "", fmt.Errorf("failed to log error: %w", logErr)
@@ -118,7 +118,7 @@ func ExportEnvironmentWithOptions(ctx context.Context, client *api.Client, opts 
 	if err := logger.Message("Fetching flows...", nil); err != nil {
 		return "", fmt.Errorf("failed to log message: %w", err)
 	}
-	flows, err := ExportFlowsWithImports(ctx, client, opts.SkipDependencies, graph, importGen)
+	flows, _, err := ExportFlowsWithImports(ctx, client, opts.SkipDependencies, graph, importGen)
 	if err != nil {
 		if logErr := logger.PluginError("Failed to export flows", map[string]string{"error": err.Error()}); logErr != nil {
 			return "", fmt.Errorf("failed to log error: %w", logErr)
@@ -136,7 +136,7 @@ func ExportEnvironmentWithOptions(ctx context.Context, client *api.Client, opts 
 	if err := logger.Message("Fetching applications...", nil); err != nil {
 		return "", fmt.Errorf("failed to log message: %w", err)
 	}
-	applications, err := ExportApplicationsWithImports(ctx, client, opts.SkipDependencies, graph, importGen)
+	applications, _, err := ExportApplicationsWithImports(ctx, client, opts.SkipDependencies, graph, importGen)
 	if err != nil {
 		if logErr := logger.PluginError("Failed to export applications", map[string]string{"error": err.Error()}); logErr != nil {
 			return "", fmt.Errorf("failed to log error: %w", logErr)
@@ -154,7 +154,7 @@ func ExportEnvironmentWithOptions(ctx context.Context, client *api.Client, opts 
 	if err := logger.Message("Fetching flow policies...", nil); err != nil {
 		return "", fmt.Errorf("failed to log message: %w", err)
 	}
-	flowPolicies, err := ExportFlowPoliciesWithImports(ctx, client, opts.SkipDependencies, graph, importGen)
+	flowPolicies, _, err := ExportFlowPoliciesWithImports(ctx, client, opts.SkipDependencies, graph, importGen)
 	if err != nil {
 		if logErr := logger.PluginError("Failed to export flow policies", map[string]string{"error": err.Error()}); logErr != nil {
 			return "", fmt.Errorf("failed to log error: %w", logErr)

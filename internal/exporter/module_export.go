@@ -13,6 +13,13 @@ import (
 	"github.com/samir-gandhi/davinci-terraform-converter/internal/resolver"
 )
 
+// RawImportBlock represents an import block before module path transformation
+type RawImportBlock struct {
+	ResourceType string // "pingone_davinci_variable"
+	ResourceName string // "company_name"
+	ImportID     string // The import ID (e.g., "env-id/var-id")
+}
+
 // ExportedData contains structured export data for module generation
 type ExportedData struct {
 	// HCL sections by resource type (will be regenerated with variable references for modules)
@@ -36,6 +43,9 @@ type ExportedData struct {
 
 	// Variable-eligible attributes extracted from resources
 	ExtractedVariables []converter.VariableEligibleAttribute
+
+	// Import blocks for root module (separate from resource HCL)
+	ImportBlocks []RawImportBlock
 }
 
 // ExportEnvironmentForModule exports DaVinci resources in a structure suitable for module generation
@@ -81,7 +91,7 @@ func ExportEnvironmentForModule(ctx context.Context, client *api.Client, opts Ex
 	if err := logger.Message("Fetching variables...", nil); err != nil {
 		return nil, fmt.Errorf("failed to log message: %w", err)
 	}
-	variablesHCL, variablesExtracted, variablesJSON, variableNames, err := ExportVariablesForModule(ctx, client, opts.SkipDependencies, graph, importGen)
+	variablesHCL, variablesExtracted, variablesJSON, variableNames, variableImports, err := ExportVariablesForModule(ctx, client, opts.SkipDependencies, graph, importGen)
 	if err != nil {
 		return nil, fmt.Errorf("failed to export variables: %w", err)
 	}
@@ -92,6 +102,7 @@ func ExportEnvironmentForModule(ctx context.Context, client *api.Client, opts Ex
 		data.ResourceNames[id] = name
 	}
 	data.ExtractedVariables = append(data.ExtractedVariables, variablesExtracted...)
+	data.ImportBlocks = append(data.ImportBlocks, variableImports...)
 	if err := logger.Message("✓ Variables exported", nil); err != nil {
 		return nil, fmt.Errorf("failed to log message: %w", err)
 	}
@@ -100,7 +111,7 @@ func ExportEnvironmentForModule(ctx context.Context, client *api.Client, opts Ex
 	if err := logger.Message("Fetching connector instances...", nil); err != nil {
 		return nil, fmt.Errorf("failed to log message: %w", err)
 	}
-	connectorsHCL, connectorsExtracted, connectorsJSON, connectorNames, err := ExportConnectorInstancesForModule(ctx, client, opts.SkipDependencies, graph, importGen)
+	connectorsHCL, connectorsExtracted, connectorsJSON, connectorNames, connectorImports, err := ExportConnectorInstancesForModule(ctx, client, opts.SkipDependencies, graph, importGen)
 	if err != nil {
 		return nil, fmt.Errorf("failed to export connector instances: %w", err)
 	}
@@ -111,6 +122,7 @@ func ExportEnvironmentForModule(ctx context.Context, client *api.Client, opts Ex
 		data.ResourceNames[id] = name
 	}
 	data.ExtractedVariables = append(data.ExtractedVariables, connectorsExtracted...)
+	data.ImportBlocks = append(data.ImportBlocks, connectorImports...)
 	if err := logger.Message("✓ Connector instances exported", nil); err != nil {
 		return nil, fmt.Errorf("failed to log message: %w", err)
 	}
@@ -119,11 +131,12 @@ func ExportEnvironmentForModule(ctx context.Context, client *api.Client, opts Ex
 	if err := logger.Message("Fetching flows...", nil); err != nil {
 		return nil, fmt.Errorf("failed to log message: %w", err)
 	}
-	flows, err := ExportFlowsWithImports(ctx, client, opts.SkipDependencies, graph, importGen)
+	flows, flowImports, err := ExportFlowsWithImports(ctx, client, opts.SkipDependencies, graph, importGen)
 	if err != nil {
 		return nil, fmt.Errorf("failed to export flows: %w", err)
 	}
 	data.FlowsHCL = flows
+	data.ImportBlocks = append(data.ImportBlocks, flowImports...)
 	if err := logger.Message("✓ Flows exported", nil); err != nil {
 		return nil, fmt.Errorf("failed to log message: %w", err)
 	}
@@ -132,11 +145,12 @@ func ExportEnvironmentForModule(ctx context.Context, client *api.Client, opts Ex
 	if err := logger.Message("Fetching applications...", nil); err != nil {
 		return nil, fmt.Errorf("failed to log message: %w", err)
 	}
-	applications, err := ExportApplicationsWithImports(ctx, client, opts.SkipDependencies, graph, importGen)
+	applications, appImports, err := ExportApplicationsWithImports(ctx, client, opts.SkipDependencies, graph, importGen)
 	if err != nil {
 		return nil, fmt.Errorf("failed to export applications: %w", err)
 	}
 	data.ApplicationsHCL = applications
+	data.ImportBlocks = append(data.ImportBlocks, appImports...)
 	if err := logger.Message("✓ Applications exported", nil); err != nil {
 		return nil, fmt.Errorf("failed to log message: %w", err)
 	}
@@ -145,11 +159,12 @@ func ExportEnvironmentForModule(ctx context.Context, client *api.Client, opts Ex
 	if err := logger.Message("Fetching flow policies...", nil); err != nil {
 		return nil, fmt.Errorf("failed to log message: %w", err)
 	}
-	flowPolicies, err := ExportFlowPoliciesWithImports(ctx, client, opts.SkipDependencies, graph, importGen)
+	flowPolicies, policyImports, err := ExportFlowPoliciesWithImports(ctx, client, opts.SkipDependencies, graph, importGen)
 	if err != nil {
 		return nil, fmt.Errorf("failed to export flow policies: %w", err)
 	}
 	data.FlowPoliciesHCL = flowPolicies
+	data.ImportBlocks = append(data.ImportBlocks, policyImports...)
 	if err := logger.Message("✓ Flow policies exported", nil); err != nil {
 		return nil, fmt.Errorf("failed to log message: %w", err)
 	}
@@ -204,7 +219,16 @@ func ConvertExportedDataToModuleStructure(data *ExportedData, config module.Modu
 	outputs := generateOutputsFromGraph(data.DependencyGraph)
 	structure.Outputs = outputs
 
-	// TODO: Import blocks support - will need to parse from HCL or track separately
+	// Transform raw import blocks to module-scoped import blocks
+	// Import blocks must reference module.{module_name}.{resource_type}.{resource_name}
+	importBlocks := make([]module.ImportBlock, 0, len(data.ImportBlocks))
+	for _, raw := range data.ImportBlocks {
+		importBlocks = append(importBlocks, module.ImportBlock{
+			To: fmt.Sprintf("module.%s.%s.%s", config.ModuleDirName, raw.ResourceType, raw.ResourceName),
+			ID: raw.ImportID,
+		})
+	}
+	structure.ImportBlocks = importBlocks
 
 	return structure, nil
 }

@@ -14,23 +14,25 @@ import (
 
 // ExportApplications exports all DaVinci applications from the API to HCL format
 func ExportApplications(ctx context.Context, client *api.Client, skipDeps bool, graph *resolver.DependencyGraph) (string, error) {
-	return ExportApplicationsWithImports(ctx, client, skipDeps, graph, nil)
+	hcl, _, err := ExportApplicationsWithImports(ctx, client, skipDeps, graph, nil)
+	return hcl, err
 }
 
 // ExportApplicationsWithImports exports applications with optional import blocks
-func ExportApplicationsWithImports(ctx context.Context, client *api.Client, skipDeps bool, graph *resolver.DependencyGraph, importGen *importgen.ImportBlockGenerator) (string, error) {
+// Returns HCL string and import blocks for module generation
+func ExportApplicationsWithImports(ctx context.Context, client *api.Client, skipDeps bool, graph *resolver.DependencyGraph, importGen *importgen.ImportBlockGenerator) (string, []RawImportBlock, error) {
 	if client == nil {
-		return "", fmt.Errorf("client cannot be nil")
+		return "", nil, fmt.Errorf("client cannot be nil")
 	}
 
 	// Get all applications from API
 	applications, err := client.ListApplications(ctx, client.EnvironmentID)
 	if err != nil {
-		return "", fmt.Errorf("failed to list applications: %w", err)
+		return "", nil, fmt.Errorf("failed to list applications: %w", err)
 	}
 
 	if len(applications) == 0 {
-		return "", nil
+		return "", nil, nil
 	}
 
 	// First pass: Register all applications in the dependency graph
@@ -42,6 +44,7 @@ func ExportApplicationsWithImports(ctx context.Context, client *api.Client, skip
 	}
 
 	var hclBlocks []string
+	var importBlocks []RawImportBlock
 
 	// Second pass: Convert each application to HCL
 	for _, application := range applications {
@@ -50,27 +53,23 @@ func ExportApplicationsWithImports(ctx context.Context, client *api.Client, skip
 		// Get the actual resource name from the graph (includes deduplication suffix if needed)
 		actualName, err := graph.GetReferenceName("pingone_davinci_application", appID)
 		if err != nil {
-			return "", fmt.Errorf("failed to get resource name for application %s: %w", appID, err)
+			return "", nil, fmt.Errorf("failed to get resource name for application %s: %w", appID, err)
 		}
 
-		// Generate import block if import generator provided
+		// Track import block separately if import generator provided
 		if importGen != nil {
-			importBlock, err := importGen.GenerateImportBlock(
-				"pingone_davinci_application",
-				actualName,
-				appID,
-				client.EnvironmentID,
-			)
-			if err != nil {
-				return "", fmt.Errorf("failed to generate import block for application %s: %w", appID, err)
-			}
-			hclBlocks = append(hclBlocks, importBlock)
+			importIDStr := fmt.Sprintf("%s/%s", client.EnvironmentID, appID)
+			importBlocks = append(importBlocks, RawImportBlock{
+				ResourceType: "pingone_davinci_application",
+				ResourceName: actualName,
+				ImportID:     importIDStr,
+			})
 		}
 
 		// Convert SDK response to JSON format expected by converter
 		appJSON, err := convertApplicationToJSON(&application)
 		if err != nil {
-			return "", fmt.Errorf("failed to convert application %s to JSON: %w", application.GetId(), err)
+			return "", nil, fmt.Errorf("failed to convert application %s to JSON: %w", application.GetId(), err)
 		}
 
 		// Determine environment ID based on skipDeps flag
@@ -84,14 +83,14 @@ func ExportApplicationsWithImports(ctx context.Context, client *api.Client, skip
 		// Convert to HCL using converter with environment ID and graph
 		hcl, err := converter.ConvertApplicationWithEnvironmentAndGraph(appJSON, environmentID, graph)
 		if err != nil {
-			return "", fmt.Errorf("failed to convert application %s to HCL: %w", application.GetId(), err)
+			return "", nil, fmt.Errorf("failed to convert application %s to HCL: %w", application.GetId(), err)
 		}
 
 		hclBlocks = append(hclBlocks, hcl)
 	}
 
 	// Combine all HCL blocks with blank lines between them
-	return strings.Join(hclBlocks, "\n\n"), nil
+	return strings.Join(hclBlocks, "\n\n"), importBlocks, nil
 }
 
 // convertApplicationToJSON converts SDK DaVinciApplicationResponse to JSON format expected by converter

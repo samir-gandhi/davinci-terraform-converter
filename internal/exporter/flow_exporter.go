@@ -14,26 +14,29 @@ import (
 
 // ExportFlows retrieves flows from the API and converts them to Terraform HCL
 func ExportFlows(ctx context.Context, client *api.Client, skipDeps bool, graph *resolver.DependencyGraph) (string, error) {
-	return ExportFlowsWithImports(ctx, client, skipDeps, graph, nil)
+	hcl, _, err := ExportFlowsWithImports(ctx, client, skipDeps, graph, nil)
+	return hcl, err
 }
 
 // ExportFlowsWithImports exports flows with optional import blocks
-func ExportFlowsWithImports(ctx context.Context, client *api.Client, skipDeps bool, graph *resolver.DependencyGraph, importGen *importgen.ImportBlockGenerator) (string, error) {
+// Returns HCL string and import blocks for module generation
+func ExportFlowsWithImports(ctx context.Context, client *api.Client, skipDeps bool, graph *resolver.DependencyGraph, importGen *importgen.ImportBlockGenerator) (string, []RawImportBlock, error) {
 	if client == nil {
-		return "", fmt.Errorf("API client is required")
+		return "", nil, fmt.Errorf("API client is required")
 	}
 
 	// Retrieve all flows from the environment
 	flowSummaries, err := client.ListFlows(ctx)
 	if err != nil {
-		return "", fmt.Errorf("failed to list flows: %w", err)
+		return "", nil, fmt.Errorf("failed to list flows: %w", err)
 	}
 
 	if len(flowSummaries) == 0 {
-		return "# No flows found in environment\n", nil
+		return "# No flows found in environment\n", nil, nil
 	}
 
 	var hclBlocks []string
+	var importBlocks []RawImportBlock
 
 	// First pass: Register all flows in the dependency graph
 	for _, summary := range flowSummaries {
@@ -46,32 +49,28 @@ func ExportFlowsWithImports(ctx context.Context, client *api.Client, skipDeps bo
 		// Get the actual resource name from the graph (includes deduplication suffix if needed)
 		actualName, err := graph.GetReferenceName("pingone_davinci_flow", summary.FlowID)
 		if err != nil {
-			return "", fmt.Errorf("failed to get resource name for flow %s: %w", summary.FlowID, err)
+			return "", nil, fmt.Errorf("failed to get resource name for flow %s: %w", summary.FlowID, err)
 		}
 
-		// Generate import block if import generator provided
+		// Track import block separately if import generator provided
 		if importGen != nil {
-			importBlock, err := importGen.GenerateImportBlock(
-				"pingone_davinci_flow",
-				actualName,
-				summary.FlowID,
-				client.EnvironmentID,
-			)
-			if err != nil {
-				return "", fmt.Errorf("failed to generate import block for flow %s: %w", summary.FlowID, err)
-			}
-			hclBlocks = append(hclBlocks, importBlock)
+			importIDStr := fmt.Sprintf("%s/%s", client.EnvironmentID, summary.FlowID)
+			importBlocks = append(importBlocks, RawImportBlock{
+				ResourceType: "pingone_davinci_flow",
+				ResourceName: actualName,
+				ImportID:     importIDStr,
+			})
 		}
 
 		flowDetail, err := client.GetFlow(ctx, summary.FlowID)
 		if err != nil {
-			return "", fmt.Errorf("failed to get flow %s (%s): %w", summary.Name, summary.FlowID, err)
+			return "", nil, fmt.Errorf("failed to get flow %s (%s): %w", summary.Name, summary.FlowID, err)
 		}
 
 		// Convert the flow detail to the format expected by the converter
 		flowData, err := convertFlowDetailToMap(flowDetail)
 		if err != nil {
-			return "", fmt.Errorf("failed to convert flow %s to map: %w", summary.Name, err)
+			return "", nil, fmt.Errorf("failed to convert flow %s to map: %w", summary.Name, err)
 		}
 
 		// Determine environment_id value based on skipDeps flag
@@ -83,14 +82,14 @@ func ExportFlowsWithImports(ctx context.Context, client *api.Client, skipDeps bo
 		// Convert to HCL using the converter with dependency graph
 		hcl, err := converter.ConvertFlowToHCL(flowData, envID, skipDeps, graph)
 		if err != nil {
-			return "", fmt.Errorf("failed to convert flow %s to HCL: %w", summary.Name, err)
+			return "", nil, fmt.Errorf("failed to convert flow %s to HCL: %w", summary.Name, err)
 		}
 
 		hclBlocks = append(hclBlocks, hcl)
 	}
 
 	// Combine all HCL blocks with blank lines between them
-	return strings.Join(hclBlocks, "\n\n"), nil
+	return strings.Join(hclBlocks, "\n\n"), importBlocks, nil
 }
 
 // convertFlowDetailToMap converts FlowDetail to map[string]interface{} for the converter

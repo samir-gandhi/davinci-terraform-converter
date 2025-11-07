@@ -14,18 +14,20 @@ import (
 
 // ExportFlowPolicies exports all flow policies to Terraform HCL
 func ExportFlowPolicies(ctx context.Context, client *api.Client, skipDeps bool, graph *resolver.DependencyGraph) (string, error) {
-	return ExportFlowPoliciesWithImports(ctx, client, skipDeps, graph, nil)
+	hcl, _, err := ExportFlowPoliciesWithImports(ctx, client, skipDeps, graph, nil)
+	return hcl, err
 }
 
 // ExportFlowPoliciesWithImports exports flow policies with optional import blocks
-func ExportFlowPoliciesWithImports(ctx context.Context, client *api.Client, skipDeps bool, graph *resolver.DependencyGraph, importGen *importgen.ImportBlockGenerator) (string, error) {
+// Returns HCL string and import blocks for module generation
+func ExportFlowPoliciesWithImports(ctx context.Context, client *api.Client, skipDeps bool, graph *resolver.DependencyGraph, importGen *importgen.ImportBlockGenerator) (string, []RawImportBlock, error) {
 	policies, err := client.ListFlowPolicies(ctx)
 	if err != nil {
-		return "", fmt.Errorf("failed to list flow policies: %w", err)
+		return "", nil, fmt.Errorf("failed to list flow policies: %w", err)
 	}
 
 	if len(policies) == 0 {
-		return "# No flow policies found\n\n", nil
+		return "# No flow policies found\n\n", nil, nil
 	}
 
 	// First pass: Register all flow policies in the dependency graph
@@ -35,6 +37,7 @@ func ExportFlowPoliciesWithImports(ctx context.Context, client *api.Client, skip
 	}
 
 	var builder strings.Builder
+	var importBlocks []RawImportBlock
 	builder.WriteString(fmt.Sprintf("# Flow Policies (%d total)\n\n", len(policies)))
 
 	// Second pass: Convert each flow policy to HCL
@@ -42,32 +45,24 @@ func ExportFlowPoliciesWithImports(ctx context.Context, client *api.Client, skip
 		// Get the sanitized resource name from the graph
 		resourceName, err := graph.GetReferenceName("pingone_davinci_application_flow_policy", policy.PolicyID)
 		if err != nil {
-			return "", fmt.Errorf("failed to get resource name for flow policy %s: %w", policy.PolicyID, err)
+			return "", nil, fmt.Errorf("failed to get resource name for flow policy %s: %w", policy.PolicyID, err)
 		}
 
-		// Generate import block if import generator provided
+		// Track import block separately if import generator provided
 		// Note: Flow policy assignments have a special 3-part ID format
 		if importGen != nil {
-			metadata := map[string]string{
-				"application_id": policy.ApplicationID,
-			}
-			importBlock, err := importGen.GenerateImportBlockWithMetadata(
-				"pingone_davinci_application_flow_policy",
-				resourceName,
-				policy.PolicyID,
-				client.EnvironmentID,
-				metadata,
-			)
-			if err != nil {
-				return "", fmt.Errorf("failed to generate import block for flow policy %s: %w", policy.PolicyID, err)
-			}
-			builder.WriteString(importBlock)
-			builder.WriteString("\n\n")
+			// Build the 3-part import ID: env_id/app_id/policy_id
+			importIDStr := fmt.Sprintf("%s/%s/%s", client.EnvironmentID, policy.ApplicationID, policy.PolicyID)
+			importBlocks = append(importBlocks, RawImportBlock{
+				ResourceType: "pingone_davinci_application_flow_policy",
+				ResourceName: resourceName,
+				ImportID:     importIDStr,
+			})
 		}
 
 		detail, err := client.GetFlowPolicy(ctx, policy.ApplicationID, policy.PolicyID)
 		if err != nil {
-			return "", fmt.Errorf("failed to get flow policy %s: %w", policy.PolicyID, err)
+			return "", nil, fmt.Errorf("failed to get flow policy %s: %w", policy.PolicyID, err)
 		}
 
 		// Get environment ID - pass raw string for var reference or quoted UUID
@@ -80,14 +75,14 @@ func ExportFlowPoliciesWithImports(ctx context.Context, client *api.Client, skip
 
 		hcl, err := converter.ConvertFlowPolicyToTerraform(detail.RawResponse, resourceName, policy.ApplicationID, environmentID, skipDeps, graph)
 		if err != nil {
-			return "", fmt.Errorf("failed to convert flow policy %s to Terraform: %w", policy.PolicyID, err)
+			return "", nil, fmt.Errorf("failed to convert flow policy %s to Terraform: %w", policy.PolicyID, err)
 		}
 
 		builder.WriteString(hcl)
 		builder.WriteString("\n")
 	}
 
-	return builder.String(), nil
+	return builder.String(), importBlocks, nil
 }
 
 // ensureUniqueFlowPolicyResourceName ensures resource names are unique by appending suffixes

@@ -14,21 +14,22 @@ import (
 
 // ExportConnectorInstances retrieves connector instances from the API and converts them to Terraform HCL
 func ExportConnectorInstances(ctx context.Context, client *api.Client, skipDeps bool, graph *resolver.DependencyGraph) (string, []converter.VariableEligibleAttribute, error) {
-	return ExportConnectorInstancesWithImports(ctx, client, skipDeps, graph, nil)
+	hcl, extracted, _, err := ExportConnectorInstancesWithImports(ctx, client, skipDeps, graph, nil)
+	return hcl, extracted, err
 }
 
 // ExportConnectorInstancesForModule exports connector instances with JSON data for module generation
-// Returns HCL, extracted variables, JSON map, and resource names map
-func ExportConnectorInstancesForModule(ctx context.Context, client *api.Client, skipDeps bool, graph *resolver.DependencyGraph, importGen *importgen.ImportBlockGenerator) (string, []converter.VariableEligibleAttribute, map[string][]byte, map[string]string, error) {
-	hcl, extracted, err := ExportConnectorInstancesWithImports(ctx, client, skipDeps, graph, importGen)
+// Returns HCL, extracted variables, JSON map, resource names map, and import blocks
+func ExportConnectorInstancesForModule(ctx context.Context, client *api.Client, skipDeps bool, graph *resolver.DependencyGraph, importGen *importgen.ImportBlockGenerator) (string, []converter.VariableEligibleAttribute, map[string][]byte, map[string]string, []RawImportBlock, error) {
+	hcl, extracted, importBlocks, err := ExportConnectorInstancesWithImports(ctx, client, skipDeps, graph, importGen)
 	if err != nil {
-		return "", nil, nil, nil, err
+		return "", nil, nil, nil, nil, err
 	}
 
 	// Re-fetch to get JSON and build maps (inefficient but keeps changes minimal)
 	instanceSummaries, err := client.ListConnectorInstances(ctx)
 	if err != nil {
-		return "", nil, nil, nil, fmt.Errorf("failed to re-fetch connector instances for JSON: %w", err)
+		return "", nil, nil, nil, nil, fmt.Errorf("failed to re-fetch connector instances for JSON: %w", err)
 	}
 
 	jsonMap := make(map[string][]byte)
@@ -38,41 +39,41 @@ func ExportConnectorInstancesForModule(ctx context.Context, client *api.Client, 
 		// Get the actual resource name from the graph
 		actualName, err := graph.GetReferenceName("pingone_davinci_connector_instance", summary.InstanceID)
 		if err != nil {
-			return "", nil, nil, nil, fmt.Errorf("failed to get resource name for connector instance %s: %w", summary.InstanceID, err)
+			return "", nil, nil, nil, nil, fmt.Errorf("failed to get resource name for connector instance %s: %w", summary.InstanceID, err)
 		}
 
 		instanceDetail, err := client.GetConnectorInstance(ctx, summary.InstanceID)
 		if err != nil {
-			return "", nil, nil, nil, fmt.Errorf("failed to get connector instance %s: %w", summary.InstanceID, err)
+			return "", nil, nil, nil, nil, fmt.Errorf("failed to get connector instance %s: %w", summary.InstanceID, err)
 		}
 
 		instanceJSON, err := convertInstanceDetailToJSON(instanceDetail, client.EnvironmentID)
 		if err != nil {
-			return "", nil, nil, nil, fmt.Errorf("failed to convert instance to JSON: %w", err)
+			return "", nil, nil, nil, nil, fmt.Errorf("failed to convert instance to JSON: %w", err)
 		}
 
 		jsonMap[summary.InstanceID] = instanceJSON
 		namesMap[summary.InstanceID] = actualName
 	}
 
-	return hcl, extracted, jsonMap, namesMap, nil
+	return hcl, extracted, jsonMap, namesMap, importBlocks, nil
 }
 
 // ExportConnectorInstancesWithImports exports connector instances with optional import blocks
-// Returns HCL string and extracted variable-eligible attributes for module generation
-func ExportConnectorInstancesWithImports(ctx context.Context, client *api.Client, skipDeps bool, graph *resolver.DependencyGraph, importGen *importgen.ImportBlockGenerator) (string, []converter.VariableEligibleAttribute, error) {
+// Returns HCL string, extracted variable-eligible attributes, and import blocks for module generation
+func ExportConnectorInstancesWithImports(ctx context.Context, client *api.Client, skipDeps bool, graph *resolver.DependencyGraph, importGen *importgen.ImportBlockGenerator) (string, []converter.VariableEligibleAttribute, []RawImportBlock, error) {
 	if client == nil {
-		return "", nil, fmt.Errorf("API client is required")
+		return "", nil, nil, fmt.Errorf("API client is required")
 	}
 
 	// Retrieve all connector instances from the environment
 	instanceSummaries, err := client.ListConnectorInstances(ctx)
 	if err != nil {
-		return "", nil, fmt.Errorf("failed to list connector instances: %w", err)
+		return "", nil, nil, fmt.Errorf("failed to list connector instances: %w", err)
 	}
 
 	if len(instanceSummaries) == 0 {
-		return "# No connector instances found in environment\n", nil, nil
+		return "# No connector instances found in environment\n", nil, nil, nil
 	}
 
 	// First pass: Register all connector instances in the dependency graph
@@ -83,62 +84,59 @@ func ExportConnectorInstancesWithImports(ctx context.Context, client *api.Client
 
 	var hclBlocks []string
 	var extractedVariables []converter.VariableEligibleAttribute
+	var importBlocks []RawImportBlock
 
 	// Second pass: Retrieve detailed connector instance data and convert each instance
 	for _, summary := range instanceSummaries {
 		// Get the actual resource name from the graph (includes deduplication suffix if needed)
 		actualName, err := graph.GetReferenceName("pingone_davinci_connector_instance", summary.InstanceID)
 		if err != nil {
-			return "", nil, fmt.Errorf("failed to get resource name for connector instance %s: %w", summary.InstanceID, err)
+			return "", nil, nil, fmt.Errorf("failed to get resource name for connector instance %s: %w", summary.InstanceID, err)
 		}
 
-		// Generate import block if import generator provided
+		// Track import block separately if import generator provided
 		if importGen != nil {
 			// Skip import for special connector IDs that don't follow UUID format
 			// User Pool connector uses "defaultUserPool" which isn't a valid UUID
 			if !isSpecialConnectorID(summary.InstanceID) {
-				importBlock, err := importGen.GenerateImportBlock(
-					"pingone_davinci_connector_instance",
-					actualName,
-					summary.InstanceID,
-					client.EnvironmentID,
-				)
-				if err != nil {
-					return "", nil, fmt.Errorf("failed to generate import block for connector instance %s: %w", summary.InstanceID, err)
-				}
-				hclBlocks = append(hclBlocks, importBlock)
+				importIDStr := fmt.Sprintf("%s/%s", client.EnvironmentID, summary.InstanceID)
+				importBlocks = append(importBlocks, RawImportBlock{
+					ResourceType: "pingone_davinci_connector_instance",
+					ResourceName: actualName,
+					ImportID:     importIDStr,
+				})
 			}
 		}
 
 		instanceDetail, err := client.GetConnectorInstance(ctx, summary.InstanceID)
 		if err != nil {
-			return "", nil, fmt.Errorf("failed to get connector instance %s (%s): %w", summary.Name, summary.InstanceID, err)
+			return "", nil, nil, fmt.Errorf("failed to get connector instance %s (%s): %w", summary.Name, summary.InstanceID, err)
 		}
 
 		// Convert the instance detail to JSON for the converter
 		instanceJSON, err := convertInstanceDetailToJSON(instanceDetail, client.EnvironmentID)
 		if err != nil {
-			return "", nil, fmt.Errorf("failed to convert instance %s to JSON: %w", summary.Name, err)
+			return "", nil, nil, fmt.Errorf("failed to convert instance %s to JSON: %w", summary.Name, err)
 		}
 
 		// Extract variable-eligible attributes for module generation
 		connectorAttrs, err := converter.GetConnectorInstanceVariableEligibleAttributes(instanceJSON, actualName)
 		if err != nil {
-			return "", nil, fmt.Errorf("failed to extract connector attributes for %s: %w", summary.Name, err)
+			return "", nil, nil, fmt.Errorf("failed to extract connector attributes for %s: %w", summary.Name, err)
 		}
 		extractedVariables = append(extractedVariables, connectorAttrs...)
 
 		// Convert to HCL using the existing converter
 		hcl, err := converter.ConvertConnectorInstanceWithOptions(instanceJSON, skipDeps)
 		if err != nil {
-			return "", nil, fmt.Errorf("failed to convert connector instance %s to HCL: %w", summary.Name, err)
+			return "", nil, nil, fmt.Errorf("failed to convert connector instance %s to HCL: %w", summary.Name, err)
 		}
 
 		hclBlocks = append(hclBlocks, hcl)
 	}
 
 	// Join all HCL blocks with blank lines between them
-	return strings.Join(hclBlocks, "\n\n"), extractedVariables, nil
+	return strings.Join(hclBlocks, "\n\n"), extractedVariables, importBlocks, nil
 }
 
 // isSpecialConnectorID checks if a connector instance ID is a special case that doesn't follow UUID format
