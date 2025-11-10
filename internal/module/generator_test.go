@@ -210,9 +210,9 @@ func TestGeneratorModuleTF(t *testing.T) {
 			contentStr := string(content)
 
 			// Verify content - always uses variable references
-			assert.Contains(t, contentStr, "module \"davinci\"")
+			assert.Contains(t, contentStr, "module \"ping-export\"") // Default module name
 			assert.Contains(t, contentStr, "source = \"./test-module\"")
-			assert.Contains(t, contentStr, "pingone_environment_id = var.environment_id")
+			assert.Contains(t, contentStr, "pingone_environment_id = var.pingone_environment_id")
 			assert.Contains(t, contentStr, "test_var = var.test_var")
 		})
 	}
@@ -245,17 +245,17 @@ func TestGeneratorResourceFiles(t *testing.T) {
 	// Verify files were created
 	childModulePath := filepath.Join(tmpDir, "test-module")
 
-	flowsPath := filepath.Join(childModulePath, "flows.tf")
+	flowsPath := filepath.Join(childModulePath, "pingone_davinci_flow.tf")
 	content, err := os.ReadFile(flowsPath)
 	require.NoError(t, err)
 	assert.Contains(t, string(content), "pingone_davinci_flow")
 
-	connectionsPath := filepath.Join(childModulePath, "connections.tf")
+	connectionsPath := filepath.Join(childModulePath, "pingone_davinci_connector_instance.tf")
 	content, err = os.ReadFile(connectionsPath)
 	require.NoError(t, err)
 	assert.Contains(t, string(content), "pingone_davinci_connector_instance")
 
-	variablesPath := filepath.Join(childModulePath, "variables_dv.tf")
+	variablesPath := filepath.Join(childModulePath, "pingone_davinci_variable.tf")
 	content, err = os.ReadFile(variablesPath)
 	require.NoError(t, err)
 	assert.Contains(t, string(content), "pingone_davinci_variable")
@@ -352,8 +352,8 @@ func TestFullModuleGeneration(t *testing.T) {
 	assert.FileExists(t, filepath.Join(childModulePath, "versions.tf"))
 	assert.FileExists(t, filepath.Join(childModulePath, "variables.tf"))
 	assert.FileExists(t, filepath.Join(childModulePath, "outputs.tf"))
-	assert.FileExists(t, filepath.Join(childModulePath, "flows.tf"))
-	assert.FileExists(t, filepath.Join(childModulePath, "connections.tf"))
+	assert.FileExists(t, filepath.Join(childModulePath, "pingone_davinci_flow.tf"))
+	assert.FileExists(t, filepath.Join(childModulePath, "pingone_davinci_connector_instance.tf"))
 
 	// Check root module files
 	assert.FileExists(t, filepath.Join(tmpDir, "module.tf"))
@@ -415,7 +415,7 @@ func TestGenerator_GenerateRootVariablesTF(t *testing.T) {
 	contentStr := string(content)
 
 	// Verify environment_id variable is present
-	assert.Contains(t, contentStr, `variable "environment_id"`)
+	assert.Contains(t, contentStr, `variable "pingone_environment_id"`)
 	assert.Contains(t, contentStr, "PingOne environment ID")
 
 	// Verify davinci variable
@@ -436,6 +436,7 @@ func TestGenerator_GenerateRootVariablesTF(t *testing.T) {
 	assert.Contains(t, contentStr, "# Connection Variables")
 }
 
+// TestGenerator_VariableNaming_ChildModule verifies child module uses correct variable name
 // TestGenerator_GenerateModuleTF_UsesVariableReferences verifies that module.tf uses variable references
 func TestGenerator_GenerateModuleTF_UsesVariableReferences(t *testing.T) {
 	tests := []struct {
@@ -500,11 +501,11 @@ func TestGenerator_GenerateModuleTF_UsesVariableReferences(t *testing.T) {
 			contentStr := string(content)
 
 			// Verify module block
-			assert.Contains(t, contentStr, `module "davinci" {`)
+			assert.Contains(t, contentStr, `module "ping-export" {`) // Default module name
 			assert.Contains(t, contentStr, `source = "./davinci-module"`)
 
 			// Verify environment_id uses variable reference
-			assert.Contains(t, contentStr, "pingone_environment_id = var.environment_id")
+			assert.Contains(t, contentStr, "pingone_environment_id = var.pingone_environment_id")
 			// Should NOT contain hardcoded environment ID
 			assert.NotContains(t, contentStr, `pingone_environment_id = "a1b2c3d4-e5f6-7890-abcd-ef1234567890"`)
 
@@ -584,7 +585,7 @@ func TestGenerator_GenerateTFVarsTemplate_WithoutValues(t *testing.T) {
 	contentStr := string(content)
 
 	// Verify environment_id with empty value and TODO comment
-	assert.Contains(t, contentStr, `environment_id = ""`)
+	assert.Contains(t, contentStr, `pingone_environment_id = ""`)
 	assert.Contains(t, contentStr, "# TODO: Provide PingOne environment ID")
 
 	// Verify string variable with empty value
@@ -693,4 +694,137 @@ func TestGenerator_GenerateTFVarsTemplate_WithValues(t *testing.T) {
 
 	// Verify grouping comments
 	assert.Contains(t, contentStr, "# Variable Variables")
+}
+
+// TestGenerator_DefaultModuleName tests that the default module name "ping-export" is used in module.tf
+func TestGenerator_DefaultModuleName(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	config := ModuleConfig{
+		OutputDir:      tmpDir,
+		ModuleDirName:  "ping-export-module",
+		ModuleName:     "ping-export", // Default module name
+		IncludeImports: false,
+		IncludeValues:  false,
+		EnvironmentID:  "test-env-123",
+	}
+
+	structure := &ModuleStructure{
+		Config: config,
+		Resources: ModuleResources{
+			FlowsHCL: "resource \"pingone_davinci_flow\" \"test\" {}\n",
+		},
+	}
+
+	generator := NewGenerator(config)
+	err := generator.Generate(structure)
+	require.NoError(t, err)
+
+	// Read module.tf
+	moduleContent, err := os.ReadFile(filepath.Join(tmpDir, "module.tf"))
+	require.NoError(t, err)
+	contentStr := string(moduleContent)
+
+	// Verify module block uses "ping-export" as module name
+	assert.Contains(t, contentStr, `module "ping-export" {`)
+	assert.NotContains(t, contentStr, `module "davinci" {`)
+
+	// Verify source references the module directory
+	assert.Contains(t, contentStr, `source = "./ping-export-module"`)
+}
+
+// TestGenerator_CustomModuleName tests that custom module names work correctly
+func TestGenerator_CustomModuleName(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	config := ModuleConfig{
+		OutputDir:      tmpDir,
+		ModuleDirName:  "my-custom-module",
+		ModuleName:     "my_flows", // Custom module name
+		IncludeImports: false,
+		IncludeValues:  false,
+		EnvironmentID:  "test-env-123",
+	}
+
+	structure := &ModuleStructure{
+		Config: config,
+		Resources: ModuleResources{
+			FlowsHCL: "resource \"pingone_davinci_flow\" \"test\" {}\n",
+		},
+	}
+
+	generator := NewGenerator(config)
+	err := generator.Generate(structure)
+	require.NoError(t, err)
+
+	// Read module.tf
+	moduleContent, err := os.ReadFile(filepath.Join(tmpDir, "module.tf"))
+	require.NoError(t, err)
+	contentStr := string(moduleContent)
+
+	// Verify module block uses custom module name
+	assert.Contains(t, contentStr, `module "my_flows" {`)
+	assert.NotContains(t, contentStr, `module "ping-export" {`)
+	assert.NotContains(t, contentStr, `module "davinci" {`)
+
+	// Verify source references the module directory (not the module name)
+	assert.Contains(t, contentStr, `source = "./my-custom-module"`)
+}
+
+// TestGenerator_ImportBlocksUseModuleName tests that import blocks use the module name, not the folder name
+func TestGenerator_ImportBlocksUseModuleName(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	config := ModuleConfig{
+		OutputDir:      tmpDir,
+		ModuleDirName:  "my-folder", // Folder name
+		ModuleName:     "my_module", // Module name (different from folder)
+		IncludeImports: true,
+		IncludeValues:  false,
+		EnvironmentID:  "test-env-123",
+	}
+
+	// Create import blocks that should reference the module name
+	importBlocks := []ImportBlock{
+		{
+			To: "module.my_module.pingone_davinci_flow.test_flow",
+			ID: "env-id/flow-id",
+		},
+		{
+			To: "module.my_module.pingone_davinci_variable.test_var",
+			ID: "env-id/var-id",
+		},
+	}
+
+	structure := &ModuleStructure{
+		Config:       config,
+		ImportBlocks: importBlocks,
+		Resources: ModuleResources{
+			FlowsHCL: "resource \"pingone_davinci_flow\" \"test_flow\" {}\n",
+		},
+	}
+
+	generator := NewGenerator(config)
+	err := generator.Generate(structure)
+	require.NoError(t, err)
+
+	// Read imports.tf
+	importsContent, err := os.ReadFile(filepath.Join(tmpDir, "imports.tf"))
+	require.NoError(t, err)
+	importsStr := string(importsContent)
+
+	// Verify import blocks use module name, not folder name
+	assert.Contains(t, importsStr, "module.my_module.pingone_davinci_flow.test_flow")
+	assert.Contains(t, importsStr, "module.my_module.pingone_davinci_variable.test_var")
+	assert.NotContains(t, importsStr, "module.my-folder")
+
+	// Read module.tf to verify it uses the correct module name
+	moduleContent, err := os.ReadFile(filepath.Join(tmpDir, "module.tf"))
+	require.NoError(t, err)
+	moduleStr := string(moduleContent)
+
+	// Module block should use module name
+	assert.Contains(t, moduleStr, `module "my_module" {`)
+	// But source should use folder name
+	assert.Contains(t, moduleStr, `source = "./my-folder"`)
 }

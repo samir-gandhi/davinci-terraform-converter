@@ -126,7 +126,8 @@ func (c *ExportCommand) Run(args []string, logger grpc.Logger) error {
 
 	// Module generation flags
 	moduleMode := flags.Bool("module", true, "Generate Terraform module structure (default: true)")
-	moduleDir := flags.String("module-dir", "davinci-module", "Name of the child module directory")
+	moduleDir := flags.String("module-dir", "ping-export-module", "Name of the child module directory")
+	moduleName := flags.String("module-name", "ping-export", "Terraform module name used in module.tf and import blocks")
 	includeImports := flags.Bool("include-imports", false, "Generate import blocks in root module")
 	includeValues := flags.Bool("include-values", false, "Populate variable values in module.tf from export")
 
@@ -143,11 +144,11 @@ func (c *ExportCommand) Run(args []string, logger grpc.Logger) error {
 	}
 
 	// Execute export (invert skipImports to get generateImports)
-	return c.runExport(logger, *services, *workerEnvironmentID, *exportEnvironmentID, *regionCode, *clientID, *clientSecret, *out, *skipDependencies, !*skipImports, *moduleMode, *moduleDir, *includeImports, *includeValues)
+	return c.runExport(logger, *services, *workerEnvironmentID, *exportEnvironmentID, *regionCode, *clientID, *clientSecret, *out, *skipDependencies, !*skipImports, *moduleMode, *moduleDir, *moduleName, *includeImports, *includeValues)
 }
 
 // runExport handles API export of all resources from an environment
-func (c *ExportCommand) runExport(logger grpc.Logger, services []string, workerEnvironmentID, exportEnvironmentID, regionCode, clientID, clientSecret, out string, skipDeps bool, generateImports bool, moduleMode bool, moduleDir string, includeImports bool, includeValues bool) error {
+func (c *ExportCommand) runExport(logger grpc.Logger, services []string, workerEnvironmentID, exportEnvironmentID, regionCode, clientID, clientSecret, out string, skipDeps bool, generateImports bool, moduleMode bool, moduleDir string, moduleName string, includeImports bool, includeValues bool) error {
 	// Log which services are being exported
 	if err := logger.Message(fmt.Sprintf("Exporting services: %v", services), nil); err != nil {
 		return err
@@ -216,7 +217,7 @@ func (c *ExportCommand) runExport(logger grpc.Logger, services []string, workerE
 
 	// Handle module mode vs single-file mode
 	if moduleMode {
-		return c.exportAsModule(ctx, client, logger, skipDeps, includeImports, includeValues, moduleDir, out, exportEnvironmentID)
+		return c.exportAsModule(ctx, client, logger, skipDeps, includeImports, includeValues, moduleDir, moduleName, out, exportEnvironmentID)
 	}
 
 	// Single-file export (legacy mode)
@@ -252,7 +253,7 @@ func (c *ExportCommand) runExport(logger grpc.Logger, services []string, workerE
 }
 
 // exportAsModule handles module-based export
-func (c *ExportCommand) exportAsModule(ctx context.Context, client *api.Client, logger grpc.Logger, skipDeps, includeImports, includeValues bool, moduleDir, out, environmentID string) error {
+func (c *ExportCommand) exportAsModule(ctx context.Context, client *api.Client, logger grpc.Logger, skipDeps, includeImports, includeValues bool, moduleDir, moduleName, out, environmentID string) error {
 	// Determine output directory
 	outputDir := out
 	if outputDir == "" {
@@ -277,6 +278,7 @@ func (c *ExportCommand) exportAsModule(ctx context.Context, client *api.Client, 
 	moduleConfig := module.ModuleConfig{
 		OutputDir:      outputDir,
 		ModuleDirName:  moduleDir,
+		ModuleName:     moduleName,
 		IncludeImports: includeImports,
 		IncludeValues:  includeValues,
 		EnvironmentID:  environmentID,

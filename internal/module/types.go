@@ -5,8 +5,11 @@ type ModuleConfig struct {
 	// OutputDir is the root directory where module files will be generated
 	OutputDir string
 
-	// ModuleDirName is the name of the child module directory (default: "davinci-module")
+	// ModuleDirName is the name of the child module directory (default: "ping-export-module")
 	ModuleDirName string
+
+	// ModuleName is the terraform module name used in module.tf and import blocks (default: "ping-export")
+	ModuleName string
 
 	// IncludeImports determines whether to generate import blocks
 	IncludeImports bool

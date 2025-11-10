@@ -224,7 +224,7 @@ func ConvertExportedDataToModuleStructure(data *ExportedData, config module.Modu
 	importBlocks := make([]module.ImportBlock, 0, len(data.ImportBlocks))
 	for _, raw := range data.ImportBlocks {
 		importBlocks = append(importBlocks, module.ImportBlock{
-			To: fmt.Sprintf("module.%s.%s.%s", config.ModuleDirName, raw.ResourceType, raw.ResourceName),
+			To: fmt.Sprintf("module.%s.%s.%s", config.ModuleName, raw.ResourceType, raw.ResourceName),
 			ID: raw.ImportID,
 		})
 	}

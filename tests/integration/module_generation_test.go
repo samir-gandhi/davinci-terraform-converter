@@ -62,8 +62,8 @@ func TestModuleGenerationBasic(t *testing.T) {
 	assert.FileExists(t, filepath.Join(childModulePath, "versions.tf"))
 	assert.FileExists(t, filepath.Join(childModulePath, "variables.tf"))
 	assert.FileExists(t, filepath.Join(childModulePath, "outputs.tf"))
-	assert.FileExists(t, filepath.Join(childModulePath, "flows.tf"))
-	assert.FileExists(t, filepath.Join(childModulePath, "connections.tf"))
+	assert.FileExists(t, filepath.Join(childModulePath, "pingone_davinci_flow.tf"))
+	assert.FileExists(t, filepath.Join(childModulePath, "pingone_davinci_connector_instance.tf"))
 
 	// Verify root module file exists
 	assert.FileExists(t, filepath.Join(tmpDir, "module.tf"))
@@ -74,15 +74,15 @@ func TestModuleGenerationBasic(t *testing.T) {
 	// Verify module.tf content uses variable references
 	moduleContent, err := os.ReadFile(filepath.Join(tmpDir, "module.tf"))
 	require.NoError(t, err)
-	assert.Contains(t, string(moduleContent), "module \"davinci\"")
+	assert.Contains(t, string(moduleContent), "module \"ping-export\"") // Default module name
 	assert.Contains(t, string(moduleContent), "source = \"./davinci-module\"")
-	assert.Contains(t, string(moduleContent), "pingone_environment_id = var.environment_id") // Uses variable reference
+	assert.Contains(t, string(moduleContent), "pingone_environment_id = var.pingone_environment_id") // Uses variable reference
 	assert.Contains(t, string(moduleContent), "test_variable = var.test_variable")
 
 	// Verify tfvars file exists with empty values
 	tfvarsContent, err := os.ReadFile(filepath.Join(tmpDir, "ping-export-terraform.tfvars"))
 	require.NoError(t, err)
-	assert.Contains(t, string(tfvarsContent), `environment_id = ""`)
+	assert.Contains(t, string(tfvarsContent), `pingone_environment_id = ""`)
 	assert.Contains(t, string(tfvarsContent), "# TODO: Provide PingOne environment ID")
 }
 
@@ -122,13 +122,13 @@ func TestModuleGenerationWithValues(t *testing.T) {
 	// Verify module.tf uses variable references
 	moduleContent, err := os.ReadFile(filepath.Join(tmpDir, "module.tf"))
 	require.NoError(t, err)
-	assert.Contains(t, string(moduleContent), "pingone_environment_id = var.environment_id")
+	assert.Contains(t, string(moduleContent), "pingone_environment_id = var.pingone_environment_id")
 	assert.Contains(t, string(moduleContent), "davinci_variable_company_name_value = var.davinci_variable_company_name_value")
 
 	// Verify tfvars file has actual values
 	tfvarsContent, err := os.ReadFile(filepath.Join(tmpDir, "ping-export-terraform.tfvars"))
 	require.NoError(t, err)
-	assert.Contains(t, string(tfvarsContent), `environment_id = "abc-123-def-456"`)
+	assert.Contains(t, string(tfvarsContent), `pingone_environment_id = "abc-123-def-456"`)
 	assert.Contains(t, string(tfvarsContent), `davinci_variable_company_name_value = "Acme Corp"`)
 }
 
@@ -238,30 +238,30 @@ func TestModuleGenerationAllResourceTypes(t *testing.T) {
 	childModulePath := filepath.Join(tmpDir, "davinci-module")
 
 	// Verify all resource files exist
-	assert.FileExists(t, filepath.Join(childModulePath, "flows.tf"))
-	assert.FileExists(t, filepath.Join(childModulePath, "connections.tf"))
-	assert.FileExists(t, filepath.Join(childModulePath, "variables_dv.tf"))
-	assert.FileExists(t, filepath.Join(childModulePath, "applications.tf"))
-	assert.FileExists(t, filepath.Join(childModulePath, "flow_policies.tf"))
+	assert.FileExists(t, filepath.Join(childModulePath, "pingone_davinci_flow.tf"))
+	assert.FileExists(t, filepath.Join(childModulePath, "pingone_davinci_connector_instance.tf"))
+	assert.FileExists(t, filepath.Join(childModulePath, "pingone_davinci_variable.tf"))
+	assert.FileExists(t, filepath.Join(childModulePath, "pingone_davinci_application.tf"))
+	assert.FileExists(t, filepath.Join(childModulePath, "pingone_davinci_flow_policy.tf"))
 
 	// Verify content of each file
-	flowsContent, err := os.ReadFile(filepath.Join(childModulePath, "flows.tf"))
+	flowsContent, err := os.ReadFile(filepath.Join(childModulePath, "pingone_davinci_flow.tf"))
 	require.NoError(t, err)
 	assert.Contains(t, string(flowsContent), "pingone_davinci_flow")
 
-	connectionsContent, err := os.ReadFile(filepath.Join(childModulePath, "connections.tf"))
+	connectionsContent, err := os.ReadFile(filepath.Join(childModulePath, "pingone_davinci_connector_instance.tf"))
 	require.NoError(t, err)
 	assert.Contains(t, string(connectionsContent), "pingone_davinci_connector_instance")
 
-	variablesContent, err := os.ReadFile(filepath.Join(childModulePath, "variables_dv.tf"))
+	variablesContent, err := os.ReadFile(filepath.Join(childModulePath, "pingone_davinci_variable.tf"))
 	require.NoError(t, err)
 	assert.Contains(t, string(variablesContent), "pingone_davinci_variable")
 
-	applicationsContent, err := os.ReadFile(filepath.Join(childModulePath, "applications.tf"))
+	applicationsContent, err := os.ReadFile(filepath.Join(childModulePath, "pingone_davinci_application.tf"))
 	require.NoError(t, err)
 	assert.Contains(t, string(applicationsContent), "pingone_davinci_application")
 
-	policiesContent, err := os.ReadFile(filepath.Join(childModulePath, "flow_policies.tf"))
+	policiesContent, err := os.ReadFile(filepath.Join(childModulePath, "pingone_davinci_flow_policy.tf"))
 	require.NoError(t, err)
 	assert.Contains(t, string(policiesContent), "pingone_davinci_application_flow_policy")
 }

@@ -14,6 +14,14 @@ type Generator struct {
 
 // NewGenerator creates a new module generator with the given configuration
 func NewGenerator(config ModuleConfig) *Generator {
+	// Apply defaults if not set
+	if config.ModuleName == "" {
+		config.ModuleName = "ping-export"
+	}
+	if config.ModuleDirName == "" {
+		config.ModuleDirName = "ping-export-module"
+	}
+
 	return &Generator{
 		config: config,
 	}
@@ -103,7 +111,7 @@ func (g *Generator) generateVersionsTF() error {
 func (g *Generator) generateVariablesTF(variables []Variable) error {
 	var sb strings.Builder
 
-	// Always include the core environment_id variable
+	// Always include the core environment_id variable that child module resources use
 	sb.WriteString(`variable "pingone_environment_id" {
   type        = string
   description = "The PingOne environment ID to configure DaVinci resources in"
@@ -144,12 +152,12 @@ func (g *Generator) generateRootVariablesTF(variables []Variable) error {
 	var sb strings.Builder
 
 	// Always include the core environment_id variable
-	sb.WriteString(`variable "environment_id" {
+	sb.WriteString(`variable "pingone_environment_id" {
   type        = string
   description = "The PingOne environment ID to configure DaVinci resources in"
 
   validation {
-    condition     = can(regex("^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$", var.environment_id))
+    condition     = can(regex("^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$", var.pingone_environment_id))
     error_message = "The PingOne Environment ID must be a valid PingOne resource ID (UUID format)."
   }
 }
@@ -272,37 +280,37 @@ func (g *Generator) generateOutputsTF(outputs []Output) error {
 
 // generateResourceFiles creates the resource files in the child module
 func (g *Generator) generateResourceFiles(resources ModuleResources) error {
-	// Generate flows.tf
+	// Generate pingone_davinci_flow.tf
 	if resources.FlowsHCL != "" {
-		if err := g.writeFile(g.childModulePath(), "flows.tf", resources.FlowsHCL); err != nil {
+		if err := g.writeFile(g.childModulePath(), "pingone_davinci_flow.tf", resources.FlowsHCL); err != nil {
 			return err
 		}
 	}
 
-	// Generate connections.tf
+	// Generate pingone_davinci_connector_instance.tf
 	if resources.ConnectionsHCL != "" {
-		if err := g.writeFile(g.childModulePath(), "connections.tf", resources.ConnectionsHCL); err != nil {
+		if err := g.writeFile(g.childModulePath(), "pingone_davinci_connector_instance.tf", resources.ConnectionsHCL); err != nil {
 			return err
 		}
 	}
 
-	// Generate variables_dv.tf (DaVinci variables)
+	// Generate pingone_davinci_variable.tf
 	if resources.VariablesHCL != "" {
-		if err := g.writeFile(g.childModulePath(), "variables_dv.tf", resources.VariablesHCL); err != nil {
+		if err := g.writeFile(g.childModulePath(), "pingone_davinci_variable.tf", resources.VariablesHCL); err != nil {
 			return err
 		}
 	}
 
-	// Generate applications.tf
+	// Generate pingone_davinci_application.tf
 	if resources.ApplicationsHCL != "" {
-		if err := g.writeFile(g.childModulePath(), "applications.tf", resources.ApplicationsHCL); err != nil {
+		if err := g.writeFile(g.childModulePath(), "pingone_davinci_application.tf", resources.ApplicationsHCL); err != nil {
 			return err
 		}
 	}
 
-	// Generate flow_policies.tf
+	// Generate pingone_davinci_flow_policy.tf
 	if resources.FlowPoliciesHCL != "" {
-		if err := g.writeFile(g.childModulePath(), "flow_policies.tf", resources.FlowPoliciesHCL); err != nil {
+		if err := g.writeFile(g.childModulePath(), "pingone_davinci_flow_policy.tf", resources.FlowPoliciesHCL); err != nil {
 			return err
 		}
 	}
@@ -314,11 +322,11 @@ func (g *Generator) generateResourceFiles(resources ModuleResources) error {
 func (g *Generator) generateModuleTF(structure *ModuleStructure) error {
 	var sb strings.Builder
 
-	sb.WriteString("module \"davinci\" {\n")
+	sb.WriteString(fmt.Sprintf("module \"%s\" {\n", g.config.ModuleName))
 	sb.WriteString(fmt.Sprintf("  source = \"./%s\"\n\n", g.config.ModuleDirName))
 
 	// Core environment ID - always use variable reference
-	sb.WriteString("  pingone_environment_id = var.environment_id\n\n")
+	sb.WriteString("  pingone_environment_id = var.pingone_environment_id\n\n")
 
 	// Group variables by resource type
 	groupedVars := g.groupVariablesByResourceType(structure.Variables)
@@ -377,9 +385,9 @@ func (g *Generator) generateTFVarsFile(structure *ModuleStructure) error {
 
 	// Environment ID
 	if g.config.IncludeValues {
-		sb.WriteString(fmt.Sprintf("environment_id = %q\n\n", g.config.EnvironmentID))
+		sb.WriteString(fmt.Sprintf("pingone_environment_id = %q\n\n", g.config.EnvironmentID))
 	} else {
-		sb.WriteString(`environment_id = ""  # TODO: Provide PingOne environment ID` + "\n\n")
+		sb.WriteString(`pingone_environment_id = ""  # TODO: Provide PingOne environment ID` + "\n\n")
 	}
 
 	// Group variables by resource type
