@@ -44,12 +44,12 @@ func TestFlowConverterWithResolver(t *testing.T) {
 	graph.AddResource("pingone_davinci_connector_instance", "conn-123", "http_connector")
 
 	// Convert with graph - should use resolver reference generation
-	hclWithResolver, err := ConvertFlowToHCL(flowData, "var.environment_id", false, graph)
+	hclWithResolver, err := ConvertFlowToHCL(flowData, "var.pingone_environment_id", false, graph)
 	require.NoError(t, err)
 	require.Contains(t, hclWithResolver, "pingone_davinci_connector_instance.http_connector.id")
 
 	// Convert without graph - should use legacy reference generation
-	hclLegacy, err := ConvertFlowToHCL(flowData, "var.environment_id", false, nil)
+	hclLegacy, err := ConvertFlowToHCL(flowData, "var.pingone_environment_id", false, nil)
 	require.NoError(t, err)
 	require.Contains(t, hclLegacy, "pingone_davinci_connector_instance.")
 }
@@ -85,7 +85,7 @@ func TestFlowConverterWithMissingDependency(t *testing.T) {
 	graph := resolver.NewDependencyGraph()
 
 	// Convert - should generate TODO placeholder
-	hcl, err := ConvertFlowToHCL(flowData, "var.environment_id", false, graph)
+	hcl, err := ConvertFlowToHCL(flowData, "var.pingone_environment_id", false, graph)
 	require.NoError(t, err)
 	require.Contains(t, hcl, "# TODO: Reference to")
 	require.Contains(t, hcl, "missing-conn-999")
@@ -121,7 +121,7 @@ func TestFlowConverterWithSkipDependencies(t *testing.T) {
 	graph.AddResource("pingone_davinci_connector_instance", "conn-456", "http_connector")
 
 	// With skipDeps=true, should use hardcoded ID even with graph
-	hcl, err := ConvertFlowToHCL(flowData, "var.environment_id", true, graph)
+	hcl, err := ConvertFlowToHCL(flowData, "var.pingone_environment_id", true, graph)
 	require.NoError(t, err)
 	require.Contains(t, hcl, `"conn-456"`)
 	require.NotContains(t, hcl, "pingone_davinci_connector_instance")
@@ -166,7 +166,7 @@ func TestFlowConverterResolverReferenceFormat(t *testing.T) {
 	graph.AddResource("pingone_davinci_connector_instance", "test-conn-abc", "my_test_connector")
 	graph.AddResource("pingone_davinci_connector_instance", "test-conn-xyz", "another_test_connector")
 
-	hcl, err := ConvertFlowToHCL(flowData, "var.environment_id", false, graph)
+	hcl, err := ConvertFlowToHCL(flowData, "var.pingone_environment_id", false, graph)
 	require.NoError(t, err)
 
 	// Verify both references use full Terraform resource type
@@ -205,7 +205,7 @@ func TestFlowConverterNameSanitization(t *testing.T) {
 	sanitizedName := resolver.SanitizeName("My HTTP Connector!", nil)
 	graph.AddResource("pingone_davinci_connector_instance", "conn-special-chars", sanitizedName)
 
-	hcl, err := ConvertFlowToHCL(flowData, "var.environment_id", false, graph)
+	hcl, err := ConvertFlowToHCL(flowData, "var.pingone_environment_id", false, graph)
 	require.NoError(t, err)
 
 	// Should use full Terraform resource type

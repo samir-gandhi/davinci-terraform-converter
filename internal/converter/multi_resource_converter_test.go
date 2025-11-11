@@ -223,7 +223,7 @@ func TestMultiResourceWithSkipDependencies(t *testing.T) {
 		t.Fatalf("ConvertMultiResource() returned error: %v", err)
 	}
 
-	if strings.Contains(result, "var.environment_id") {
+	if strings.Contains(result, "var.pingone_environment_id") {
 		t.Error("Result should use hardcoded environment IDs when skip-dependencies is true")
 	}
 

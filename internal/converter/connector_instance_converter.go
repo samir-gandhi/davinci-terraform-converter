@@ -63,7 +63,7 @@ func generateConnectorInstanceHCL(instance ConnectorInstanceResponse, skipDepend
 	if skipDependencies {
 		hcl.WriteString(fmt.Sprintf("  environment_id = \"%s\"\n", instance.Environment.ID))
 	} else {
-		hcl.WriteString("  environment_id = var.environment_id\n")
+		hcl.WriteString("  environment_id = var.pingone_environment_id\n")
 	}
 
 	hcl.WriteString("\n")
@@ -301,7 +301,7 @@ func GenerateConnectorInstanceHCLWithVariableReferences(instanceJSON []byte, ski
 	if skipDependencies {
 		hcl.WriteString(fmt.Sprintf("  environment_id = \"%s\"\n", instance.Environment.ID))
 	} else {
-		hcl.WriteString("  environment_id = var.environment_id\n")
+		hcl.WriteString("  environment_id = var.pingone_environment_id\n")
 	}
 
 	hcl.WriteString("\n")

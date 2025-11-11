@@ -24,8 +24,8 @@ func ConvertApplicationWithOptions(appJSON []byte, skipDependencies bool) (strin
 		return "", fmt.Errorf("failed to unmarshal application JSON: %w", err)
 	}
 
-	// Use var.environment_id for backward compatibility
-	return generateApplicationHCL(appData, "var.environment_id", nil)
+	// Use var.pingone_environment_id for backward compatibility
+	return generateApplicationHCL(appData, "var.pingone_environment_id", nil)
 }
 
 // ConvertApplicationWithEnvironment converts a DaVinci application to Terraform format with explicit environment ID

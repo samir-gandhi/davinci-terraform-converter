@@ -33,7 +33,7 @@ func TestSimpleFlowConversion(t *testing.T) {
 	// Verify the result contains expected elements
 	expectedElements := []string{
 		`resource "pingone_davinci_flow" "pingcli__Simple-0020-Test-0020-Flow"`,
-		`environment_id = var.environment_id`,
+		`environment_id = var.pingone_environment_id`,
 		`name        = "Simple Test Flow"`,
 		`description = "A simple test flow"`,
 	}
@@ -664,7 +664,7 @@ func TestCompleteFlowWithAllAttributes(t *testing.T) {
 	// Verify all major sections are present
 	expectedSections := []string{
 		`resource "pingone_davinci_flow" "pingcli__Complete-0020-Flow"`,
-		`environment_id = var.environment_id`,
+		`environment_id = var.pingone_environment_id`,
 		`name        = "Complete Flow"`,
 		`description = "A complete flow with all attributes"`,
 		`graph_data = {`,
@@ -1190,7 +1190,7 @@ func TestCompleteFlowConversion(t *testing.T) {
 
 	// Test 2: Verify top-level metadata
 	topLevelChecks := []string{
-		`environment_id = var.environment_id`,
+		`environment_id = var.pingone_environment_id`,
 		`name        = "Complete Test Flow"`,
 		`description = "A comprehensive test flow with all structures"`,
 	}

@@ -40,7 +40,7 @@ func TestConnectorInstanceConversion(t *testing.T) {
 			}`,
 			expected: []string{
 				`resource "pingone_davinci_connector_instance" "pingcli__PingOne-0020-Protect"`,
-				`environment_id = var.environment_id`,
+				`environment_id = var.pingone_environment_id`,
 				`name           = "PingOne Protect"`,
 				`connector = {`,
 				`id = "pingOneRiskConnector"`,
@@ -61,7 +61,7 @@ func TestConnectorInstanceConversion(t *testing.T) {
 			}`,
 			expected: []string{
 				`resource "pingone_davinci_connector_instance" "pingcli__My-0020-Annotation"`,
-				`environment_id = var.environment_id`,
+				`environment_id = var.pingone_environment_id`,
 				`name           = "My Annotation"`,
 				`connector = {`,
 				`id = "annotationConnector"`,
@@ -87,7 +87,7 @@ func TestConnectorInstanceConversion(t *testing.T) {
 			}`,
 			expected: []string{
 				`resource "pingone_davinci_connector_instance" "pingcli__External-0020-API"`,
-				`environment_id = var.environment_id`,
+				`environment_id = var.pingone_environment_id`,
 				`name           = "External API"`,
 				`connector = {`,
 				`id = "httpConnector"`,
@@ -132,8 +132,8 @@ func TestConnectorInstanceConversionWithSkipDependencies(t *testing.T) {
 		t.Fatalf("ConvertConnectorInstanceWithOptions() returned error: %v", err)
 	}
 
-	// Should use hardcoded ID instead of var.environment_id
-	if strings.Contains(result, "var.environment_id") {
+	// Should use hardcoded ID instead of var.pingone_environment_id
+	if strings.Contains(result, "var.pingone_environment_id") {
 		t.Error("Result should use hardcoded environment ID when skip-dependencies is true")
 	}
 

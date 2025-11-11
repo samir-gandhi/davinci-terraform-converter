@@ -67,7 +67,7 @@ func ConvertMultiResource(input MultiResourceInput, skipDependencies bool) (stri
 				}
 			}
 		} else {
-			envID = "var.environment_id"
+			envID = "var.pingone_environment_id"
 		}
 
 		result, err := ConvertFlowToHCL(flowData, envID, skipDependencies, nil)

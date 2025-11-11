@@ -69,10 +69,10 @@ func ConvertWithOptions(flowJSON []byte, skipDependencies bool) (string, error) 
 		}
 		// If no environment ID found in JSON, still use var (shouldn't happen in real flow exports)
 		if envID == "" {
-			envID = "var.environment_id"
+			envID = "var.pingone_environment_id"
 		}
 	} else {
-		envID = "var.environment_id"
+		envID = "var.pingone_environment_id"
 	}
 
 	// Use the new ConvertFlowToHCL function
@@ -119,7 +119,7 @@ func ConvertMultiFlowWithOptions(multiFlowJSON []byte, skipDependencies bool) ([
 			return nil, fmt.Errorf("failed to unmarshal flow %d (%s): %w", i, flow.Name, err)
 		}
 
-		hcl, err := ConvertFlowToHCL(flowData, "var.environment_id", skipDependencies, nil)
+		hcl, err := ConvertFlowToHCL(flowData, "var.pingone_environment_id", skipDependencies, nil)
 		if err != nil {
 			return nil, fmt.Errorf("failed to generate HCL for flow %d (%s): %w", i, flow.Name, err)
 		}

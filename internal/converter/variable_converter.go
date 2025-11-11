@@ -127,7 +127,7 @@ func generateVariableHCL(variable VariableResponse, skipDependencies bool) strin
 	if skipDependencies {
 		hcl.WriteString(fmt.Sprintf("  environment_id = \"%s\"\n", variable.Environment.ID))
 	} else {
-		hcl.WriteString("  environment_id = var.environment_id\n")
+		hcl.WriteString("  environment_id = var.pingone_environment_id\n")
 	}
 
 	hcl.WriteString("\n")
@@ -338,7 +338,7 @@ func generateVariableHCLWithVarReference(variable VariableResponse, skipDependen
 	if skipDependencies {
 		hcl.WriteString(fmt.Sprintf("  environment_id = \"%s\"\n", variable.Environment.ID))
 	} else {
-		hcl.WriteString("  environment_id = var.environment_id\n")
+		hcl.WriteString("  environment_id = var.pingone_environment_id\n")
 	}
 
 	hcl.WriteString("\n")

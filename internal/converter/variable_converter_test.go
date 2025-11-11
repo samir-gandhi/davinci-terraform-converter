@@ -32,7 +32,7 @@ func TestVariableConversion(t *testing.T) {
 			}`,
 			expected: []string{
 				`resource "pingone_davinci_variable" "pingcli__SampleVariable_company"`,
-				`environment_id = var.environment_id`,
+				`environment_id = var.pingone_environment_id`,
 				`name           = "SampleVariable"`,
 				`context        = "company"`,
 				`data_type      = "string"`,
@@ -59,7 +59,7 @@ func TestVariableConversion(t *testing.T) {
 			}`,
 			expected: []string{
 				`resource "pingone_davinci_variable" "pingcli__maxRetries_company"`,
-				`environment_id = var.environment_id`,
+				`environment_id = var.pingone_environment_id`,
 				`name           = "maxRetries"`,
 				`context        = "company"`,
 				`data_type      = "number"`,
@@ -83,7 +83,7 @@ func TestVariableConversion(t *testing.T) {
 			}`,
 			expected: []string{
 				`resource "pingone_davinci_variable" "pingcli__featureEnabled_company"`,
-				`environment_id = var.environment_id`,
+				`environment_id = var.pingone_environment_id`,
 				`name           = "featureEnabled"`,
 				`context        = "company"`,
 				`data_type      = "boolean"`,
@@ -105,7 +105,7 @@ func TestVariableConversion(t *testing.T) {
 			}`,
 			expected: []string{
 				`resource "pingone_davinci_variable" "pingcli__apiKey_company"`,
-				`environment_id = var.environment_id`,
+				`environment_id = var.pingone_environment_id`,
 				`name           = "apiKey"`,
 				`context        = "company"`,
 				`data_type      = "secret"`,
@@ -126,7 +126,7 @@ func TestVariableConversion(t *testing.T) {
 			}`,
 			expected: []string{
 				`resource "pingone_davinci_variable" "pingcli__appConfig_company"`,
-				`environment_id = var.environment_id`,
+				`environment_id = var.pingone_environment_id`,
 				`name           = "appConfig"`,
 				`context        = "company"`,
 				`data_type      = "object"`,
@@ -150,7 +150,7 @@ func TestVariableConversion(t *testing.T) {
 			}`,
 			expected: []string{
 				`resource "pingone_davinci_variable" "pingcli__flowVar_flow"`,
-				`environment_id = var.environment_id`,
+				`environment_id = var.pingone_environment_id`,
 				`name           = "flowVar"`,
 				`context        = "flow"`,
 				`data_type      = "string"`,
@@ -202,7 +202,7 @@ func TestVariableConversionWithSkipDependencies(t *testing.T) {
 	}
 
 	// Should use hardcoded IDs instead of references
-	if strings.Contains(result, "var.environment_id") {
+	if strings.Contains(result, "var.pingone_environment_id") {
 		t.Error("Result should use hardcoded environment ID when skip-dependencies is true")
 	}
 

@@ -145,7 +145,7 @@ func TestGenerateVariableHCLWithVariableReferences(t *testing.T) {
 			varName: "davinci_variable_companyName_value",
 			expectedHCL: []string{
 				`resource "pingone_davinci_variable" "pingcli__companyName_company"`,
-				`environment_id = var.environment_id`,
+				`environment_id = var.pingone_environment_id`,
 				`name           = "companyName"`,
 				`context        = "company"`,
 				`data_type      = "string"`,
@@ -393,7 +393,7 @@ func TestGenerateConnectorInstanceHCLWithVariableReferences(t *testing.T) {
 
 	// Should have proper structure
 	assert.Contains(t, hcl, `resource "pingone_davinci_connector_instance" "pingcli__httpConnector"`)
-	assert.Contains(t, hcl, "environment_id = var.environment_id")
+	assert.Contains(t, hcl, "environment_id = var.pingone_environment_id")
 	assert.Contains(t, hcl, `name           = "httpConnector"`)
 	assert.Contains(t, hcl, "properties = jsonencode")
 }

@@ -35,7 +35,7 @@ func TestApplicationConversion(t *testing.T) {
 			}`,
 			expected: []string{
 				`resource "pingone_davinci_application" "pingcli__My-0020-Application"`,
-				`environment_id = var.environment_id`,
+				`environment_id = var.pingone_environment_id`,
 				`name           = "My Application"`,
 				`api_key = {`,
 				`enabled = true`,
@@ -61,7 +61,7 @@ func TestApplicationConversion(t *testing.T) {
 			}`,
 			expected: []string{
 				`resource "pingone_davinci_application" "pingcli__OAuth-0020-Only-0020-App"`,
-				`environment_id = var.environment_id`,
+				`environment_id = var.pingone_environment_id`,
 				`name           = "OAuth Only App"`,
 				`oauth = {`,
 				`grant_types                   = ["authorizationCode"]`,
@@ -81,7 +81,7 @@ func TestApplicationConversion(t *testing.T) {
 			}`,
 			expected: []string{
 				`resource "pingone_davinci_application" "pingcli__API-0020-Key-0020-App"`,
-				`environment_id = var.environment_id`,
+				`environment_id = var.pingone_environment_id`,
 				`name           = "API Key App"`,
 				`api_key = {`,
 				`enabled = true`,
@@ -96,7 +96,7 @@ func TestApplicationConversion(t *testing.T) {
 			}`,
 			expected: []string{
 				`resource "pingone_davinci_application" "pingcli__Minimal-0020-App"`,
-				`environment_id = var.environment_id`,
+				`environment_id = var.pingone_environment_id`,
 				`name           = "Minimal App"`,
 			},
 		},
@@ -132,7 +132,7 @@ func TestApplicationConversion(t *testing.T) {
 			}`,
 			expected: []string{
 				`resource "pingone_davinci_application" "pingcli__DaVinci-0020-API-0020-Protect-0020-Sample-0020-Application-beta"`,
-				`environment_id = var.environment_id`,
+				`environment_id = var.pingone_environment_id`,
 				`name           = "DaVinci API Protect Sample Application-beta"`,
 				`api_key = {`,
 				`enabled = false`,
