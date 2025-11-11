@@ -144,7 +144,7 @@ func TestGenerateVariableHCLWithVariableReferences(t *testing.T) {
 			}`,
 			varName: "davinci_variable_companyName_value",
 			expectedHCL: []string{
-				`resource "pingone_davinci_variable" "pingcli__companyName"`,
+				`resource "pingone_davinci_variable" "pingcli__companyName_company"`,
 				`environment_id = var.environment_id`,
 				`name           = "companyName"`,
 				`context        = "company"`,

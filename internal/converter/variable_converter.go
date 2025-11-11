@@ -66,9 +66,9 @@ func GetVariableEligibleAttributes(variableJSON []byte, resourceName string) ([]
 		return nil, fmt.Errorf("variable name is required")
 	}
 
-	// Use provided resource name or sanitize from variable name
+	// Use provided resource name or sanitize from variable name and context
 	if resourceName == "" {
-		resourceName = utils.SanitizeResourceName(variable.Name)
+		resourceName = utils.SanitizeVariableResourceName(variable.Name, variable.Context)
 	}
 
 	var attributes []VariableEligibleAttribute
@@ -119,8 +119,8 @@ func GetVariableEligibleAttributes(variableJSON []byte, resourceName string) ([]
 func generateVariableHCL(variable VariableResponse, skipDependencies bool) string {
 	var hcl strings.Builder
 
-	// Resource name using pingcli format
-	resourceName := utils.SanitizeResourceName(variable.Name)
+	// Resource name using pingcli format with context suffix to prevent duplicates
+	resourceName := utils.SanitizeVariableResourceName(variable.Name, variable.Context)
 	hcl.WriteString(fmt.Sprintf("resource \"pingone_davinci_variable\" \"%s\" {\n", resourceName))
 
 	// Environment ID
@@ -330,8 +330,8 @@ func GenerateVariableHCLWithVariableReferences(variableJSON []byte, skipDependen
 func generateVariableHCLWithVarReference(variable VariableResponse, skipDependencies bool, varName string) string {
 	var hcl strings.Builder
 
-	// Resource name using pingcli format
-	resourceName := utils.SanitizeResourceName(variable.Name)
+	// Resource name using pingcli format with context suffix to prevent duplicates
+	resourceName := utils.SanitizeVariableResourceName(variable.Name, variable.Context)
 	hcl.WriteString(fmt.Sprintf("resource \"pingone_davinci_variable\" \"%s\" {\n", resourceName))
 
 	// Environment ID

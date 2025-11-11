@@ -5,6 +5,7 @@ package utils
 import (
 	"fmt"
 	"regexp"
+	"strings"
 )
 
 // SanitizeResourceName converts a resource name to a valid Terraform resource name
@@ -26,6 +27,49 @@ func SanitizeResourceName(name string) string {
 	})
 	// Prefix resource names with pingcli__
 	return "pingcli__" + name
+}
+
+// SanitizeMultiKeyResourceName creates a unique resource name by combining multiple key components.
+// This prevents naming conflicts when resources share common attributes but differ in others.
+//
+// The sanitization process:
+// 1. Hexadecimal encodes special characters in each key (anything not alphanumeric, underscore, or hyphen)
+// 2. Joins all keys with underscores
+// 3. Prefixes the result with "pingcli__"
+//
+// Examples:
+//   - ("origin", "company") -> "pingcli__origin_company"
+//   - ("origin", "flowInstance") -> "pingcli__origin_flowInstance"
+//   - ("enableFeatureX", "company") -> "pingcli__enableFeatureX_company"
+//   - ("API Key", "user", "profile") -> "pingcli__API-0020-Key_user_profile"
+//
+// Use cases:
+//   - DaVinci variables: name + context (company, flowInstance, user, flow)
+//   - Future resources with composite keys
+func SanitizeMultiKeyResourceName(keys ...string) string {
+	if len(keys) == 0 {
+		return "pingcli__"
+	}
+
+	// Sanitize each key individually
+	sanitizedKeys := make([]string, len(keys))
+	for i, key := range keys {
+		sanitizedKeys[i] = regexp.MustCompile(`[^0-9A-Za-z_\-]`).ReplaceAllStringFunc(key, func(s string) string {
+			return fmt.Sprintf("-%04X-", s)
+		})
+	}
+
+	// Join with underscores and prefix
+	return fmt.Sprintf("pingcli__%s", strings.Join(sanitizedKeys, "_"))
+}
+
+// SanitizeVariableResourceName creates a unique resource name for DaVinci variables
+// by combining the variable name and context. This is a convenience wrapper around
+// SanitizeMultiKeyResourceName for the common case of variable resources.
+//
+// Deprecated: Use SanitizeMultiKeyResourceName(name, context) instead.
+func SanitizeVariableResourceName(name, context string) string {
+	return SanitizeMultiKeyResourceName(name, context)
 }
 
 // CamelCaseToWords converts a camelCase or PascalCase string to space-separated words

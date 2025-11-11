@@ -51,7 +51,7 @@ func TestMultiResourceConversion(t *testing.T) {
 				// FlowPolicies: Not implemented for Part 1 (JSON file conversion)
 			},
 			expected: []string{
-				`resource "pingone_davinci_variable" "pingcli__apiEndpoint"`,
+				`resource "pingone_davinci_variable" "pingcli__apiEndpoint_company"`,
 				`resource "pingone_davinci_connector_instance" "pingcli__External-0020-API"`,
 				`resource "pingone_davinci_flow" "pingcli__Login-0020-Flow"`,
 				`resource "pingone_davinci_application" "pingcli__My-0020-App"`,
@@ -122,8 +122,8 @@ func TestMultiResourceConversion(t *testing.T) {
 				},
 			},
 			expected: []string{
-				`resource "pingone_davinci_variable" "pingcli__var1"`,
-				`resource "pingone_davinci_variable" "pingcli__var2"`,
+				`resource "pingone_davinci_variable" "pingcli__var1_company"`,
+				`resource "pingone_davinci_variable" "pingcli__var2_company"`,
 			},
 		},
 	}
