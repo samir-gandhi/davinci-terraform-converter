@@ -80,7 +80,7 @@ func TestModuleGenerationBasic(t *testing.T) {
 	assert.Contains(t, string(moduleContent), "test_variable = var.test_variable")
 
 	// Verify tfvars file exists with empty values
-	tfvarsContent, err := os.ReadFile(filepath.Join(tmpDir, "ping-export-terraform.tfvars"))
+	tfvarsContent, err := os.ReadFile(filepath.Join(tmpDir, "ping-export-terraform.auto.tfvars"))
 	require.NoError(t, err)
 	assert.Contains(t, string(tfvarsContent), `pingone_environment_id = ""`)
 	assert.Contains(t, string(tfvarsContent), "# TODO: Provide PingOne environment ID")
@@ -126,7 +126,7 @@ func TestModuleGenerationWithValues(t *testing.T) {
 	assert.Contains(t, string(moduleContent), "davinci_variable_company_name_value = var.davinci_variable_company_name_value")
 
 	// Verify tfvars file has actual values
-	tfvarsContent, err := os.ReadFile(filepath.Join(tmpDir, "ping-export-terraform.tfvars"))
+	tfvarsContent, err := os.ReadFile(filepath.Join(tmpDir, "ping-export-terraform.auto.tfvars"))
 	require.NoError(t, err)
 	assert.Contains(t, string(tfvarsContent), `pingone_environment_id = "abc-123-def-456"`)
 	assert.Contains(t, string(tfvarsContent), `davinci_variable_company_name_value = "Acme Corp"`)
@@ -341,7 +341,7 @@ func TestModuleGenerationSecretHandling(t *testing.T) {
 	assert.Contains(t, string(moduleContent), "davinci_connection_http_secret_key = var.davinci_connection_http_secret_key")
 
 	// Verify tfvars has empty secret value with comment
-	tfvarsContent, err := os.ReadFile(filepath.Join(tmpDir, "ping-export-terraform.tfvars"))
+	tfvarsContent, err := os.ReadFile(filepath.Join(tmpDir, "ping-export-terraform.auto.tfvars"))
 	require.NoError(t, err)
 	assert.Contains(t, string(tfvarsContent), `davinci_connection_http_secret_key = ""`)
 	assert.Contains(t, string(tfvarsContent), "# Secret value")

@@ -373,7 +373,7 @@ func (g *Generator) generateImportsTF(importBlocks []ImportBlock) error {
 	return g.writeFile(g.config.OutputDir, "imports.tf", sb.String())
 }
 
-// generateTFVarsFile creates the ping-export-terraform.tfvars file
+// generateTFVarsFile creates the ping-export-terraform.auto.tfvars file
 // When IncludeValues is false, creates a template with empty values
 // When IncludeValues is true, populates with actual values from variables
 func (g *Generator) generateTFVarsFile(structure *ModuleStructure) error {
@@ -410,7 +410,7 @@ func (g *Generator) generateTFVarsFile(structure *ModuleStructure) error {
 		sb.WriteString("\n")
 	}
 
-	return g.writeFile(g.config.OutputDir, "ping-export-terraform.tfvars", sb.String())
+	return g.writeFile(g.config.OutputDir, "ping-export-terraform.auto.tfvars", sb.String())
 }
 
 // generateTFVarValue generates a single tfvar value line

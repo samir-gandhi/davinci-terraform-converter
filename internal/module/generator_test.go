@@ -576,7 +576,7 @@ func TestGenerator_GenerateTFVarsTemplate_WithoutValues(t *testing.T) {
 	require.NoError(t, err)
 
 	// Verify file exists
-	tfvarsPath := filepath.Join(tmpDir, "ping-export-terraform.tfvars")
+	tfvarsPath := filepath.Join(tmpDir, "ping-export-terraform.auto.tfvars")
 	require.FileExists(t, tfvarsPath)
 
 	// Read and verify content
@@ -663,7 +663,7 @@ func TestGenerator_GenerateTFVarsTemplate_WithValues(t *testing.T) {
 	require.NoError(t, err)
 
 	// Verify file exists
-	tfvarsPath := filepath.Join(tmpDir, "ping-export-terraform.tfvars")
+	tfvarsPath := filepath.Join(tmpDir, "ping-export-terraform.auto.tfvars")
 	require.FileExists(t, tfvarsPath)
 
 	// Read and verify content
