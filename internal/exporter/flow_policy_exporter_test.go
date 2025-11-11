@@ -34,7 +34,7 @@ func TestExportFlowPoliciesFromAPI(t *testing.T) {
 		t.Fatalf("Failed to create API client: %v", err)
 	}
 
-	// Test with skip-dependencies=false (use var.environment_id)
+	// Test with skip-dependencies=false (use var.pingone_environment_id)
 	t.Run("WithDependencies", func(t *testing.T) {
 		hcl, err := ExportFlowPolicies(ctx, client, false, resolver.NewDependencyGraph())
 		if err != nil {
@@ -48,9 +48,9 @@ func TestExportFlowPoliciesFromAPI(t *testing.T) {
 		}
 
 		if strings.Contains(hcl, "resource \"pingone_davinci_application_flow_policy\"") {
-			// Should use var.environment_id
-			if !strings.Contains(hcl, "var.environment_id") {
-				t.Errorf("Expected var.environment_id reference. Got:\n%s", hcl)
+			// Should use var.pingone_environment_id
+			if !strings.Contains(hcl, "var.pingone_environment_id") {
+				t.Errorf("Expected var.pingone_environment_id reference. Got:\n%s", hcl)
 			}
 
 			// Should reference application resources
@@ -84,9 +84,9 @@ func TestExportFlowPoliciesFromAPI(t *testing.T) {
 		}
 
 		if strings.Contains(hcl, "resource \"pingone_davinci_application_flow_policy\"") {
-			// Should NOT use var.environment_id
-			if strings.Contains(hcl, "var.environment_id") {
-				t.Errorf("Should not contain var.environment_id when skipDeps=true. Got:\n%s", hcl)
+			// Should NOT use var.pingone_environment_id
+			if strings.Contains(hcl, "var.pingone_environment_id") {
+				t.Errorf("Should not contain var.pingone_environment_id when skipDeps=true. Got:\n%s", hcl)
 			}
 
 			// Should use raw UUID for environment_id (quoted)

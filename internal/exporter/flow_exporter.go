@@ -74,7 +74,7 @@ func ExportFlowsWithImports(ctx context.Context, client *api.Client, skipDeps bo
 		}
 
 		// Determine environment_id value based on skipDeps flag
-		envID := "var.environment_id"
+		envID := "var.pingone_environment_id"
 		if skipDeps {
 			envID = client.EnvironmentID
 		}

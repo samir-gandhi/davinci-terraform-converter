@@ -76,7 +76,7 @@ func TestExportEnvironmentFromAPI(t *testing.T) {
 		t.Fatalf("Failed to create API client: %v", err)
 	}
 
-	// Test with skip-dependencies=false (use var.environment_id and references)
+	// Test with skip-dependencies=false (use var.pingone_environment_id and references)
 	t.Run("WithDependencies", func(t *testing.T) {
 		logger := &mockLogger{}
 		hcl, err := ExportEnvironment(ctx, client, false, logger)
@@ -102,9 +102,9 @@ func TestExportEnvironmentFromAPI(t *testing.T) {
 			t.Error("Expected environment_id variable")
 		}
 
-		// Should use var.environment_id in resources
-		if !strings.Contains(hcl, "var.environment_id") {
-			t.Error("Expected var.environment_id references")
+		// Should use var.pingone_environment_id in resources
+		if !strings.Contains(hcl, "var.pingone_environment_id") {
+			t.Error("Expected var.pingone_environment_id references")
 		}
 
 		// Verify structure is present (resources may or may not exist in environment)
@@ -142,8 +142,8 @@ func TestExportEnvironmentFromAPI(t *testing.T) {
 		}
 
 		// Verify attributes use literal UUIDs, not var references
-		if strings.Contains(hcl, "environment_id = var.environment_id") {
-			t.Error("Should not use var.environment_id in attributes when skipDeps=true")
+		if strings.Contains(hcl, "environment_id = var.pingone_environment_id") {
+			t.Error("Should not use var.pingone_environment_id in attributes when skipDeps=true")
 		}
 
 		// Verify structure (resources may or may not exist)

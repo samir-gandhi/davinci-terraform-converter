@@ -77,7 +77,7 @@ func ExportApplicationsWithImports(ctx context.Context, client *api.Client, skip
 		if skipDeps {
 			environmentID = client.EnvironmentID // Will be quoted by converter
 		} else {
-			environmentID = "var.environment_id" // Will be written as-is by converter
+			environmentID = "var.pingone_environment_id" // Will be written as-is by converter
 		}
 
 		// Convert to HCL using converter with environment ID and graph
