@@ -161,28 +161,28 @@ func writeSettingsBlock(hcl *strings.Builder, settings map[string]interface{}) e
 						// Write all required fields for js_links - these are always written even if empty
 						crossorigin := getString(link, "crossorigin")
 						hcl.WriteString(fmt.Sprintf("        crossorigin    = %s\n", quoteString(crossorigin)))
-						
+
 						// defer is required and defaults to false if not present
 						deferVal := false
 						if val, ok := link["defer"].(bool); ok {
 							deferVal = val
 						}
 						hcl.WriteString(fmt.Sprintf("        defer          = %t\n", deferVal))
-						
+
 						integrity := getString(link, "integrity")
 						hcl.WriteString(fmt.Sprintf("        integrity      = %s\n", quoteString(integrity)))
-						
+
 						// label is optional but commonly used
 						if label := getString(link, "label"); label != "" {
 							hcl.WriteString(fmt.Sprintf("        label          = %s\n", quoteString(label)))
 						}
-						
+
 						referrerpolicy := getString(link, "referrerpolicy")
 						hcl.WriteString(fmt.Sprintf("        referrerpolicy = %s\n", quoteString(referrerpolicy)))
-						
+
 						linkType := getString(link, "type")
 						hcl.WriteString(fmt.Sprintf("        type           = %s\n", quoteString(linkType)))
-						
+
 						// value is required
 						value := getString(link, "value")
 						hcl.WriteString(fmt.Sprintf("        value          = %s\n", quoteString(value)))
