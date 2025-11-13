@@ -69,11 +69,20 @@ Use this for complete environment exports with automatic dependency resolution.
 #### File Conversion (davinci-to-hcl)
 
 ```bash
-# Convert flow JSON to HCL (stdout)
+# Convert single flow JSON to HCL (stdout)
 davinci-convert davinci-to-hcl --flow-json flow.json
 
-# Convert and save to file
+# Convert single flow and save to file
 davinci-convert davinci-to-hcl --flow-json flow.json --out output.tf
+
+# Convert multiple flows (comma-separated)
+davinci-convert davinci-to-hcl --flow-json flow1.json,flow2.json --out flows.tf
+
+# Convert multiple flows (repeated flag)
+davinci-convert davinci-to-hcl --flow-json flow1.json --flow-json flow2.json --out flows.tf
+
+# Convert all flows from a directory
+davinci-convert davinci-to-hcl --flow-json-dir ./flows/ --out all-flows.tf
 
 # Skip dependencies (use hardcoded IDs)
 davinci-convert davinci-to-hcl --flow-json flow.json --skip-dependencies
@@ -276,6 +285,15 @@ When used with `pingcli`, commands are namespaced under `tf`:
 # Convert DaVinci flow JSON to HCL
 pingcli tf davinci-to-hcl --flow-json flow.json --out output.tf
 
+# Convert multiple flows (comma-separated)
+pingcli tf davinci-to-hcl --flow-json flow1.json,flow2.json --out flows.tf
+
+# Convert multiple flows (repeated flag)
+pingcli tf davinci-to-hcl --flow-json flow1.json --flow-json flow2.json --out flows.tf
+
+# Convert all flows from a directory
+pingcli tf davinci-to-hcl --flow-json-dir ./flows/ --out all-flows.tf
+
 # Export environment from API
 pingcli tf export \
   --pingone-worker-environment-id "abc123..." \
@@ -340,9 +358,12 @@ davinci-convert export \
 
 | Flag | Required | Description |
 |------|----------|-------------|
-| `--flow-json` | Yes | Path to input DaVinci flow JSON file |
+| `--flow-json` | Conditional | Path(s) to DaVinci flow JSON file(s). Use comma-separated list or repeat flag for multiple files. Mutually exclusive with `--flow-json-dir`. |
+| `--flow-json-dir` | Conditional | Directory containing DaVinci flow JSON files. All `.json` files will be processed. Mutually exclusive with `--flow-json`. |
 | `--out` | No | Output file path (defaults to stdout) |
 | `--skip-dependencies` | No | Use hardcoded IDs instead of variable references |
+
+**Note:** Either `--flow-json` or `--flow-json-dir` is required.
 
 #### export Command
 
