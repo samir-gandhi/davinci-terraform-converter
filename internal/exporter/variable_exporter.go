@@ -10,6 +10,7 @@ import (
 	"github.com/samir-gandhi/davinci-terraform-converter/internal/converter"
 	"github.com/samir-gandhi/davinci-terraform-converter/internal/importgen"
 	"github.com/samir-gandhi/davinci-terraform-converter/internal/resolver"
+	"github.com/samir-gandhi/davinci-terraform-converter/internal/utils"
 )
 
 // ExportVariables exports all variables from the API to HCL format
@@ -75,8 +76,9 @@ func ExportVariablesWithImports(ctx context.Context, client *api.Client, skipDep
 	// First pass: Register all variables in the dependency graph
 	for _, variable := range variables {
 		variableName := variable.GetName()
+		variableContext := variable.GetContext()
 		variableID := variable.GetId()
-		sanitizedName := resolver.SanitizeName(variableName, nil)
+		sanitizedName := utils.SanitizeVariableResourceName(variableName, variableContext)
 		graph.AddResource("pingone_davinci_variable", variableID.String(), sanitizedName)
 	}
 

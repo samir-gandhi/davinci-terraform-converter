@@ -80,6 +80,7 @@ func TestConvertExportedDataToModuleStructure_TransformsImportBlocks(t *testing.
 	config := module.ModuleConfig{
 		OutputDir:      "/tmp/test",
 		ModuleDirName:  "davinci-module",
+		ModuleName:     "davinci-module",
 		IncludeImports: true,
 		IncludeValues:  false,
 		EnvironmentID:  "env-123",
