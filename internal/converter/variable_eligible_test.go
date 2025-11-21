@@ -257,11 +257,12 @@ func TestGetConnectorInstanceVariableEligibleAttributes(t *testing.T) {
 				}
 			}`,
 			resourceName:  "pingcli__httpConnector",
-			expectedCount: 2, // baseUrl and clientId are variable-eligible, timeout is not
+			expectedCount: 3, // With dynamic extraction, ALL standard-structure properties are extracted
 			checkVars: func(t *testing.T, attrs []VariableEligibleAttribute) {
 				// Check baseUrl
 				baseUrlFound := false
 				clientIdFound := false
+				timeoutFound := false
 				for _, attr := range attrs {
 					if attr.AttributePath == "properties.baseUrl" {
 						baseUrlFound = true
@@ -277,9 +278,17 @@ func TestGetConnectorInstanceVariableEligibleAttributes(t *testing.T) {
 						assert.Equal(t, "my-client-id", attr.CurrentValue)
 						assert.False(t, attr.IsSecret)
 					}
+					if attr.AttributePath == "properties.timeout" {
+						timeoutFound = true
+						assert.Equal(t, "davinci_connection_httpConnector_timeout", attr.VariableName)
+						assert.Equal(t, "number", attr.VariableType)
+						assert.Equal(t, float64(30), attr.CurrentValue)
+						assert.False(t, attr.IsSecret)
+					}
 				}
 				assert.True(t, baseUrlFound, "baseUrl should be extracted")
 				assert.True(t, clientIdFound, "clientId should be extracted")
+				assert.True(t, timeoutFound, "timeout should be extracted (dynamic extraction)")
 			},
 		},
 		{

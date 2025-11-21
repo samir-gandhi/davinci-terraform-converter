@@ -89,7 +89,7 @@ func generateConnectorInstanceHCL(instance ConnectorInstanceResponse, skipDepend
 	return hcl.String()
 }
 
-// writePropertiesBlock writes the properties block with jsonencode
+// writePropertiesBlock writes the properties block with jsonencode, preserving type/value structure
 func writePropertiesBlock(hcl *strings.Builder, properties map[string]ConnectorPropertyValue) {
 	hcl.WriteString("  properties = jsonencode({\n")
 
@@ -100,17 +100,17 @@ func writePropertiesBlock(hcl *strings.Builder, properties map[string]ConnectorP
 	}
 	sort.Strings(keys)
 
-	// Find max key length for alignment
-	maxKeyLen := 0
-	for _, key := range keys {
-		if len(key) > maxKeyLen {
-			maxKeyLen = len(key)
-		}
-	}
-
-	// Write each property
-	for _, key := range keys {
+	// Write each property with nested type/value structure
+	for i, key := range keys {
 		prop := properties[key]
+
+		// Start property object
+		hcl.WriteString(fmt.Sprintf("      \"%s\": {\n", key))
+
+		// Write type field
+		hcl.WriteString(fmt.Sprintf("          \"type\": \"%s\",\n", prop.Type))
+
+		// Write value field
 		value := prop.Value
 
 		// Check if this is a masked secret
@@ -123,11 +123,12 @@ func writePropertiesBlock(hcl *strings.Builder, properties map[string]ConnectorP
 		var formattedValue string
 		if isMasked {
 			// Replace masked secrets with TODO comments
-			// Convert camelCase to space-separated words
 			fieldNameWords := utils.CamelCaseToWords(key)
 			formattedValue = fmt.Sprintf("\"TODO: Replace with actual %s\"", strings.ToLower(fieldNameWords))
+		} else if value == nil {
+			formattedValue = "null"
 		} else {
-			// Format based on type
+			// Format based on type and value
 			switch v := value.(type) {
 			case string:
 				formattedValue = fmt.Sprintf("\"%s\"", v)
@@ -140,28 +141,35 @@ func writePropertiesBlock(hcl *strings.Builder, properties map[string]ConnectorP
 				} else {
 					formattedValue = fmt.Sprintf("%f", v)
 				}
+			case map[string]interface{}:
+				// Complex nested object - marshal to JSON
+				jsonBytes, err := json.Marshal(v)
+				if err != nil {
+					formattedValue = fmt.Sprintf("\"%v\"", v)
+				} else {
+					formattedValue = string(jsonBytes)
+				}
 			default:
 				formattedValue = fmt.Sprintf("\"%v\"", v)
 			}
 		}
 
-		// Write property with alignment
-		padding := strings.Repeat(" ", maxKeyLen-len(key))
-		hcl.WriteString(fmt.Sprintf("    \"%s\"%s : %s", key, padding, formattedValue))
+		hcl.WriteString(fmt.Sprintf("          \"value\": %s\n", formattedValue))
 
-		// Add comma except for last item
-		if key != keys[len(keys)-1] {
-			hcl.WriteString(",")
+		// Close property object
+		if i < len(keys)-1 {
+			hcl.WriteString("      },\n")
+		} else {
+			hcl.WriteString("      }\n")
 		}
-
-		hcl.WriteString("\n")
 	}
 
 	hcl.WriteString("  })\n")
 }
 
 // GetConnectorInstanceVariableEligibleAttributes extracts variable-eligible properties from a connector instance
-// Properties that match common patterns (URLs, client IDs, etc.) become module variables
+// Uses DYNAMIC extraction: any property following the standard {"type": "...", "value": "..."} structure
+// is automatically eligible for variable extraction. Hardcoded configuration only used for exceptions.
 func GetConnectorInstanceVariableEligibleAttributes(instanceJSON []byte, resourceName string) ([]VariableEligibleAttribute, error) {
 	var instance ConnectorInstanceResponse
 	if err := json.Unmarshal(instanceJSON, &instance); err != nil {
@@ -179,41 +187,24 @@ func GetConnectorInstanceVariableEligibleAttributes(instanceJSON []byte, resourc
 
 	var attributes []VariableEligibleAttribute
 
-	// Define properties that should typically be variables
-	variableEligibleProperties := map[string]bool{
-		"baseUrl":     true,
-		"url":         true,
-		"endpoint":    true,
-		"apiUrl":      true,
-		"tokenUrl":    true,
-		"authUrl":     true,
-		"issuerUrl":   true,
-		"redirectUri": true,
-		"callbackUrl": true,
-		"clientId":    true,
-		"tenantId":    true,
-		"domain":      true,
-		"region":      true,
-		"environment": true,
-		"namespace":   true,
-		"scope":       true,
-		"audience":    true,
-		"realm":       true,
-	}
+	// Get property mapping configuration
+	config := DefaultPropertyMappingConfig()
 
-	// Secret properties that should be variables but marked as secrets
-	secretProperties := map[string]bool{
-		"clientSecret": true,
-		"apiKey":       true,
-		"accessToken":  true,
-		"password":     true,
-		"secret":       true,
-		"privateKey":   true,
-		"certificate":  true,
-	}
-
-	// Extract variables from properties
+	// Extract variables from properties using DYNAMIC approach
+	// Any property with standard {"type": "...", "value": "..."} structure is eligible
 	for propName, propValue := range instance.Properties {
+		// Skip properties explicitly excluded in configuration
+		if config.IsExcluded(propName) {
+			continue
+		}
+
+		// Check if property follows standard structure
+		if !HasStandardStructure(propValue) {
+			// TODO: Handle unstructured properties using UnstructuredPropertyPaths config
+			// For now, skip properties that don't follow standard structure
+			continue
+		}
+
 		value := propValue.Value
 
 		// Skip nil or empty values
@@ -231,16 +222,7 @@ func GetConnectorInstanceVariableEligibleAttributes(instanceJSON []byte, resourc
 			continue
 		}
 
-		// Check if this property should become a variable
-		isVariableEligible := variableEligibleProperties[propName]
-		isSecret := secretProperties[propName]
-
-		// Extract if it's variable-eligible or a secret
-		if !isVariableEligible && !isSecret {
-			continue
-		}
-
-		// Determine Terraform type
+		// Determine Terraform type based on the value
 		tfType := "string"
 		switch value.(type) {
 		case bool:
@@ -249,13 +231,14 @@ func GetConnectorInstanceVariableEligibleAttributes(instanceJSON []byte, resourc
 			tfType = "number"
 		}
 
-		// Create variable name: davinci_connection_{resourceName}_{propertyName}
-		// Remove pingcli__ prefix for cleaner variable names
-		cleanResourceName := strings.TrimPrefix(resourceName, "pingcli__")
-		varName := fmt.Sprintf("davinci_connection_%s_%s", cleanResourceName, propName)
+		// Generate variable name dynamically
+		varName := GenerateVariableName(resourceName, propName)
 
 		// Create description
 		description := fmt.Sprintf("%s for %s connector", propName, instance.Name)
+
+		// Check if property is a secret based on name
+		isSecret := config.IsSecret(propName)
 
 		attr := VariableEligibleAttribute{
 			ResourceType:  "connection",
@@ -328,6 +311,7 @@ func GenerateConnectorInstanceHCLWithVariableReferences(instanceJSON []byte, ski
 }
 
 // writePropertiesBlockWithVariables writes the properties block with variable references where applicable
+// Properties maintain the type/value structure, with variables injected into the value field
 func writePropertiesBlockWithVariables(hcl *strings.Builder, properties map[string]ConnectorPropertyValue, variableMap map[string]string, resourceName string) {
 	hcl.WriteString("  properties = jsonencode({\n")
 
@@ -338,16 +322,8 @@ func writePropertiesBlockWithVariables(hcl *strings.Builder, properties map[stri
 	}
 	sort.Strings(keys)
 
-	// Find max key length for alignment
-	maxKeyLen := 0
-	for _, key := range keys {
-		if len(key) > maxKeyLen {
-			maxKeyLen = len(key)
-		}
-	}
-
-	// Write each property
-	for _, key := range keys {
+	// Write each property with nested type/value structure
+	for i, key := range keys {
 		prop := properties[key]
 		value := prop.Value
 
@@ -356,10 +332,17 @@ func writePropertiesBlockWithVariables(hcl *strings.Builder, properties map[stri
 		propertyPath := fmt.Sprintf("connection.%s.properties.%s", resourceName, key)
 		varName, hasVariable := variableMap[propertyPath]
 
+		// Start property object
+		hcl.WriteString(fmt.Sprintf("      \"%s\": {\n", key))
+
+		// Write type field
+		hcl.WriteString(fmt.Sprintf("          \"type\": \"%s\",\n", prop.Type))
+
+		// Write value field
 		var formattedValue string
 		if hasVariable {
-			// Use variable reference
-			formattedValue = fmt.Sprintf("var.%s", varName)
+			// Use variable reference with template syntax for jsonencode
+			formattedValue = fmt.Sprintf("\"${var.%s}\"", varName)
 		} else {
 			// Check if this is a masked secret
 			isMasked := false
@@ -370,7 +353,9 @@ func writePropertiesBlockWithVariables(hcl *strings.Builder, properties map[stri
 			if isMasked {
 				// Replace masked secrets with TODO comments
 				fieldNameWords := utils.CamelCaseToWords(key)
-				formattedValue = fmt.Sprintf("\"TODO: Replace with actual %s\"", strings.ToLower(fieldNameWords))
+				formattedValue = fmt.Sprintf("\"${TODO: Replace with actual %s}\"", strings.ToLower(fieldNameWords))
+			} else if value == nil {
+				formattedValue = "null"
 			} else {
 				// Format based on type
 				switch v := value.(type) {
@@ -384,22 +369,28 @@ func writePropertiesBlockWithVariables(hcl *strings.Builder, properties map[stri
 					} else {
 						formattedValue = fmt.Sprintf("%f", v)
 					}
+				case map[string]interface{}:
+					// Complex nested object - marshal to JSON
+					jsonBytes, err := json.Marshal(v)
+					if err != nil {
+						formattedValue = fmt.Sprintf("\"%v\"", v)
+					} else {
+						formattedValue = string(jsonBytes)
+					}
 				default:
 					formattedValue = fmt.Sprintf("\"%v\"", v)
 				}
 			}
 		}
 
-		// Write property with alignment
-		padding := strings.Repeat(" ", maxKeyLen-len(key))
-		hcl.WriteString(fmt.Sprintf("    \"%s\"%s : %s", key, padding, formattedValue))
+		hcl.WriteString(fmt.Sprintf("          \"value\": %s\n", formattedValue))
 
-		// Add comma except for last item
-		if key != keys[len(keys)-1] {
-			hcl.WriteString(",")
+		// Close property object
+		if i < len(keys)-1 {
+			hcl.WriteString("      },\n")
+		} else {
+			hcl.WriteString("      }\n")
 		}
-
-		hcl.WriteString("\n")
 	}
 
 	hcl.WriteString("  })\n")
