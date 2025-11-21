@@ -1,12 +1,56 @@
-# Flow Properties Base64 Encoding Solution
+# Flow Properties Encoding Solution
 
-**Date**: 2025-10-17  
-**Status**: Implemented in Phase 3.4c (Terraform Validation Testing)  
-**Issue**: Terraform validation failing for flows with "Invalid character" errors
+**Date**: 2025-11-14  
+**Status**: ~~Base64 encoding (Deprecated)~~ **Updated to jsonencode() HCL map literals**  
+**Previous Issue**: Base64 encoding made properties unreadable and hard to debug
 
 ---
 
-## Problem Statement
+## Update: jsonencode() HCL Map Literals (Current Implementation)
+
+**As of November 2025**, the generator now uses `jsonencode()` with properly formatted HCL map literals instead of base64 encoding. This provides:
+
+- ✅ **Readable output**: Properties are visible as structured HCL
+- ✅ **Easy debugging**: Can see actual values without decoding
+- ✅ **Git-friendly**: Diffs show actual property changes
+- ✅ **Editable**: Users can modify properties in the HCL file
+- ✅ **No special character issues**: Proper escaping handles single quotes, newlines, etc.
+
+### Current Format
+
+```hcl
+resource "pingone_davinci_flow" "my_flow" {
+  environment_id = var.pingone_environment_id
+  
+  name = "My Flow"
+  
+  graph_data = {
+    elements = {
+      nodes = [
+        {
+          data = {
+            id = "node123"
+            properties = jsonencode({
+              "code" = {
+                "value" = "module.exports = a = async ({ params }) => {\n  return { 'message': '' };\n}"
+              },
+              "formFieldsList" = {
+                "value" = "[{\"type\":\"text\",\"label\":\"Username\"}]"
+              }
+            })
+          }
+        }
+      ]
+    }
+  }
+}
+```
+
+The properties are written as HCL map literals with proper escaping for special characters, making them both readable and valid Terraform syntax.
+
+---
+
+## Historical Context: Base64 Encoding (Deprecated)
 
 When exporting DaVinci flows to Terraform HCL, the `properties` field within flow nodes contains complex JSON data including:
 - JavaScript code with single quotes (`'`)

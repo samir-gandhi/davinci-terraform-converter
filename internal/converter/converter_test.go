@@ -92,7 +92,7 @@ func TestFlowWithSingleNode(t *testing.T) {
 		`connection_id   = pingone_davinci_connector_instance.httpconnector_conn-123-abc.id`,
 		`connector_id    = "httpConnector"`,
 		`capability_name = "customHtmlMessage"`,
-		`properties = base64decode(`,
+		`properties = jsonencode(`,
 	}
 
 	for _, expected := range expectedElements {
@@ -203,9 +203,9 @@ func TestFlowWithComplexNodeProperties(t *testing.T) {
 		t.Fatalf("Convert() returned error: %v", err)
 	}
 
-	// Verify complex properties are preserved in base64decode
+	// Verify complex properties are preserved in jsonencode
 	expectedElements := []string{
-		`properties = base64decode(`,
+		`properties = jsonencode(`,
 	}
 
 	for _, expected := range expectedElements {
@@ -1221,9 +1221,9 @@ func TestCompleteFlowConversion(t *testing.T) {
 		}
 	}
 
-	// Test 4: Verify node properties are properly nested - uses base64decode
+	// Test 4: Verify node properties are properly nested - uses jsonencode
 	nodePropertiesChecks := []string{
-		`properties = base64decode(`,
+		`properties = jsonencode(`,
 	}
 	for _, check := range nodePropertiesChecks {
 		if !strings.Contains(result, check) {

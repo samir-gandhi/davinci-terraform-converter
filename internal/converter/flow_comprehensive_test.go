@@ -2,6 +2,8 @@ package converter_test
 
 import (
 	"encoding/json"
+	"fmt"
+	"strconv"
 	"testing"
 
 	"github.com/samir-gandhi/davinci-terraform-converter/internal/converter"
@@ -320,9 +322,13 @@ func TestFlowConversion_NodeProperties(t *testing.T) {
 	result, err := converter.ConvertFlowToHCL(flowData, "var.pingone_environment_id", false, nil)
 	require.NoError(t, err)
 
-	// properties should use base64decode() with base64-encoded JSON
-	assert.Contains(t, result, "properties = base64decode(")
-	// Note: JSON keys won't be visible in base64-encoded output
+	// properties should use jsonencode() with readable HCL map literal
+	assert.Contains(t, result, "properties = jsonencode(")
+	// Verify readable JSON keys are visible in output
+	assert.Contains(t, result, "\"key1\"")
+	assert.Contains(t, result, "\"value1\"")
+	assert.Contains(t, result, "\"key2\"")
+	assert.Contains(t, result, "\"nested\"")
 }
 
 // TestFlowConversion_RendererField tests jsonencode() usage for renderer field
@@ -349,6 +355,102 @@ func TestFlowConversion_RendererField(t *testing.T) {
 
 	// renderer should use jsonencode() - renderer field NOT base64 encoded
 	assert.Contains(t, result, "renderer = jsonencode(")
+}
+
+// TestFlowConversion_JavaScriptWithSingleQuotes tests that JavaScript code with single quotes is properly escaped
+func TestFlowConversion_JavaScriptWithSingleQuotes(t *testing.T) {
+	// This is the actual error case from the bug report
+	flowJSON := `{
+		"name": "JavaScript Test",
+		"flowId": "js123",
+		"graphData": {
+			"elements": {
+				"nodes": [
+					{
+						"data": {
+							"id": "codenode",
+							"nodeType": "CONNECTION",
+							"properties": {
+								"code": {
+									"value": "module.exports = a = async ({params}) => {\n    return { 'message': 'Hello World' };\n}"
+								}
+							}
+						}
+					}
+				]
+			}
+		}
+	}`
+
+	var flowData map[string]interface{}
+	err := json.Unmarshal([]byte(flowJSON), &flowData)
+	require.NoError(t, err)
+
+	result, err := converter.ConvertFlowToHCL(flowData, "var.pingone_environment_id", false, nil)
+	require.NoError(t, err)
+
+	// Print result to see actual escaping
+	t.Logf("Generated HCL:\n%s", result)
+
+	// Should use jsonencode
+	assert.Contains(t, result, "properties = jsonencode(")
+	// Should contain the code key
+	assert.Contains(t, result, "\"code\"")
+	// Single quotes are preserved using quoted heredoc syntax (<<-'EOT')
+	// which prevents HCL from parsing/interpolating the content
+	assert.Contains(t, result, "module.exports")
+	assert.Contains(t, result, "message")
+}
+
+// TestFlowConversion_ComplexJavaScript tests complex JavaScript with template literals and special chars
+func TestFlowConversion_ComplexJavaScript(t *testing.T) {
+	// Test the exact JavaScript from the error report
+	jsCode := "module.exports = a = async ({params}) => {\n    const details = params.details;\n\n    const secondsUntilUnlock = details[0]?.rawResponse?.details?.[0]?.innerError?.secondsUntilUnlock ?? null;\n\n    // If secondsUntilUnlock is not available, return a specific message\n    const formattedTime = secondsUntilUnlock !== null ? formatTime(secondsUntilUnlock) : null;\n\n    const message = formattedTime \n        ? `Too many unsuccessful sign-on attempts. Your account will unlock in ${formattedTime}.`\n        : \"Too many unsuccessful sign-on attempts. Your account is currently locked. Please try again later.\";\n\n    return { 'message': message };\n}"
+
+	flowJSON := fmt.Sprintf(`{
+		"name": "Complex JS Test",
+		"flowId": "complex123",
+		"graphData": {
+			"elements": {
+				"nodes": [
+					{
+						"data": {
+							"id": "complexnode",
+							"nodeType": "CONNECTION",
+							"properties": {
+								"code": {
+									"value": %s
+								}
+							}
+						}
+					}
+				]
+			}
+		}
+	}`, strconv.Quote(jsCode))
+
+	var flowData map[string]interface{}
+	err := json.Unmarshal([]byte(flowJSON), &flowData)
+	require.NoError(t, err)
+
+	result, err := converter.ConvertFlowToHCL(flowData, "var.pingone_environment_id", false, nil)
+	require.NoError(t, err)
+
+	// Print result to see actual escaping
+	t.Logf("Generated HCL (first 2000 chars):\n%s", result[:min(2000, len(result))])
+
+	// Should use jsonencode
+	assert.Contains(t, result, "properties = jsonencode(")
+	// Verify key parts of the JavaScript are present (properly escaped)
+	assert.Contains(t, result, "secondsUntilUnlock")
+	assert.Contains(t, result, "formatTime")
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }
 
 // TestFlowConversion_ConnectionIDReference tests generation of Terraform references for connection_id

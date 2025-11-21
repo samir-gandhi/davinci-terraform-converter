@@ -1,11 +1,11 @@
 package converter
 
 import (
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/samir-gandhi/davinci-terraform-converter/internal/resolver"
@@ -365,17 +365,11 @@ func writeNodesBlock(hcl *strings.Builder, nodes []interface{}, skipDependencies
 				hcl.WriteString(fmt.Sprintf("            type            = %s\n", quoteString(nodeTypeField)))
 			}
 
-			// Properties - uses jsonencode() because it's jsontypes.NormalizedType
+			// Properties - uses jsonencode() for readable HCL output
 			if properties, ok := data["properties"].(map[string]interface{}); ok {
-				propertiesJSON, err := json.Marshal(properties)
-				if err != nil {
-					return fmt.Errorf("failed to marshal properties: %w", err)
-				}
-				// Use base64decode with heredoc to avoid HCL parsing issues with special characters
-				hcl.WriteString("            properties = base64decode(<<-EOT\n")
-				encoded := base64.StdEncoding.EncodeToString(propertiesJSON)
-				hcl.WriteString(encoded)
-				hcl.WriteString("\nEOT\n)\n")
+				hcl.WriteString("            properties = jsonencode(")
+				writeJSONAsHCLMap(hcl, properties, 12) // 12 spaces indent (3 levels of 4)
+				hcl.WriteString(")\n")
 			}
 
 			hcl.WriteString("          }\n")
@@ -658,4 +652,95 @@ func toSnakeCase(s string) string {
 	re := regexp.MustCompile(`[^\w]+`)
 	result := re.ReplaceAllString(s, "")
 	return strings.ToLower(result)
+}
+
+// writeJSONAsHCLMap recursively writes a JSON object as an HCL map literal for use with jsonencode()
+// This generates readable HCL syntax instead of base64-encoded strings
+// indent specifies the indentation level (number of spaces)
+func writeJSONAsHCLMap(hcl *strings.Builder, value interface{}, indent int) {
+	indentStr := strings.Repeat(" ", indent)
+
+	switch v := value.(type) {
+	case map[string]interface{}:
+		// Write object as HCL map
+		hcl.WriteString("{\n")
+
+		// Sort keys for deterministic output
+		keys := make([]string, 0, len(v))
+		for k := range v {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+
+		for i, key := range keys {
+			hcl.WriteString(indentStr + "  ")
+			// Write key with quotes
+			hcl.WriteString(fmt.Sprintf("\"%s\" = ", key))
+			// Recursively write value
+			writeJSONAsHCLMap(hcl, v[key], indent+2)
+			// Add comma if not last element
+			if i < len(keys)-1 {
+				hcl.WriteString(",")
+			}
+			hcl.WriteString("\n")
+		}
+		hcl.WriteString(indentStr + "}")
+
+	case []interface{}:
+		// Write array as HCL list
+		hcl.WriteString("[\n")
+		for i, item := range v {
+			hcl.WriteString(indentStr + "  ")
+			writeJSONAsHCLMap(hcl, item, indent+2)
+			// Add comma if not last element
+			if i < len(v)-1 {
+				hcl.WriteString(",")
+			}
+			hcl.WriteString("\n")
+		}
+		hcl.WriteString(indentStr + "]")
+
+	case string:
+		// Use Go's strconv.Quote for proper JSON-compatible string escaping
+		// This handles all special characters including quotes, newlines, Unicode, etc.
+		// Additionally, escape $ as $$ to prevent Terraform from treating ${} as interpolations
+		quoted := strconv.Quote(v)
+		// Replace all $ with $$ inside the string (but not the surrounding quotes)
+		escaped := strings.ReplaceAll(quoted, "$", "$$")
+		hcl.WriteString(escaped)
+
+	case float64:
+		// Check if it's an integer value
+		if v == float64(int64(v)) {
+			hcl.WriteString(fmt.Sprintf("%d", int64(v)))
+		} else {
+			hcl.WriteString(fmt.Sprintf("%g", v))
+		}
+
+	case bool:
+		hcl.WriteString(fmt.Sprintf("%t", v))
+
+	case nil:
+		hcl.WriteString("null")
+
+	default:
+		// Fallback - convert to string
+		hcl.WriteString(fmt.Sprintf("\"%v\"", v))
+	}
+}
+
+// escapeHCLString escapes special characters in strings for HCL syntax
+// This handles newlines, quotes, backslashes, etc.
+func escapeHCLString(s string) string {
+	// Replace backslashes first to avoid double-escaping
+	s = strings.ReplaceAll(s, "\\", "\\\\")
+	// Replace double quotes
+	s = strings.ReplaceAll(s, "\"", "\\\"")
+	// Replace newlines
+	s = strings.ReplaceAll(s, "\n", "\\n")
+	// Replace tabs
+	s = strings.ReplaceAll(s, "\t", "\\t")
+	// Replace carriage returns
+	s = strings.ReplaceAll(s, "\r", "\\r")
+	return s
 }
