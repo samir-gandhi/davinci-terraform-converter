@@ -167,7 +167,7 @@ func ExportEnvironmentWithOptions(ctx context.Context, client *api.Client, opts 
 	}
 	hcl.WriteString(flowPolicies)
 
-	// Get the final HCL output
+	// Get the final HCL output. Each exporter already sorts blocks per type.
 	finalHCL := hcl.String()
 
 	// Log validation

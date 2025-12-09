@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"strings"
 
 	"github.com/samir-gandhi/davinci-terraform-converter/internal/api"
 	"github.com/samir-gandhi/davinci-terraform-converter/internal/converter"
@@ -82,7 +81,7 @@ func ExportConnectorInstancesWithImports(ctx context.Context, client *api.Client
 		graph.AddResource("pingone_davinci_connector_instance", summary.InstanceID, sanitizedName)
 	}
 
-	var hclBlocks []string
+	var namedBlocks []NamedHCL
 	var extractedVariables []converter.VariableEligibleAttribute
 	var importBlocks []RawImportBlock
 
@@ -132,11 +131,11 @@ func ExportConnectorInstancesWithImports(ctx context.Context, client *api.Client
 			return "", nil, nil, fmt.Errorf("failed to convert connector instance %s to HCL: %w", summary.Name, err)
 		}
 
-		hclBlocks = append(hclBlocks, hcl)
+		namedBlocks = append(namedBlocks, NamedHCL{Name: "", HCL: hcl})
 	}
 
-	// Join all HCL blocks with blank lines between them
-	return strings.Join(hclBlocks, "\n\n"), extractedVariables, importBlocks, nil
+	// Sort by resource name to ensure deterministic output
+	return joinHCLBlocksSorted(namedBlocks), extractedVariables, importBlocks, nil
 }
 
 // isSpecialConnectorID checks if a connector instance ID is a special case that doesn't follow UUID format

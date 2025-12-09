@@ -5,6 +5,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/samir-gandhi/davinci-terraform-converter/internal/utils"
 )
 
 // Generator handles the generation of Terraform module structure
@@ -281,35 +283,40 @@ func (g *Generator) generateOutputsTF(outputs []Output) error {
 func (g *Generator) generateResourceFiles(resources ModuleResources) error {
 	// Generate pingone_davinci_flow.tf
 	if resources.FlowsHCL != "" {
-		if err := g.writeFile(g.childModulePath(), "pingone_davinci_flow.tf", resources.FlowsHCL); err != nil {
+		sorted := utils.SortAllResourceBlocks(resources.FlowsHCL)
+		if err := g.writeFile(g.childModulePath(), "pingone_davinci_flow.tf", sorted); err != nil {
 			return err
 		}
 	}
 
 	// Generate pingone_davinci_connector_instance.tf
 	if resources.ConnectionsHCL != "" {
-		if err := g.writeFile(g.childModulePath(), "pingone_davinci_connector_instance.tf", resources.ConnectionsHCL); err != nil {
+		sorted := utils.SortAllResourceBlocks(resources.ConnectionsHCL)
+		if err := g.writeFile(g.childModulePath(), "pingone_davinci_connector_instance.tf", sorted); err != nil {
 			return err
 		}
 	}
 
 	// Generate pingone_davinci_variable.tf
 	if resources.VariablesHCL != "" {
-		if err := g.writeFile(g.childModulePath(), "pingone_davinci_variable.tf", resources.VariablesHCL); err != nil {
+		sorted := utils.SortAllResourceBlocks(resources.VariablesHCL)
+		if err := g.writeFile(g.childModulePath(), "pingone_davinci_variable.tf", sorted); err != nil {
 			return err
 		}
 	}
 
 	// Generate pingone_davinci_application.tf
 	if resources.ApplicationsHCL != "" {
-		if err := g.writeFile(g.childModulePath(), "pingone_davinci_application.tf", resources.ApplicationsHCL); err != nil {
+		sorted := utils.SortAllResourceBlocks(resources.ApplicationsHCL)
+		if err := g.writeFile(g.childModulePath(), "pingone_davinci_application.tf", sorted); err != nil {
 			return err
 		}
 	}
 
 	// Generate pingone_davinci_flow_policy.tf
 	if resources.FlowPoliciesHCL != "" {
-		if err := g.writeFile(g.childModulePath(), "pingone_davinci_flow_policy.tf", resources.FlowPoliciesHCL); err != nil {
+		sorted := utils.SortAllResourceBlocks(resources.FlowPoliciesHCL)
+		if err := g.writeFile(g.childModulePath(), "pingone_davinci_flow_policy.tf", sorted); err != nil {
 			return err
 		}
 	}

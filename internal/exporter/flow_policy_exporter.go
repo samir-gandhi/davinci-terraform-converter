@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"regexp"
-	"strings"
 
 	"github.com/samir-gandhi/davinci-terraform-converter/internal/api"
 	"github.com/samir-gandhi/davinci-terraform-converter/internal/converter"
@@ -36,9 +35,8 @@ func ExportFlowPoliciesWithImports(ctx context.Context, client *api.Client, skip
 		graph.AddResource("pingone_davinci_application_flow_policy", policy.PolicyID, sanitizedName)
 	}
 
-	var builder strings.Builder
+	var namedBlocks []NamedHCL
 	var importBlocks []RawImportBlock
-	builder.WriteString(fmt.Sprintf("# Flow Policies (%d total)\n\n", len(policies)))
 
 	// Second pass: Convert each flow policy to HCL
 	for _, policy := range policies {
@@ -78,11 +76,12 @@ func ExportFlowPoliciesWithImports(ctx context.Context, client *api.Client, skip
 			return "", nil, fmt.Errorf("failed to convert flow policy %s to Terraform: %w", policy.PolicyID, err)
 		}
 
-		builder.WriteString(hcl)
-		builder.WriteString("\n")
+		namedBlocks = append(namedBlocks, NamedHCL{Name: "", HCL: hcl})
 	}
 
-	return builder.String(), importBlocks, nil
+	// Sort by resource name to ensure deterministic output
+	header := fmt.Sprintf("# Flow Policies (%d total)\n\n", len(policies))
+	return header + joinHCLBlocksSorted(namedBlocks), importBlocks, nil
 }
 
 // ensureUniqueFlowPolicyResourceName ensures resource names are unique by appending suffixes

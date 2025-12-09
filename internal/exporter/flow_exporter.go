@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"strings"
 
 	"github.com/samir-gandhi/davinci-terraform-converter/internal/api"
 	"github.com/samir-gandhi/davinci-terraform-converter/internal/converter"
@@ -35,7 +34,7 @@ func ExportFlowsWithImports(ctx context.Context, client *api.Client, skipDeps bo
 		return "# No flows found in environment\n", nil, nil
 	}
 
-	var hclBlocks []string
+	var namedBlocks []NamedHCL
 	var importBlocks []RawImportBlock
 
 	// First pass: Register all flows in the dependency graph
@@ -85,11 +84,11 @@ func ExportFlowsWithImports(ctx context.Context, client *api.Client, skipDeps bo
 			return "", nil, fmt.Errorf("failed to convert flow %s to HCL: %w", summary.Name, err)
 		}
 
-		hclBlocks = append(hclBlocks, hcl)
+		namedBlocks = append(namedBlocks, NamedHCL{Name: "", HCL: hcl})
 	}
 
-	// Combine all HCL blocks with blank lines between them
-	return strings.Join(hclBlocks, "\n\n"), importBlocks, nil
+	// Sort by resource name to ensure deterministic output
+	return joinHCLBlocksSorted(namedBlocks), importBlocks, nil
 }
 
 // convertFlowDetailToMap converts FlowDetail to map[string]interface{} for the converter

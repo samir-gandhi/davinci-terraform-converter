@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"strings"
 
 	"github.com/samir-gandhi/davinci-terraform-converter/internal/api"
 	"github.com/samir-gandhi/davinci-terraform-converter/internal/converter"
@@ -43,7 +42,7 @@ func ExportApplicationsWithImports(ctx context.Context, client *api.Client, skip
 		graph.AddResource("pingone_davinci_application", appID, sanitizedName)
 	}
 
-	var hclBlocks []string
+	var namedBlocks []NamedHCL
 	var importBlocks []RawImportBlock
 
 	// Second pass: Convert each application to HCL
@@ -86,11 +85,11 @@ func ExportApplicationsWithImports(ctx context.Context, client *api.Client, skip
 			return "", nil, fmt.Errorf("failed to convert application %s to HCL: %w", application.GetId(), err)
 		}
 
-		hclBlocks = append(hclBlocks, hcl)
+		namedBlocks = append(namedBlocks, NamedHCL{Name: "", HCL: hcl})
 	}
 
-	// Combine all HCL blocks with blank lines between them
-	return strings.Join(hclBlocks, "\n\n"), importBlocks, nil
+	// Sort by resource name to ensure deterministic output
+	return joinHCLBlocksSorted(namedBlocks), importBlocks, nil
 }
 
 // convertApplicationToJSON converts SDK DaVinciApplicationResponse to JSON format expected by converter

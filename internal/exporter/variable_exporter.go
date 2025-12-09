@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"strings"
 
 	"github.com/samir-gandhi/davinci-terraform-converter/internal/api"
 	"github.com/samir-gandhi/davinci-terraform-converter/internal/converter"
@@ -82,7 +81,7 @@ func ExportVariablesWithImports(ctx context.Context, client *api.Client, skipDep
 		graph.AddResource("pingone_davinci_variable", variableID.String(), sanitizedName)
 	}
 
-	var hclBlocks []string
+	var namedBlocks []NamedHCL
 	var extractedVariables []converter.VariableEligibleAttribute
 	var importBlocks []RawImportBlock
 
@@ -127,11 +126,11 @@ func ExportVariablesWithImports(ctx context.Context, client *api.Client, skipDep
 			return "", nil, nil, fmt.Errorf("failed to convert variable %s to HCL: %w", variable.GetId(), err)
 		}
 
-		hclBlocks = append(hclBlocks, hcl)
+		namedBlocks = append(namedBlocks, NamedHCL{Name: "", HCL: hcl})
 	}
 
-	// Combine all HCL blocks with blank lines between them
-	return strings.Join(hclBlocks, "\n\n"), extractedVariables, importBlocks, nil
+	// Sort by resource name to ensure deterministic output
+	return joinHCLBlocksSorted(namedBlocks), extractedVariables, importBlocks, nil
 }
 
 // convertVariableToJSON converts SDK DaVinciVariableResponse to JSON format expected by converter
