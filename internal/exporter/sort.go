@@ -1,7 +1,7 @@
 package exporter
 
 import (
-    "github.com/samir-gandhi/davinci-terraform-converter/internal/utils"
+	"github.com/samir-gandhi/davinci-terraform-converter/internal/utils"
 )
 
 // NamedHCL pairs a Terraform resource name with its HCL body.
