@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/samir-gandhi/davinci-terraform-converter/internal/utils"
@@ -138,7 +139,10 @@ func (g *Generator) generateVariablesTF(variables []Variable) error {
 		}
 
 		sb.WriteString(fmt.Sprintf("# %s Variables\n\n", strings.Title(resourceType)))
-
+		// Sort variables alphabetically by name for deterministic output
+		sort.Slice(vars, func(i, j int) bool {
+			return strings.ToLower(vars[i].Name) < strings.ToLower(vars[j].Name)
+		})
 		for _, v := range vars {
 			sb.WriteString(g.generateVariableBlock(v))
 			sb.WriteString("\n")
@@ -178,7 +182,10 @@ func (g *Generator) generateRootVariablesTF(variables []Variable) error {
 		}
 
 		sb.WriteString(fmt.Sprintf("# %s Variables\n\n", strings.Title(resourceType)))
-
+		// Sort variables alphabetically by name for deterministic output
+		sort.Slice(vars, func(i, j int) bool {
+			return strings.ToLower(vars[i].Name) < strings.ToLower(vars[j].Name)
+		})
 		for _, v := range vars {
 			sb.WriteString(g.generateRootVariableBlock(v))
 			sb.WriteString("\n")
