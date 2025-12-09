@@ -217,10 +217,8 @@ func GetConnectorInstanceVariableEligibleAttributes(instanceJSON []byte, resourc
 			continue
 		}
 
-		// Skip masked secrets (they get TODO comments in normal HCL generation)
-		if strVal, ok := value.(string); ok && strings.Contains(strVal, "****") {
-			continue
-		}
+		// Bug 09: Do NOT skip masked secrets - they should become variables
+		// Masked secrets will have placeholder values in tfvars file
 
 		// Determine Terraform type based on the value
 		tfType := "string"
@@ -344,17 +342,9 @@ func writePropertiesBlockWithVariables(hcl *strings.Builder, properties map[stri
 			// Use variable reference with template syntax for jsonencode
 			formattedValue = fmt.Sprintf("\"${var.%s}\"", varName)
 		} else {
-			// Check if this is a masked secret
-			isMasked := false
-			if strVal, ok := value.(string); ok && strings.Contains(strVal, "***") {
-				isMasked = true
-			}
-
-			if isMasked {
-				// Replace masked secrets with TODO comments
-				fieldNameWords := utils.CamelCaseToWords(key)
-				formattedValue = fmt.Sprintf("\"${TODO: Replace with actual %s}\"", strings.ToLower(fieldNameWords))
-			} else if value == nil {
+			// Bug 09: Masked secrets should use variables when variableMap is provided
+			// Only generate TODO when no variable mapping exists
+			if value == nil {
 				formattedValue = "null"
 			} else {
 				// Format based on type

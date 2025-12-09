@@ -149,10 +149,12 @@ func TestConnectorInstancePropertiesWithVariables(t *testing.T) {
 
 	// Create variable map for properties that should be variablized
 	// Note: resource name is sanitized to "pingcli__PingOne" by the converter
+	// Bug 09: clientSecret should also use a variable reference, not a TODO placeholder
 	variableMap := map[string]string{
-		"connection.pingcli__PingOne.properties.clientId": "davinci_connection_PingOne_clientId",
-		"connection.pingcli__PingOne.properties.envId":    "davinci_connection_PingOne_envId",
-		"connection.pingcli__PingOne.properties.region":   "davinci_connection_PingOne_region",
+		"connection.pingcli__PingOne.properties.clientId":     "davinci_connection_PingOne_clientId",
+		"connection.pingcli__PingOne.properties.clientSecret": "davinci_connection_PingOne_clientSecret",
+		"connection.pingcli__PingOne.properties.envId":        "davinci_connection_PingOne_envId",
+		"connection.pingcli__PingOne.properties.region":       "davinci_connection_PingOne_region",
 	}
 
 	hcl, err := GenerateConnectorInstanceHCLWithVariableReferences([]byte(instanceJSON), false, variableMap)
@@ -165,7 +167,7 @@ func TestConnectorInstancePropertiesWithVariables(t *testing.T) {
 		`"type": "string"`,
 		`"value": "${var.davinci_connection_PingOne_clientId}"`,
 		`"clientSecret": {`,
-		`"value": "${TODO: Replace with actual client secret}"`,
+		`"value": "${var.davinci_connection_PingOne_clientSecret}"`, // Bug 09: Should use variable, not TODO
 		`"envId": {`,
 		`"value": "${var.davinci_connection_PingOne_envId}"`,
 		`"region": {`,

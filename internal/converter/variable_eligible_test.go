@@ -319,7 +319,7 @@ func TestGetConnectorInstanceVariableEligibleAttributes(t *testing.T) {
 			},
 		},
 		{
-			name: "connector with masked secret - no extraction",
+			name: "connector with masked secret - should extract as variable",
 			instanceJSON: `{
 				"id": "conn-789",
 				"environment": {"id": "env-123"},
@@ -330,7 +330,15 @@ func TestGetConnectorInstanceVariableEligibleAttributes(t *testing.T) {
 				}
 			}`,
 			resourceName:  "pingcli__API-0020-Connector",
-			expectedCount: 0, // Masked secrets are not extracted
+			expectedCount: 1, // Bug 09: Masked secrets ARE now extracted as variables
+			checkVars: func(t *testing.T, attrs []VariableEligibleAttribute) {
+				require.Len(t, attrs, 1)
+				attr := attrs[0]
+				assert.Equal(t, "properties.apiKey", attr.AttributePath)
+				assert.Equal(t, "davinci_connection_API-0020-Connector_apiKey", attr.VariableName)
+				assert.True(t, attr.IsSecret)
+				assert.True(t, attr.Sensitive)
+			},
 		},
 		{
 			name: "connector with empty properties - no extraction",
