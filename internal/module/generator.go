@@ -221,9 +221,8 @@ func (g *Generator) generateVariableBlock(v Variable) string {
 	sb.WriteString(fmt.Sprintf("  type        = %s\n", v.Type))
 	sb.WriteString(fmt.Sprintf("  description = %q\n", v.Description))
 
-	if v.Default != nil {
-		sb.WriteString(fmt.Sprintf("  default     = %s\n", g.formatDefaultValue(v.Default, v.Type)))
-	}
+	// Do not include default values in child module variables.tf to avoid leaking secrets.
+	// Actual values must be provided via ping-export-terraform.auto.tfvars.
 
 	if v.Sensitive {
 		sb.WriteString("  sensitive   = true\n")

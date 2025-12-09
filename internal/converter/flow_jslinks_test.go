@@ -51,7 +51,7 @@ func TestFlowWithJSLinksRequiredAttributes(t *testing.T) {
 	assert.Contains(t, result, `defer          = false`, "defer should be present as boolean false")
 
 	// Verify label and value are present with actual values
-	assert.Contains(t, result, `label          = "https://ajax.googleapis.com/ajax/libs/jquery/3.6.0/jquery.min.js"`, 
+	assert.Contains(t, result, `label          = "https://ajax.googleapis.com/ajax/libs/jquery/3.6.0/jquery.min.js"`,
 		"label should be present with URL value")
 	assert.Contains(t, result, `value          = "https://ajax.googleapis.com/ajax/libs/jquery/3.6.0/jquery.min.js"`,
 		"value should be present with URL value")

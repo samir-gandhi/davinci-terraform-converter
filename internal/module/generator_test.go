@@ -111,6 +111,59 @@ func TestGeneratorVariablesTF(t *testing.T) {
 	assert.Contains(t, string(content), "variable \"test_var_value\"")
 	assert.Contains(t, string(content), "sensitive   = true")
 	assert.Contains(t, string(content), "can(regex(")
+
+	// Bug 10: Ensure no default values are emitted in child variables.tf
+	assert.NotContains(t, string(content), "default     = ")
+}
+
+// TestGeneratorVariablesTF_NoDefaults ensures defaults are not present even if provided
+func TestGeneratorVariablesTF_NoDefaults(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	config := ModuleConfig{
+		OutputDir:     tmpDir,
+		ModuleDirName: "test-module",
+	}
+	generator := NewGenerator(config)
+
+	// Create directories
+	err := generator.createDirectories()
+	require.NoError(t, err)
+
+	variables := []Variable{
+		{
+			Name:         "with_default_string",
+			Type:         "string",
+			Description:  "String with default",
+			Default:      "secret",
+			ResourceType: "variable",
+			ResourceName: "var1",
+		},
+		{
+			Name:         "with_default_number",
+			Type:         "number",
+			Description:  "Number with default",
+			Default:      42,
+			ResourceType: "variable",
+			ResourceName: "var2",
+		},
+	}
+
+	err = generator.generateVariablesTF(variables)
+	require.NoError(t, err)
+
+	variablesPath := filepath.Join(tmpDir, "test-module", "variables.tf")
+	content, err := os.ReadFile(variablesPath)
+	require.NoError(t, err)
+	contentStr := string(content)
+
+	// Defaults must not appear in child module variables.tf
+	assert.NotContains(t, contentStr, "default     = ")
+	// Variables and descriptions should still be present
+	assert.Contains(t, contentStr, "variable \"with_default_string\"")
+	assert.Contains(t, contentStr, "String with default")
+	assert.Contains(t, contentStr, "variable \"with_default_number\"")
+	assert.Contains(t, contentStr, "Number with default")
 }
 
 func TestGeneratorOutputsTF(t *testing.T) {
