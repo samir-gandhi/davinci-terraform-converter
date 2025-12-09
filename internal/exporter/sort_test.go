@@ -2,16 +2,18 @@ package exporter
 
 import (
 	"testing"
+
+	"github.com/samir-gandhi/davinci-terraform-converter/internal/utils"
 )
 
 func TestJoinHCLBlocksSorted(t *testing.T) {
-	blocks := []NamedHCL{
+	blocks := []utils.NamedHCL{
 		{Name: "zeta", HCL: "resource \"x\" \"zeta\" {}"},
 		{Name: "Alpha", HCL: "resource \"x\" \"alpha\" {}"},
 		{Name: "beta", HCL: "resource \"x\" \"beta\" {}"},
 	}
 
-	joined := joinHCLBlocksSorted(blocks)
+	joined := utils.JoinHCLBlocksSorted(blocks)
 
 	// Expect alphabetical by name (case-insensitive): Alpha, beta, zeta
 	expectedOrder := []string{"alpha", "beta", "zeta"}

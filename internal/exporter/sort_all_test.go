@@ -2,6 +2,8 @@ package exporter
 
 import (
 	"testing"
+
+	"github.com/samir-gandhi/davinci-terraform-converter/internal/utils"
 )
 
 func TestSortAllResourceBlocks(t *testing.T) {
@@ -10,7 +12,7 @@ func TestSortAllResourceBlocks(t *testing.T) {
 		"resource \"x\" \"alpha\" {\n}\n\n" +
 		"resource \"x\" \"beta\" {\n}\n\n" +
 		"# Footer\n"
-	out := sortAllResourceBlocks(input)
+	out := utils.SortAllResourceBlocks(input)
 	// Expect order: alpha, beta, zeta under the header and before the footer
 	headerEnd := "# Header\n\n"
 	if len(out) < len(headerEnd) || out[:len(headerEnd)] != headerEnd {

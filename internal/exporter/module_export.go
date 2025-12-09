@@ -10,6 +10,7 @@ import (
 	"github.com/samir-gandhi/davinci-terraform-converter/internal/importgen"
 	"github.com/samir-gandhi/davinci-terraform-converter/internal/module"
 	"github.com/samir-gandhi/davinci-terraform-converter/internal/resolver"
+	"github.com/samir-gandhi/davinci-terraform-converter/internal/utils"
 )
 
 // RawImportBlock represents an import block before module path transformation
@@ -257,7 +258,7 @@ func regenerateVariablesHCL(data *ExportedData, variableMap map[string]string, s
 	}
 
 	// Regenerate each variable resource with variable references
-	var namedBlocks []NamedHCL
+	var namedBlocks []utils.NamedHCL
 	processedIDs := make(map[string]bool)
 
 	for _, attr := range variableAttrs {
@@ -290,7 +291,7 @@ func regenerateVariablesHCL(data *ExportedData, variableMap map[string]string, s
 			return "", fmt.Errorf("failed to regenerate variable %s: %w", attr.ResourceName, err)
 		}
 
-		namedBlocks = append(namedBlocks, NamedHCL{Name: attr.ResourceName, HCL: hcl})
+		namedBlocks = append(namedBlocks, utils.NamedHCL{Name: attr.ResourceName, HCL: hcl})
 	}
 
 	// Also include variables that weren't extracted (no variable-eligible attributes)
@@ -305,10 +306,10 @@ func regenerateVariablesHCL(data *ExportedData, variableMap map[string]string, s
 			return "", fmt.Errorf("failed to convert variable %s: %w", variableID, err)
 		}
 
-		namedBlocks = append(namedBlocks, NamedHCL{Name: variableID, HCL: hcl})
+		namedBlocks = append(namedBlocks, utils.NamedHCL{Name: variableID, HCL: hcl})
 	}
 
-	return joinHCLBlocksSorted(namedBlocks), nil
+	return utils.JoinHCLBlocksSorted(namedBlocks), nil
 }
 
 // regenerateConnectorsHCL regenerates connector instance resources with variable references
@@ -322,7 +323,7 @@ func regenerateConnectorsHCL(data *ExportedData, variableMap map[string]string, 
 	}
 
 	// Regenerate each connector resource with variable references
-	var namedBlocks []NamedHCL
+	var namedBlocks []utils.NamedHCL
 	processedIDs := make(map[string]bool)
 
 	for _, attr := range connectorAttrs {
@@ -351,7 +352,7 @@ func regenerateConnectorsHCL(data *ExportedData, variableMap map[string]string, 
 			return "", fmt.Errorf("failed to regenerate connector %s: %w", attr.ResourceName, err)
 		}
 
-		namedBlocks = append(namedBlocks, NamedHCL{Name: attr.ResourceName, HCL: hcl})
+		namedBlocks = append(namedBlocks, utils.NamedHCL{Name: attr.ResourceName, HCL: hcl})
 	}
 
 	// Also include connectors that weren't extracted (no variable-eligible attributes)
@@ -366,10 +367,10 @@ func regenerateConnectorsHCL(data *ExportedData, variableMap map[string]string, 
 			return "", fmt.Errorf("failed to convert connector %s: %w", connectorID, err)
 		}
 
-		namedBlocks = append(namedBlocks, NamedHCL{Name: connectorID, HCL: hcl})
+		namedBlocks = append(namedBlocks, utils.NamedHCL{Name: connectorID, HCL: hcl})
 	}
 
-	return joinHCLBlocksSorted(namedBlocks), nil
+	return utils.JoinHCLBlocksSorted(namedBlocks), nil
 }
 
 // filterConnectorAttributes filters extracted attributes for connector instances

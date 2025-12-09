@@ -9,6 +9,7 @@ import (
 	"github.com/samir-gandhi/davinci-terraform-converter/internal/converter"
 	"github.com/samir-gandhi/davinci-terraform-converter/internal/importgen"
 	"github.com/samir-gandhi/davinci-terraform-converter/internal/resolver"
+	"github.com/samir-gandhi/davinci-terraform-converter/internal/utils"
 )
 
 // ExportFlowPolicies exports all flow policies to Terraform HCL
@@ -35,7 +36,7 @@ func ExportFlowPoliciesWithImports(ctx context.Context, client *api.Client, skip
 		graph.AddResource("pingone_davinci_application_flow_policy", policy.PolicyID, sanitizedName)
 	}
 
-	var namedBlocks []NamedHCL
+	var namedBlocks []utils.NamedHCL
 	var importBlocks []RawImportBlock
 
 	// Second pass: Convert each flow policy to HCL
@@ -76,12 +77,12 @@ func ExportFlowPoliciesWithImports(ctx context.Context, client *api.Client, skip
 			return "", nil, fmt.Errorf("failed to convert flow policy %s to Terraform: %w", policy.PolicyID, err)
 		}
 
-		namedBlocks = append(namedBlocks, NamedHCL{Name: "", HCL: hcl})
+		namedBlocks = append(namedBlocks, utils.NamedHCL{Name: "", HCL: hcl})
 	}
 
 	// Sort by resource name to ensure deterministic output
 	header := fmt.Sprintf("# Flow Policies (%d total)\n\n", len(policies))
-	return header + joinHCLBlocksSorted(namedBlocks), importBlocks, nil
+	return header + utils.JoinHCLBlocksSorted(namedBlocks), importBlocks, nil
 }
 
 // ensureUniqueFlowPolicyResourceName ensures resource names are unique by appending suffixes

@@ -81,7 +81,7 @@ func ExportVariablesWithImports(ctx context.Context, client *api.Client, skipDep
 		graph.AddResource("pingone_davinci_variable", variableID.String(), sanitizedName)
 	}
 
-	var namedBlocks []NamedHCL
+	var namedBlocks []utils.NamedHCL
 	var extractedVariables []converter.VariableEligibleAttribute
 	var importBlocks []RawImportBlock
 
@@ -126,11 +126,11 @@ func ExportVariablesWithImports(ctx context.Context, client *api.Client, skipDep
 			return "", nil, nil, fmt.Errorf("failed to convert variable %s to HCL: %w", variable.GetId(), err)
 		}
 
-		namedBlocks = append(namedBlocks, NamedHCL{Name: "", HCL: hcl})
+		namedBlocks = append(namedBlocks, utils.NamedHCL{Name: "", HCL: hcl})
 	}
 
 	// Sort by resource name to ensure deterministic output
-	return joinHCLBlocksSorted(namedBlocks), extractedVariables, importBlocks, nil
+	return utils.JoinHCLBlocksSorted(namedBlocks), extractedVariables, importBlocks, nil
 }
 
 // convertVariableToJSON converts SDK DaVinciVariableResponse to JSON format expected by converter
