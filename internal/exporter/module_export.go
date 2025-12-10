@@ -395,16 +395,7 @@ func filterVariableAttributes(extracted []converter.VariableEligibleAttribute) [
 	return result
 }
 
-// generateVariablesFromGraph extracts variables from the dependency graph
-// DEPRECATED: Use ExtractedVariables field in ExportedData instead
-func generateVariablesFromGraph(graph *resolver.DependencyGraph) []module.Variable {
-	variables := []module.Variable{}
-
-	// This is now handled by variable extraction during resource export
-	// See ExportedData.ExtractedVariables
-
-	return variables
-}
+// NOTE: generateVariablesFromGraph was deprecated and unused; removed to satisfy lint.
 
 // generateOutputsFromGraph generates output definitions from the dependency graph
 func generateOutputsFromGraph(graph *resolver.DependencyGraph) []module.Output {

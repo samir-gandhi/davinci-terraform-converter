@@ -49,7 +49,7 @@ func TestConnectorInstancePropertiesFormatting(t *testing.T) {
 				`"type": "string"`,
 				`"value": "3642f58b-b0c2-4a35-b1b1-e24d051de546"`,
 				`"clientSecret": {`,
-				`"value": "TODO: Replace with actual client secret"`,
+				`"value": "${var.davinci_connection_PingOne_clientSecret}"`,
 				`"envId": {`,
 				`"value": "4111cd46-25bf-4a5b-8c74-184a9d0c1826"`,
 				`"region": {`,

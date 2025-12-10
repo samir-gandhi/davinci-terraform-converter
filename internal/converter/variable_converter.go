@@ -68,7 +68,7 @@ func GetVariableEligibleAttributes(variableJSON []byte, resourceName string) ([]
 
 	// Use provided resource name or sanitize from variable name and context
 	if resourceName == "" {
-		resourceName = utils.SanitizeVariableResourceName(variable.Name, variable.Context)
+		resourceName = utils.SanitizeMultiKeyResourceName(variable.Name, variable.Context)
 	}
 
 	var attributes []VariableEligibleAttribute
@@ -80,7 +80,7 @@ func GetVariableEligibleAttributes(variableJSON []byte, resourceName string) ([]
 
 	if hasValue && isPrimitive {
 		// Determine Terraform type
-		tfType := "string"
+		var tfType string
 		switch variable.DataType {
 		case "number":
 			tfType = "number"
@@ -120,7 +120,7 @@ func generateVariableHCL(variable VariableResponse, skipDependencies bool) strin
 	var hcl strings.Builder
 
 	// Resource name using pingcli format with context suffix to prevent duplicates
-	resourceName := utils.SanitizeVariableResourceName(variable.Name, variable.Context)
+	resourceName := utils.SanitizeMultiKeyResourceName(variable.Name, variable.Context)
 	hcl.WriteString(fmt.Sprintf("resource \"pingone_davinci_variable\" \"%s\" {\n", resourceName))
 
 	// Environment ID
@@ -331,7 +331,7 @@ func generateVariableHCLWithVarReference(variable VariableResponse, skipDependen
 	var hcl strings.Builder
 
 	// Resource name using pingcli format with context suffix to prevent duplicates
-	resourceName := utils.SanitizeVariableResourceName(variable.Name, variable.Context)
+	resourceName := utils.SanitizeMultiKeyResourceName(variable.Name, variable.Context)
 	hcl.WriteString(fmt.Sprintf("resource \"pingone_davinci_variable\" \"%s\" {\n", resourceName))
 
 	// Environment ID
@@ -347,6 +347,11 @@ func generateVariableHCLWithVarReference(variable VariableResponse, skipDependen
 	hcl.WriteString(fmt.Sprintf("  name           = \"%s\"\n", variable.Name))
 	hcl.WriteString(fmt.Sprintf("  context        = \"%s\"\n", variable.Context))
 	hcl.WriteString(fmt.Sprintf("  data_type      = \"%s\"\n", variable.DataType))
+
+	// Optional display_name
+	if variable.DisplayName != "" {
+		hcl.WriteString(fmt.Sprintf("  display_name   = \"%s\"\n", variable.DisplayName))
+	}
 
 	// Value - use variable reference instead of hardcoded value
 	hasValue := variable.Value != nil && !isEmptyValue(variable.Value) && variable.DataType != "secret"

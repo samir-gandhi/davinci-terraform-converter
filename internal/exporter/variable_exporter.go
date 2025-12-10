@@ -77,7 +77,7 @@ func ExportVariablesWithImports(ctx context.Context, client *api.Client, skipDep
 		variableName := variable.GetName()
 		variableContext := variable.GetContext()
 		variableID := variable.GetId()
-		sanitizedName := utils.SanitizeVariableResourceName(variableName, variableContext)
+		sanitizedName := utils.SanitizeMultiKeyResourceName(variableName, variableContext)
 		graph.AddResource("pingone_davinci_variable", variableID.String(), sanitizedName)
 	}
 

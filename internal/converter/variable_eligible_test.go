@@ -132,13 +132,14 @@ func TestGenerateVariableHCLWithVariableReferences(t *testing.T) {
 		notExpected  []string // Strings that should NOT appear
 	}{
 		{
-			name: "string variable with var reference",
+			name: "string variable with var reference includes display_name",
 			variableJSON: `{
 				"id": "var-123",
 				"environment": {"id": "env-123"},
 				"name": "companyName",
 				"dataType": "string",
 				"context": "company",
+				"displayName": "Company Name",
 				"value": "Acme Corp",
 				"mutable": true
 			}`,
@@ -149,6 +150,7 @@ func TestGenerateVariableHCLWithVariableReferences(t *testing.T) {
 				`name           = "companyName"`,
 				`context        = "company"`,
 				`data_type      = "string"`,
+				`display_name   = "Company Name"`,
 				`string = var.davinci_variable_companyName_value`,
 				`mutable        = true`,
 			},
@@ -330,7 +332,7 @@ func TestGetConnectorInstanceVariableEligibleAttributes(t *testing.T) {
 				}
 			}`,
 			resourceName:  "pingcli__API-0020-Connector",
-			expectedCount: 1, // Bug 09: Masked secrets ARE now extracted as variables
+			expectedCount: 1, // Masked secrets ARE extracted as variables per Bug 09
 			checkVars: func(t *testing.T, attrs []VariableEligibleAttribute) {
 				require.Len(t, attrs, 1)
 				attr := attrs[0]

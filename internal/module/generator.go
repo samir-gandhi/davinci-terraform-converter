@@ -8,6 +8,8 @@ import (
 	"strings"
 
 	"github.com/samir-gandhi/davinci-terraform-converter/internal/utils"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 )
 
 // Generator handles the generation of Terraform module structure
@@ -138,14 +140,16 @@ func (g *Generator) generateVariablesTF(variables []Variable) error {
 			continue
 		}
 
-		sb.WriteString(fmt.Sprintf("# %s Variables\n\n", strings.Title(resourceType)))
+		// Section header
+		hdr := cases.Title(language.English).String(resourceType)
+		sb.WriteString(fmt.Sprintf("# %s Variables\n\n", hdr))
+
 		// Sort variables alphabetically by name for deterministic output
 		sort.Slice(vars, func(i, j int) bool {
 			return strings.ToLower(vars[i].Name) < strings.ToLower(vars[j].Name)
 		})
 		for _, v := range vars {
 			sb.WriteString(g.generateVariableBlock(v))
-			sb.WriteString("\n")
 		}
 	}
 
@@ -181,7 +185,10 @@ func (g *Generator) generateRootVariablesTF(variables []Variable) error {
 			continue
 		}
 
-		sb.WriteString(fmt.Sprintf("# %s Variables\n\n", strings.Title(resourceType)))
+		// Section header
+		hdr := cases.Title(language.English).String(resourceType)
+		sb.WriteString(fmt.Sprintf("# %s Variables\n\n", hdr))
+
 		// Sort variables alphabetically by name for deterministic output
 		sort.Slice(vars, func(i, j int) bool {
 			return strings.ToLower(vars[i].Name) < strings.ToLower(vars[j].Name)
@@ -352,7 +359,8 @@ func (g *Generator) generateModuleTF(structure *ModuleStructure) error {
 			continue
 		}
 
-		sb.WriteString(fmt.Sprintf("  # %s Variables\n", strings.Title(resourceType)))
+		hdr := cases.Title(language.English).String(resourceType)
+		sb.WriteString(fmt.Sprintf("  # %s Variables\n", hdr))
 
 		for _, v := range vars {
 			sb.WriteString(g.generateModuleInput(v))
@@ -414,7 +422,8 @@ func (g *Generator) generateTFVarsFile(structure *ModuleStructure) error {
 			continue
 		}
 
-		sb.WriteString(fmt.Sprintf("# %s Variables\n\n", strings.Title(resourceType)))
+		hdr := cases.Title(language.English).String(resourceType)
+		sb.WriteString(fmt.Sprintf("# %s Variables\n\n", hdr))
 
 		for _, v := range vars {
 			sb.WriteString(g.generateTFVarValue(v))

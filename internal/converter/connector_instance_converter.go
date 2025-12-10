@@ -81,7 +81,7 @@ func generateConnectorInstanceHCL(instance ConnectorInstanceResponse, skipDepend
 	// Properties (if present)
 	if len(instance.Properties) > 0 {
 		hcl.WriteString("\n")
-		writePropertiesBlock(&hcl, instance.Properties)
+		writePropertiesBlockWithAutoVars(&hcl, instance.Properties, resourceName)
 	}
 
 	hcl.WriteString("}\n")
@@ -90,7 +90,8 @@ func generateConnectorInstanceHCL(instance ConnectorInstanceResponse, skipDepend
 }
 
 // writePropertiesBlock writes the properties block with jsonencode, preserving type/value structure
-func writePropertiesBlock(hcl *strings.Builder, properties map[string]ConnectorPropertyValue) {
+// writePropertiesBlockWithAutoVars writes properties and automatically uses variables for masked secrets
+func writePropertiesBlockWithAutoVars(hcl *strings.Builder, properties map[string]ConnectorPropertyValue, resourceName string) {
 	hcl.WriteString("  properties = jsonencode({\n")
 
 	// Sort keys for consistent output
@@ -113,18 +114,18 @@ func writePropertiesBlock(hcl *strings.Builder, properties map[string]ConnectorP
 		// Write value field
 		value := prop.Value
 
-		// Check if this is a masked secret
+		// Check if this is a masked secret (API uses six stars "******")
 		isMasked := false
-		if strVal, ok := value.(string); ok && strings.Contains(strVal, "***") {
+		if strVal, ok := value.(string); ok && strings.TrimSpace(strVal) == "******" {
 			isMasked = true
 		}
 
 		// Format the value
 		var formattedValue string
 		if isMasked {
-			// Replace masked secrets with TODO comments
-			fieldNameWords := utils.CamelCaseToWords(key)
-			formattedValue = fmt.Sprintf("\"TODO: Replace with actual %s\"", strings.ToLower(fieldNameWords))
+			// Generate variable name and use variable reference for masked secrets
+			varName := GenerateVariableName(resourceName, key)
+			formattedValue = fmt.Sprintf("\"${var.%s}\"", varName)
 		} else if value == nil {
 			formattedValue = "null"
 		} else {
@@ -217,8 +218,8 @@ func GetConnectorInstanceVariableEligibleAttributes(instanceJSON []byte, resourc
 			continue
 		}
 
-		// Bug 09: Do NOT skip masked secrets - they should become variables
-		// Masked secrets will have placeholder values in tfvars file
+		// Bug 09: API returns masked secrets as "******". We DO extract these as variables.
+		// No skipping for masked values; they must become variables.
 
 		// Determine Terraform type based on the value
 		tfType := "string"

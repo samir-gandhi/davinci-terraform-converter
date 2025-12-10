@@ -145,7 +145,7 @@ func collectFlowFiles(t *testing.T) []string {
 			if filepath.Ext(path) == ".json" {
 				// Skip known non-flow files
 				baseName := filepath.Base(path)
-				if baseName == "pingone_davinci_variable.json" {
+				if baseName == "pingone_davinci_variable.json" || baseName == "StandardAdaptive-mf-ConfigObject.json" {
 					return nil
 				}
 				flowFiles = append(flowFiles, path)

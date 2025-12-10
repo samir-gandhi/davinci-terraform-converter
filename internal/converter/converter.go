@@ -7,6 +7,7 @@ package converter
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/samir-gandhi/davinci-terraform-converter/internal/utils"
 )
@@ -52,7 +53,24 @@ type ConvertOptions struct {
 // ConvertWithOptions takes a DaVinci flow JSON byte array and converts it to HCL with options.
 // If skipDependencies is true, connection IDs and environment_id will be hardcoded instead of Terraform references.
 func ConvertWithOptions(flowJSON []byte, skipDependencies bool) (string, error) {
-	// Unmarshal the JSON into a generic map for flexibility
+	// First, detect if this is a multi-flow export (top-level "flows" array)
+	var probe map[string]interface{}
+	if err := json.Unmarshal(flowJSON, &probe); err != nil {
+		return "", fmt.Errorf("failed to unmarshal flow JSON: %w", err)
+	}
+
+	if flowsAny, ok := probe["flows"]; ok {
+		if flowsSlice, ok := flowsAny.([]interface{}); ok && len(flowsSlice) > 0 {
+			// Delegate to the multi-flow converter and join results
+			hcls, err := ConvertMultiFlowWithOptions(flowJSON, skipDependencies)
+			if err != nil {
+				return "", fmt.Errorf("failed to generate HCL for multi-flow export: %w", err)
+			}
+			return strings.Join(hcls, "\n\n"), nil
+		}
+	}
+
+	// Single-flow path
 	var flowData map[string]interface{}
 	if err := json.Unmarshal(flowJSON, &flowData); err != nil {
 		return "", fmt.Errorf("failed to unmarshal flow JSON: %w", err)
@@ -75,12 +93,10 @@ func ConvertWithOptions(flowJSON []byte, skipDependencies bool) (string, error) 
 		envID = "var.pingone_environment_id"
 	}
 
-	// Use the new ConvertFlowToHCL function
 	hcl, err := ConvertFlowToHCL(flowData, envID, skipDependencies, nil)
 	if err != nil {
 		return "", fmt.Errorf("failed to generate HCL: %w", err)
 	}
-
 	return hcl, nil
 }
 

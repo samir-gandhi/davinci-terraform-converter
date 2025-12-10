@@ -1,7 +1,6 @@
 package converter
 
 import (
-	"encoding/json"
 	"fmt"
 	"strings"
 	"testing"
@@ -249,14 +248,14 @@ func TestVariableExtractionWithShouldExtractRules(t *testing.T) {
 		}
 	})
 
-	t.Run("Skip masked secrets", func(t *testing.T) {
+	t.Run("Masked secrets extracted as variables", func(t *testing.T) {
 		connectorJSON := []byte(`{
 			"id": "conn-123",
 			"name": "Test Connector",
 			"environment": {"id": "env-123"},
 			"connector": {"id": "testConnector"},
 			"properties": {
-				"clientSecret": {"type": "string", "value": "****masked****"},
+				"clientSecret": {"type": "string", "value": "******"},
 				"apiKey": {"type": "string", "value": "real-api-key"}
 			}
 		}`)
@@ -264,12 +263,16 @@ func TestVariableExtractionWithShouldExtractRules(t *testing.T) {
 		extractedAttrs, err := GetConnectorInstanceVariableEligibleAttributes(connectorJSON, "test_connector")
 		require.NoError(t, err)
 
-		// Should not extract masked secret
+		// Should extract masked secret (API uses placeholders, we create variables)
+		foundClientSecret := false
 		for _, attr := range extractedAttrs {
 			if strings.Contains(attr.AttributePath, "clientSecret") {
-				t.Error("Masked secrets should not be extracted")
+				foundClientSecret = true
+				assert.True(t, attr.IsSecret)
+				assert.True(t, attr.Sensitive)
 			}
 		}
+		assert.True(t, foundClientSecret, "Masked secrets should be extracted as variables")
 
 		// Should extract real secret
 		foundApiKey := false
@@ -425,14 +428,4 @@ func TestVariableHCLGenerationEdgeCases(t *testing.T) {
 	})
 }
 
-// Helper function to parse JSON and validate structure
-func validateJSONStructure(t *testing.T, jsonData []byte, expectedFields []string) {
-	var data map[string]interface{}
-	err := json.Unmarshal(jsonData, &data)
-	require.NoError(t, err, "JSON should be valid")
-
-	for _, field := range expectedFields {
-		_, exists := data[field]
-		assert.True(t, exists, "Field %s should exist in JSON", field)
-	}
-}
+// Removed unused helper to satisfy golangci-lint.

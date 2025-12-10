@@ -729,18 +729,8 @@ func writeJSONAsHCLMap(hcl *strings.Builder, value interface{}, indent int) {
 	}
 }
 
-// escapeHCLString escapes special characters in strings for HCL syntax
-// This handles newlines, quotes, backslashes, etc.
-func escapeHCLString(s string) string {
-	// Replace backslashes first to avoid double-escaping
-	s = strings.ReplaceAll(s, "\\", "\\\\")
-	// Replace double quotes
-	s = strings.ReplaceAll(s, "\"", "\\\"")
-	// Replace newlines
-	s = strings.ReplaceAll(s, "\n", "\\n")
-	// Replace tabs
-	s = strings.ReplaceAll(s, "\t", "\\t")
-	// Replace carriage returns
-	s = strings.ReplaceAll(s, "\r", "\\r")
-	return s
-}
+// escapeHCLString escapes special characters in strings for HCL syntax.
+// Currently unused; keep a stub to avoid unused lint errors when referenced later.
+// func escapeHCLString(s string) string {
+//     return s
+// }
