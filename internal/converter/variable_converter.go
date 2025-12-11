@@ -73,21 +73,32 @@ func GetVariableEligibleAttributes(variableJSON []byte, resourceName string) ([]
 
 	var attributes []VariableEligibleAttribute
 
-	// Extract the 'value' attribute if present and not a secret
+	// Extract the 'value' attribute if present
+	// For secrets: if masked ("******"), we still extract as a variable with IsSecret=true
 	// Only extract primitive types (string, number, boolean) - not objects
-	hasValue := variable.Value != nil && !isEmptyValue(variable.Value) && variable.DataType != "secret"
-	isPrimitive := variable.DataType == "string" || variable.DataType == "number" || variable.DataType == "boolean"
+	maskedSecret := false
+	if variable.DataType == "secret" {
+		if str, ok := variable.Value.(string); ok && str == "******" {
+			maskedSecret = true
+		}
+	}
+	hasValue := variable.Value != nil && !isEmptyValue(variable.Value)
+	isPrimitive := variable.DataType == "string" || variable.DataType == "number" || variable.DataType == "boolean" || variable.DataType == "secret"
 
-	if hasValue && isPrimitive {
+	if (hasValue && isPrimitive) || maskedSecret {
 		// Determine Terraform type
 		var tfType string
-		switch variable.DataType {
-		case "number":
-			tfType = "number"
-		case "boolean":
-			tfType = "bool"
-		default:
+		if maskedSecret {
 			tfType = "string"
+		} else {
+			switch variable.DataType {
+			case "number":
+				tfType = "number"
+			case "boolean":
+				tfType = "bool"
+			default:
+				tfType = "string"
+			}
 		}
 
 		// Create variable name: davinci_variable_{resourceName}_value
@@ -98,12 +109,17 @@ func GetVariableEligibleAttributes(variableJSON []byte, resourceName string) ([]
 			ResourceName:  resourceName,
 			ResourceID:    variable.ID,
 			AttributePath: "value",
-			CurrentValue:  variable.Value,
-			VariableName:  varName,
-			VariableType:  tfType,
-			Description:   fmt.Sprintf("Value for %s DaVinci variable", variable.Name),
-			Sensitive:     false,
-			IsSecret:      false,
+			CurrentValue: func() interface{} {
+				if maskedSecret {
+					return nil // secrets should not carry defaults
+				}
+				return variable.Value
+			}(),
+			VariableName: varName,
+			VariableType: tfType,
+			Description:  fmt.Sprintf("Value for %s DaVinci variable", variable.Name),
+			Sensitive:    maskedSecret,
+			IsSecret:     maskedSecret,
 		}
 
 		attributes = append(attributes, attr)
@@ -138,6 +154,15 @@ func generateVariableHCL(variable VariableResponse, skipDependencies bool) strin
 	hcl.WriteString(fmt.Sprintf("  data_type      = \"%s\"\n", variable.DataType))
 
 	// Determine if we'll actually write a value (needed for mutable logic)
+	// Special handling: for secret data types, if API returns masked value ("******"),
+	// we should emit a variable reference for secret_string instead of a TODO.
+	// Otherwise, secrets with empty value should remain TODO.
+	maskedSecret := false
+	if variable.DataType == "secret" {
+		if str, ok := variable.Value.(string); ok && str == "******" {
+			maskedSecret = true
+		}
+	}
 	hasValue := variable.Value != nil && !isEmptyValue(variable.Value) && variable.DataType != "secret"
 	willWriteValue := false
 	if hasValue {
@@ -185,9 +210,19 @@ func generateVariableHCL(variable VariableResponse, skipDependencies bool) strin
 	// Only write value block if variable actually has a meaningful value
 	// Never output secret values for security
 	valueWritten := false
-	if hasValue {
+	if hasValue || maskedSecret {
 		hcl.WriteString("\n")
-		valueWritten = writeVariableValueBlock(&hcl, variable.DataType, variable.Value)
+		if maskedSecret {
+			// Emit value block with secret_string referencing a generated variable name
+			// var name format: davinci_variable_{name}_{context}_value to align with module variable naming
+			varRef := fmt.Sprintf("davinci_variable_%s_value", strings.TrimPrefix(resourceName, "pingcli__"))
+			hcl.WriteString("  value = {\n")
+			hcl.WriteString(fmt.Sprintf("    secret_string = var.%s\n", varRef))
+			hcl.WriteString("  }\n")
+			valueWritten = true
+		} else {
+			valueWritten = writeVariableValueBlock(&hcl, variable.DataType, variable.Value)
+		}
 
 		// If no value was actually written, add TODO comment
 		if !valueWritten {
@@ -354,9 +389,9 @@ func generateVariableHCLWithVarReference(variable VariableResponse, skipDependen
 	}
 
 	// Value - use variable reference instead of hardcoded value
-	hasValue := variable.Value != nil && !isEmptyValue(variable.Value) && variable.DataType != "secret"
+	hasValue := variable.Value != nil && !isEmptyValue(variable.Value)
 
-	if hasValue && varName != "" {
+	if (hasValue) && varName != "" {
 		hcl.WriteString("\n")
 		// Use variable reference for the value block based on data type
 		switch variable.DataType {
@@ -375,6 +410,10 @@ func generateVariableHCLWithVarReference(variable VariableResponse, skipDependen
 		case "object":
 			hcl.WriteString("  value = {\n")
 			hcl.WriteString(fmt.Sprintf("    json_object = var.%s\n", varName))
+			hcl.WriteString("  }\n")
+		case "secret":
+			hcl.WriteString("  value = {\n")
+			hcl.WriteString(fmt.Sprintf("    secret_string = var.%s\n", varName))
 			hcl.WriteString("  }\n")
 		}
 	}
