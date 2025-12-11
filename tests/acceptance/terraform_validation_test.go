@@ -12,7 +12,7 @@ import (
 	"testing"
 
 	"github.com/samir-gandhi/davinci-terraform-converter/internal/exporter"
-"github.com/samir-gandhi/davinci-terraform-converter/internal/resolver"
+	"github.com/samir-gandhi/davinci-terraform-converter/internal/resolver"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -30,7 +30,7 @@ func TestTerraformValidateVariablesFromAPI(t *testing.T) {
 	ctx := context.Background()
 
 	// Export variables from API
-	hcl, err := exporter.ExportVariables(ctx, client, true, resolver.NewDependencyGraph())
+	hcl, _, err := exporter.ExportVariables(ctx, client, true, resolver.NewDependencyGraph())
 	require.NoError(t, err, "Failed to export variables from API")
 
 	if len(hcl) == 0 {
@@ -91,7 +91,7 @@ func TestTerraformValidateConnectorInstancesFromAPI(t *testing.T) {
 	ctx := context.Background()
 
 	// Export connector instances from API
-	hcl, err := exporter.ExportConnectorInstances(ctx, client, true, resolver.NewDependencyGraph())
+	hcl, _, err := exporter.ExportConnectorInstances(ctx, client, true, resolver.NewDependencyGraph())
 	require.NoError(t, err, "Failed to export connector instances from API")
 
 	if len(hcl) == 0 {
@@ -274,10 +274,10 @@ func TestTerraformValidateAllResourcesFromAPI(t *testing.T) {
 	ctx := context.Background()
 
 	// Export all resources from API
-	variablesHCL, err := exporter.ExportVariables(ctx, client, true, resolver.NewDependencyGraph())
+	variablesHCL, _, err := exporter.ExportVariables(ctx, client, true, resolver.NewDependencyGraph())
 	require.NoError(t, err, "Failed to export variables from API")
 
-	connectorsHCL, err := exporter.ExportConnectorInstances(ctx, client, true, resolver.NewDependencyGraph())
+	connectorsHCL, _, err := exporter.ExportConnectorInstances(ctx, client, true, resolver.NewDependencyGraph())
 	require.NoError(t, err, "Failed to export connector instances from API")
 
 	applicationsHCL, err := exporter.ExportApplications(ctx, client, true, resolver.NewDependencyGraph())
@@ -343,7 +343,7 @@ func TestTerraformValidateAllResourcesFromAPI(t *testing.T) {
 	cmd = exec.Command("terraform", "validate", "-no-color")
 	cmd.Dir = tmpDir
 	output, err = cmd.CombinedOutput()
-	
+
 	// Log output regardless of success/failure for debugging
 	outputStr := string(output)
 	t.Logf("terraform validate output:\n%s", outputStr)

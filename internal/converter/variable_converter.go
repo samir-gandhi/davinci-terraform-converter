@@ -83,8 +83,9 @@ func GetVariableEligibleAttributes(variableJSON []byte, resourceName string) ([]
 		}
 	}
 	hasValue := variable.Value != nil && !isEmptyValue(variable.Value)
-	isPrimitive := variable.DataType == "string" || variable.DataType == "number" || variable.DataType == "boolean" || variable.DataType == "secret"
+	isPrimitive := variable.DataType == "string" || variable.DataType == "number" || variable.DataType == "boolean"
 
+	// Only extract secrets when masked; non-masked secrets are not extracted
 	if (hasValue && isPrimitive) || maskedSecret {
 		// Determine Terraform type
 		var tfType string
@@ -157,13 +158,18 @@ func generateVariableHCL(variable VariableResponse, skipDependencies bool) strin
 	// Special handling: for secret data types, if API returns masked value ("******"),
 	// we should emit a variable reference for secret_string instead of a TODO.
 	// Otherwise, secrets with empty value should remain TODO.
-	maskedSecret := false
-	if variable.DataType == "secret" {
-		if str, ok := variable.Value.(string); ok && str == "******" {
-			maskedSecret = true
-		}
-	}
-	hasValue := variable.Value != nil && !isEmptyValue(variable.Value) && variable.DataType != "secret"
+	// maskedSecret := false
+	dt := strings.ToLower(variable.DataType)
+	// if dt == "secret" {
+	// 	if str, ok := variable.Value.(string); ok && str == "******" {
+	// 		maskedSecret = true
+	// 	} else if m, ok := variable.Value.(map[string]interface{}); ok {
+	// 		if s, ok2 := m["secret_string"].(string); ok2 && s == "******" {
+	// 			maskedSecret = true
+	// 		}
+	// 	}
+	// }
+	hasValue := variable.Value != nil && !isEmptyValue(variable.Value) && dt != "secret"
 	willWriteValue := false
 	if hasValue {
 		// Check if writeVariableValueBlock would actually write something
@@ -210,23 +216,13 @@ func generateVariableHCL(variable VariableResponse, skipDependencies bool) strin
 	// Only write value block if variable actually has a meaningful value
 	// Never output secret values for security
 	valueWritten := false
-	if hasValue || maskedSecret {
+	if hasValue {
 		hcl.WriteString("\n")
-		if maskedSecret {
-			// Emit value block with secret_string referencing a generated variable name
-			// var name format: davinci_variable_{name}_{context}_value to align with module variable naming
-			varRef := fmt.Sprintf("davinci_variable_%s_value", strings.TrimPrefix(resourceName, "pingcli__"))
-			hcl.WriteString("  value = {\n")
-			hcl.WriteString(fmt.Sprintf("    secret_string = var.%s\n", varRef))
-			hcl.WriteString("  }\n")
-			valueWritten = true
-		} else {
-			valueWritten = writeVariableValueBlock(&hcl, variable.DataType, variable.Value)
-		}
+		valueWritten = writeVariableValueBlock(&hcl, dt, variable.Value)
 
 		// If no value was actually written, add TODO comment
 		if !valueWritten {
-			if variable.DataType == "secret" {
+			if dt == "secret" {
 				hcl.WriteString("  # TODO: Add secret value manually\n")
 				hcl.WriteString("  # value = {\n")
 				hcl.WriteString("  #   secret_string = \"your-secret-value\"\n")
@@ -261,9 +257,9 @@ func isEmptyValue(value interface{}) bool {
 		return true
 	}
 
-	// Check for empty string or masked secret value
+	// Check for empty string
 	if str, ok := value.(string); ok {
-		return str == "" || str == "******"
+		return str == ""
 	}
 
 	// Check for zero numbers (but don't treat 0 as empty, only nil/missing)
@@ -273,10 +269,11 @@ func isEmptyValue(value interface{}) bool {
 
 // canWriteValue checks if writeVariableValueBlock would actually write content for this value
 func canWriteValue(dataType string, value interface{}) bool {
-	switch dataType {
+	dt := strings.ToLower(dataType)
+	switch dt {
 	case "string":
 		str, ok := value.(string)
-		return ok && str != "" && str != "******"
+		return ok && str != ""
 	case "number":
 		switch value.(type) {
 		case float64, int:
@@ -301,8 +298,14 @@ func writeVariableValueBlock(hcl *strings.Builder, dataType string, value interf
 	var valueContent strings.Builder
 	hasContent := false
 
-	switch dataType {
+	dt := strings.ToLower(dataType)
+	switch dt {
 	case "string":
+		if str, ok := value.(string); ok && str != "" {
+			valueContent.WriteString(fmt.Sprintf("    string = \"%s\"\n", str))
+			hasContent = true
+		}
+	case "secret":
 		if str, ok := value.(string); ok && str != "" {
 			valueContent.WriteString(fmt.Sprintf("    string = \"%s\"\n", str))
 			hasContent = true
