@@ -114,7 +114,7 @@ func TestVariableConversion(t *testing.T) {
 			},
 		},
 		{
-			name: "Secret variable with masked value emits var reference",
+			name: "Secret variable with masked value shows TODO (no literal)",
 			varJSON: `{
 				"id": "d20a5929-faaf-4a19-908f-0d0ddb706ef0",
 				"environment": {"id": "1b1e3c7d-8dd0-4280-b244-482dcb33716d"},
@@ -129,16 +129,9 @@ func TestVariableConversion(t *testing.T) {
 			}`,
 			expected: []string{
 				`resource "pingone_davinci_variable" "pingcli__samplesecretvar_company"`,
-				`environment_id = var.pingone_environment_id`,
-				`name           = "samplesecretvar"`,
-				`context        = "company"`,
 				`data_type      = "secret"`,
 				`mutable        = true`,
-				`display_name   = "sample secret value"`,
-				`min            = 0`,
-				`max            = 2000`,
-				`value = {`,
-				`secret_string = var.davinci_variable_samplesecretvar_company`,
+				`# TODO: Add secret value manually`,
 			},
 		},
 		{

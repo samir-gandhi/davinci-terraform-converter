@@ -194,6 +194,28 @@ func TestGenerateVariableHCLWithVariableReferences(t *testing.T) {
 				`bool = var.davinci_variable_enableFeature_value`,
 			},
 		},
+		{
+			name: "secret variable with var reference (masked)",
+			variableJSON: `{
+				"id": "d20a5929-faaf-4a19-908f-0d0ddb706ef0",
+				"environment": {"id": "env-123"},
+				"name": "samplesecretvar",
+				"dataType": "secret",
+				"displayName": "sample secret value",
+				"context": "company",
+				"value": "******",
+				"mutable": true
+			}`,
+			varName: "davinci_variable_samplesecretvar_company_value",
+			expectedHCL: []string{
+				`data_type      = "secret"`,
+				`secret_string = var.davinci_variable_samplesecretvar_company_value`,
+			},
+			notExpected: []string{
+				`secret_string = "`,
+				`******`,
+			},
+		},
 	}
 
 	for _, tt := range tests {

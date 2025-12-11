@@ -16,7 +16,7 @@ install: build
 
 test: build
 	@echo "==> Running unit tests..."
-	go test $(TEST) $(TESTARGS) -timeout=5m
+	go test $(TEST) -v $(TESTARGS) -timeout=5m
 
 testacc: build
 	@echo "==> Running acceptance tests..."
