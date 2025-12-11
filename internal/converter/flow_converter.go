@@ -56,8 +56,10 @@ func ConvertFlowToHCL(flowData map[string]interface{}, environmentID string, ski
 		hcl.WriteString(fmt.Sprintf("  description = %s\n", quoteString(description)))
 	}
 
-	// Optional: color (flowColor in JSON)
+	// Optional: color (supports both flowColor from UI export and color from API)
 	if color := getString(flowData, "flowColor"); color != "" {
+		hcl.WriteString(fmt.Sprintf("  color       = %s\n", quoteString(color)))
+	} else if color := getString(flowData, "color"); color != "" {
 		hcl.WriteString(fmt.Sprintf("  color       = %s\n", quoteString(color)))
 	}
 
@@ -83,6 +85,144 @@ func ConvertFlowToHCL(flowData map[string]interface{}, environmentID string, ski
 		if err := writeInputSchemaBlock(&hcl, inputSchema); err != nil {
 			return "", fmt.Errorf("failed to write input_schema: %w", err)
 		}
+	} else if isc, ok := flowData["inputSchemaCompiled"].(map[string]interface{}); ok {
+		// Build input_schema from compiled schema. Some environments nest under "parameters",
+		// others place properties at the root. Support both.
+		params, hasParams := isc["parameters"].(map[string]interface{})
+		if !hasParams {
+			params = isc
+		}
+		if params != nil {
+			var derived []interface{}
+
+			// Required list influences required=true on matching properties
+			requiredSet := map[string]bool{}
+			if reqList, ok := params["required"].([]interface{}); ok {
+				for _, r := range reqList {
+					if s, ok := r.(string); ok {
+						requiredSet[s] = true
+					}
+				}
+
+				// Fallback: derive input_schema by scanning graphData node trigger properties
+				if !strings.Contains(hcl.String(), "input_schema = [") {
+					if graphData, ok := flowData["graphData"].(map[string]interface{}); ok {
+						if elements, ok := graphData["elements"].(map[string]interface{}); ok {
+							if nodes, ok := elements["nodes"].([]interface{}); ok {
+								// Collect properties from any node with inputSchema JSON
+								mergedProps := map[string]map[string]interface{}{}
+								requiredSet := map[string]bool{}
+								for _, n := range nodes {
+									nm, _ := n.(map[string]interface{})
+									data, _ := nm["data"].(map[string]interface{})
+									propsBlock, _ := data["properties"].(map[string]interface{})
+									// inputSchema may be under properties.value (string JSON)
+									if v, ok := propsBlock["inputSchema"].(map[string]interface{}); ok {
+										// When using jsonencode, value may be string JSON under "value"
+										if s, ok := v["value"].(string); ok && s != "" {
+											var schema map[string]interface{}
+											if err := json.Unmarshal([]byte(s), &schema); err == nil {
+												if p, ok := schema["properties"].(map[string]interface{}); ok {
+													for pname, pv := range p {
+														if pm, ok := pv.(map[string]interface{}); ok {
+															if _, exists := mergedProps[pname]; !exists {
+																mergedProps[pname] = pm
+															}
+														}
+													}
+												}
+												if req, ok := schema["required"].([]interface{}); ok {
+													for _, r := range req {
+														if sname, ok := r.(string); ok {
+															requiredSet[sname] = true
+														}
+													}
+												}
+											}
+										}
+									}
+								}
+								if len(mergedProps) > 0 {
+									// Build derived list
+									keys := make([]string, 0, len(mergedProps))
+									for k := range mergedProps {
+										keys = append(keys, k)
+									}
+									sort.Strings(keys)
+									var derived []interface{}
+									for _, k := range keys {
+										v := mergedProps[k]
+										item := map[string]interface{}{
+											"propertyName":         k,
+											"preferredDataType":    getString(v, "preferredDataType"),
+											"preferredControlType": getString(v, "preferredControlType"),
+											"isExpanded":           toBool(v["isExpanded"]),
+											"description":          getString(v, "description"),
+											"required":             requiredSet[k],
+										}
+										if item["preferredControlType"] == "" {
+											item["preferredControlType"] = "textField"
+										}
+										if item["preferredDataType"] == "" {
+											if t := getString(v, "type"); t != "" {
+												item["preferredDataType"] = t
+											}
+										}
+										derived = append(derived, item)
+									}
+									if len(derived) > 0 {
+										hcl.WriteString("\n")
+										if err := writeInputSchemaBlock(&hcl, derived); err != nil {
+											return "", fmt.Errorf("failed to write input_schema (graph fallback): %w", err)
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+
+			if props, ok := params["properties"].(map[string]interface{}); ok {
+				// Iterate properties map and map fields
+				keys := make([]string, 0, len(props))
+				for k := range props {
+					keys = append(keys, k)
+				}
+				sort.Strings(keys)
+				for _, k := range keys {
+					if v, ok := props[k].(map[string]interface{}); ok {
+						item := map[string]interface{}{
+							"propertyName":         k,
+							"preferredDataType":    getString(v, "preferredDataType"),
+							"preferredControlType": getString(v, "preferredControlType"),
+							"isExpanded":           toBool(v["isExpanded"]),
+							"description":          getString(v, "description"),
+							// required based on requiredSet
+							"required": requiredSet[k],
+						}
+						// Fallbacks: if preferredControlType missing, default to textField
+						if item["preferredControlType"] == "" {
+							item["preferredControlType"] = "textField"
+						}
+						// If preferredDataType missing, try "type"
+						if item["preferredDataType"] == "" {
+							if t := getString(v, "type"); t != "" {
+								item["preferredDataType"] = t
+							}
+						}
+						derived = append(derived, item)
+					}
+				}
+			}
+
+			if len(derived) > 0 {
+				hcl.WriteString("\n")
+				if err := writeInputSchemaBlock(&hcl, derived); err != nil {
+					return "", fmt.Errorf("failed to write input_schema (compiled): %w", err)
+				}
+			}
+		}
 	}
 
 	// Output schema object
@@ -103,6 +243,14 @@ func ConvertFlowToHCL(flowData map[string]interface{}, environmentID string, ski
 
 	hcl.WriteString("}\n")
 	return hcl.String(), nil
+}
+
+// toBool safely converts an interface to bool, handling nil and non-bool types
+func toBool(v interface{}) bool {
+	if b, ok := v.(bool); ok {
+		return b
+	}
+	return false
 }
 
 // writeSettingsBlock writes the settings nested block

@@ -1,6 +1,7 @@
 package converter
 
 import (
+	"strings"
 	"testing"
 )
 
@@ -160,5 +161,60 @@ func TestToSnakeCase(t *testing.T) {
 				t.Errorf("toSnakeCase(%q) = %q, expected %q", tt.input, result, tt.expected)
 			}
 		})
+	}
+}
+
+func TestConvertFlowToHCL_EmitsColor(t *testing.T) {
+	flow := map[string]interface{}{
+		"name":        "Example Flow",
+		"description": "Desc",
+		// API provides flow color as flowColor
+		"flowColor": "#ABCDEF",
+	}
+
+	hcl, err := ConvertFlowToHCL(flow, "var.environment_id", true, nil)
+	if err != nil {
+		t.Fatalf("ConvertFlowToHCL error: %v", err)
+	}
+
+	if !strings.Contains(hcl, "color       = \"#ABCDEF\"") {
+		t.Fatalf("expected color to be emitted, got: %s", hcl)
+	}
+}
+
+func TestConvertFlowToHCL_EmitsInputSchema(t *testing.T) {
+	inputSchema := []interface{}{
+		map[string]interface{}{
+			"description":          "desc1",
+			"isExpanded":           true,
+			"preferredControlType": "textField",
+			"preferredDataType":    "boolean",
+			"propertyName":         "checkRequired",
+			"required":             true,
+		},
+		map[string]interface{}{
+			"isExpanded":           true,
+			"preferredControlType": "textField",
+			"preferredDataType":    "string",
+			"propertyName":         "pingOneUserId",
+			"required":             true,
+			"description":          "",
+		},
+	}
+
+	flow := map[string]interface{}{
+		"name":        "Example Flow",
+		"flowColor":   "#ABCDEF",
+		"inputSchema": inputSchema,
+	}
+
+	hcl, err := ConvertFlowToHCL(flow, "var.environment_id", true, nil)
+	if err != nil {
+		t.Fatalf("ConvertFlowToHCL error: %v", err)
+	}
+
+	// Ensure input_schema block exists
+	if !strings.Contains(hcl, "input_schema = [") {
+		t.Fatalf("expected input_schema block, got: %s", hcl)
 	}
 }

@@ -111,6 +111,21 @@ func convertFlowDetailToMap(flow *api.FlowDetail) (map[string]interface{}, error
 		flowMap["settings"] = flow.Settings
 	}
 
+	// Include color when available
+	if flow.Color != "" {
+		flowMap["color"] = flow.Color
+	}
+
+	// Include compiled input schema to derive input_schema in converter
+	if flow.InputSchemaCompiled != nil {
+		flowMap["inputSchemaCompiled"] = flow.InputSchemaCompiled
+	}
+
+	// Include top-level inputSchema directly when present
+	if flow.InputSchema != nil && len(flow.InputSchema) > 0 {
+		flowMap["inputSchema"] = flow.InputSchema
+	}
+
 	return flowMap, nil
 }
 

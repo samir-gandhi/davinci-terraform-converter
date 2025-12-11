@@ -20,11 +20,14 @@ type FlowSummary struct {
 
 // FlowDetail represents detailed flow data including graph structure
 type FlowDetail struct {
-	FlowID      string
-	Name        string
-	Description string
-	GraphData   map[string]interface{} // The full flow graph structure
-	Settings    map[string]interface{} // Flow settings
+	FlowID              string
+	Name                string
+	Description         string
+	GraphData           map[string]interface{} // The full flow graph structure
+	Settings            map[string]interface{} // Flow settings
+	Color               string                 // Flow color (API field)
+	InputSchema         []interface{}          // Top-level input schema array
+	InputSchemaCompiled map[string]interface{} // Compiled input schema
 	// Add other relevant fields as needed
 }
 
@@ -44,19 +47,11 @@ func (c *Client) ListFlows(ctx context.Context) ([]FlowSummary, error) {
 		return nil, fmt.Errorf("invalid environment ID: %w", err)
 	}
 
-	// Get an access token using the SDK's token source
-	tokenSource, err := c.serviceCfg.TokenSource(ctx)
+	// Build authenticated HTTP client from SDK configuration
+	base := http.DefaultClient
+	httpClient, err := c.serviceCfg.Client(ctx, base)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create token source: %w", err)
-	}
-
-	token, err := (*tokenSource).Token()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get access token: %w", err)
-	}
-
-	if token.AccessToken == "" {
-		return nil, fmt.Errorf("token source returned empty access token")
+		return nil, fmt.Errorf("failed to build authenticated HTTP client: %w", err)
 	}
 
 	// Make raw HTTP request
@@ -69,12 +64,7 @@ func (c *Client) ListFlows(ctx context.Context) ([]FlowSummary, error) {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
 
-	// Add authentication header
-	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token.AccessToken))
 	req.Header.Set("Accept", "application/json")
-
-	// Create HTTP client
-	httpClient := http.DefaultClient
 
 	httpResp, err := httpClient.Do(req)
 	if err != nil {
@@ -138,19 +128,11 @@ func (c *Client) GetFlow(ctx context.Context, flowID string) (*FlowDetail, error
 		return nil, fmt.Errorf("invalid environment ID: %w", err)
 	}
 
-	// Get an access token using the SDK's token source
-	tokenSource, err := c.serviceCfg.TokenSource(ctx)
+	// Build authenticated HTTP client from SDK configuration
+	base := http.DefaultClient
+	httpClient, err := c.serviceCfg.Client(ctx, base)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create token source: %w", err)
-	}
-
-	token, err := (*tokenSource).Token()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get access token: %w", err)
-	}
-
-	if token.AccessToken == "" {
-		return nil, fmt.Errorf("token source returned empty access token")
+		return nil, fmt.Errorf("failed to build authenticated HTTP client: %w", err)
 	}
 
 	// Make raw HTTP request
@@ -163,12 +145,7 @@ func (c *Client) GetFlow(ctx context.Context, flowID string) (*FlowDetail, error
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
 
-	// Add authentication header
-	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token.AccessToken))
 	req.Header.Set("Accept", "application/json")
-
-	// Create HTTP client
-	httpClient := http.DefaultClient
 
 	httpResp, err := httpClient.Do(req)
 	if err != nil {
@@ -206,6 +183,19 @@ func (c *Client) GetFlow(ctx context.Context, flowID string) (*FlowDetail, error
 
 	if settings, ok := rawResponse["settings"].(map[string]interface{}); ok {
 		detail.Settings = settings
+	}
+
+	if color, ok := rawResponse["color"].(string); ok {
+		detail.Color = color
+	}
+
+	// Top-level inputSchema array
+	if is, ok := rawResponse["inputSchema"].([]interface{}); ok {
+		detail.InputSchema = is
+	}
+
+	if isc, ok := rawResponse["inputSchemaCompiled"].(map[string]interface{}); ok {
+		detail.InputSchemaCompiled = isc
 	}
 
 	return detail, nil

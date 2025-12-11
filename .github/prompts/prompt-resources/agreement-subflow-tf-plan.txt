@@ -1,0 +1,77 @@
+# module.ping-export.pingone_davinci_flow.pingcli__CIAM-Passwordless-Protect-Agreement-0028-ToS-0029--Subflow will be updated in-place
+~ resource "pingone_davinci_flow" "pingcli__CIAM-Passwordless-Protect-Agreement-0028-ToS-0029--Subflow" {
+    - color             = "#CACED3" -> null
+    ~ connectors        = [
+        - {
+            - id = "annotationConnector" -> null
+          },
+        - {
+            - id = "errorConnector" -> null
+          },
+        - {
+            - id = "functionsConnector" -> null
+          },
+        - {
+            - id = "httpConnector" -> null
+          },
+        - {
+            - id = "nodeConnector" -> null
+          },
+        - {
+            - id = "pingOneSSOConnector" -> null
+          },
+      ] -> (known after apply)
+    ~ current_version   = 2 -> (known after apply)
+    ~ enabled           = true -> (known after apply)
+    ~ graph_data        = {
+        ~ elements              = {
+            ~ nodes = (sensitive value)
+              # (1 unchanged attribute hidden)
+          }
+          # (10 unchanged attributes hidden)
+      }
+      id                = "0be33533d3896031bb0a4d569884d027"
+    - input_schema      = [
+        - {
+            - description            = "To check if user has consent before directing user to agreement" -> null
+            - is_expanded            = true -> null
+            - preferred_control_type = "textField" -> null
+            - preferred_data_type    = "boolean" -> null
+            - property_name          = "checkRequired" -> null
+            - required               = true -> null
+          },
+        - {
+            - is_expanded            = true -> null
+            - preferred_control_type = "textField" -> null
+            - preferred_data_type    = "string" -> null
+            - property_name          = "pingOneUserId" -> null
+            - required               = true -> null
+              # (1 unchanged attribute hidden)
+          },
+        - {
+            - is_expanded            = true -> null
+            - preferred_control_type = "textField" -> null
+            - preferred_data_type    = "string" -> null
+            - property_name          = "ciam_agreementId" -> null
+              # (1 unchanged attribute hidden)
+          },
+        - {
+            - is_expanded            = true -> null
+            - preferred_control_type = "textField" -> null
+            - preferred_data_type    = "boolean" -> null
+            - property_name          = "ciam_agreementEnabled" -> null
+              # (1 unchanged attribute hidden)
+          },
+        - {
+            - is_expanded            = true -> null
+            - preferred_control_type = "textField" -> null
+            - preferred_data_type    = "string" -> null
+            - property_name          = "ciam_companyLogo" -> null
+              # (1 unchanged attribute hidden)
+          },
+      ] -> null
+      name              = "CIAM-Passwordless-Protect-Agreement(ToS)-Subflow"
+    ~ published_version = 2 -> (known after apply)
+      # (3 unchanged attributes hidden)
+  }
+
