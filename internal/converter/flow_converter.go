@@ -80,11 +80,13 @@ func ConvertFlowToHCL(flowData map[string]interface{}, environmentID string, ski
 	}
 
 	// Input schema list
+	inputSchemaEmitted := false
 	if inputSchema, ok := flowData["inputSchema"].([]interface{}); ok && len(inputSchema) > 0 {
 		hcl.WriteString("\n")
 		if err := writeInputSchemaBlock(&hcl, inputSchema); err != nil {
 			return "", fmt.Errorf("failed to write input_schema: %w", err)
 		}
+		inputSchemaEmitted = true
 	} else if isc, ok := flowData["inputSchemaCompiled"].(map[string]interface{}); ok {
 		// Build input_schema from compiled schema. Some environments nest under "parameters",
 		// others place properties at the root. Support both.
@@ -170,11 +172,12 @@ func ConvertFlowToHCL(flowData map[string]interface{}, environmentID string, ski
 										}
 										derived = append(derived, item)
 									}
-									if len(derived) > 0 {
+									if len(derived) > 0 && !inputSchemaEmitted {
 										hcl.WriteString("\n")
 										if err := writeInputSchemaBlock(&hcl, derived); err != nil {
 											return "", fmt.Errorf("failed to write input_schema (graph fallback): %w", err)
 										}
+										inputSchemaEmitted = true
 									}
 								}
 							}
@@ -216,11 +219,12 @@ func ConvertFlowToHCL(flowData map[string]interface{}, environmentID string, ski
 				}
 			}
 
-			if len(derived) > 0 {
+			if len(derived) > 0 && !inputSchemaEmitted {
 				hcl.WriteString("\n")
 				if err := writeInputSchemaBlock(&hcl, derived); err != nil {
 					return "", fmt.Errorf("failed to write input_schema (compiled): %w", err)
 				}
+				inputSchemaEmitted = true
 			}
 		}
 	}
@@ -380,14 +384,39 @@ func writeGraphDataBlock(hcl *strings.Builder, graphData map[string]interface{},
 
 		// Nodes
 		if nodes, ok := elements["nodes"].([]interface{}); ok {
-			if err := writeNodesBlock(hcl, nodes, skipDependencies, graph); err != nil {
+			// Deterministic ordering: sort by data.id (lexicographic) to avoid plan diffs
+			sortedNodes := make([]interface{}, 0, len(nodes))
+			sortedNodes = append(sortedNodes, nodes...)
+			sort.SliceStable(sortedNodes, func(i, j int) bool {
+				// Extract id fields safely
+				left, _ := sortedNodes[i].(map[string]interface{})
+				right, _ := sortedNodes[j].(map[string]interface{})
+				ldata, _ := left["data"].(map[string]interface{})
+				rdata, _ := right["data"].(map[string]interface{})
+				lid := getString(ldata, "id")
+				rid := getString(rdata, "id")
+				return lid < rid
+			})
+			if err := writeNodesBlock(hcl, sortedNodes, skipDependencies, graph); err != nil {
 				return fmt.Errorf("failed to write nodes: %w", err)
 			}
 		}
 
 		// Edges
 		if edges, ok := elements["edges"].([]interface{}); ok {
-			if err := writeEdgesBlock(hcl, edges); err != nil {
+			// Deterministic ordering: sort by data.id (lexicographic) to avoid plan diffs
+			sortedEdges := make([]interface{}, 0, len(edges))
+			sortedEdges = append(sortedEdges, edges...)
+			sort.SliceStable(sortedEdges, func(i, j int) bool {
+				left, _ := sortedEdges[i].(map[string]interface{})
+				right, _ := sortedEdges[j].(map[string]interface{})
+				ldata, _ := left["data"].(map[string]interface{})
+				rdata, _ := right["data"].(map[string]interface{})
+				lid := getString(ldata, "id")
+				rid := getString(rdata, "id")
+				return lid < rid
+			})
+			if err := writeEdgesBlock(hcl, sortedEdges); err != nil {
 				return fmt.Errorf("failed to write edges: %w", err)
 			}
 		}
@@ -673,9 +702,31 @@ func writeInputSchemaBlock(hcl *strings.Builder, inputSchema []interface{}) erro
 		if propertyName := getString(schema, "propertyName"); propertyName != "" {
 			hcl.WriteString(fmt.Sprintf("      property_name           = %s\n", quoteString(propertyName)))
 		}
-		if preferredDataType := getString(schema, "preferredDataType"); preferredDataType != "" {
-			hcl.WriteString(fmt.Sprintf("      preferred_data_type     = %s\n", quoteString(preferredDataType)))
+		// Normalize and ensure preferred_data_type is always set
+		preferredDataType := getString(schema, "preferredDataType")
+		if preferredDataType == "" {
+			// Derive from dataType if available
+			dt := getString(schema, "dataType")
+			if dt != "" {
+				preferredDataType = dt
+			}
 		}
+		// Map legacy/alias types to Terraform-accepted values
+		switch strings.ToLower(preferredDataType) {
+		case "bool":
+			preferredDataType = "boolean"
+		case "integer", "int", "float", "double":
+			preferredDataType = "number"
+		case "secret":
+			// Secrets still use string data type for schema
+			preferredDataType = "string"
+		}
+		// Default fallback if still empty or unrecognized
+		allowed := map[string]bool{"array": true, "boolean": true, "number": true, "object": true, "string": true}
+		if preferredDataType == "" || !allowed[strings.ToLower(preferredDataType)] {
+			preferredDataType = "string"
+		}
+		hcl.WriteString(fmt.Sprintf("      preferred_data_type     = %s\n", quoteString(preferredDataType)))
 		if preferredControlType := getString(schema, "preferredControlType"); preferredControlType != "" {
 			hcl.WriteString(fmt.Sprintf("      preferred_control_type  = %s\n", quoteString(preferredControlType)))
 		}
