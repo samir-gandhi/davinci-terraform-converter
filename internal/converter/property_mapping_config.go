@@ -1,5 +1,7 @@
 package converter
 
+import "strings"
+
 // PropertyMappingConfig defines configuration for property-to-variable mapping
 // The primary approach is DYNAMIC: extract variables from any property following the standard
 // {"type": "...", "value": "..."} structure. The hardcoded configurations below are only
@@ -83,14 +85,25 @@ func (c PropertyMappingConfig) IsExcluded(propertyName string) bool {
 
 // HasStandardStructure checks if a property value follows the standard {"type": "...", "value": "..."} pattern
 func HasStandardStructure(propValue ConnectorPropertyValue) bool {
-	// Must have a type field
-	if propValue.Type == "" {
-		return false
+	// Prefer standard structure with non-empty type
+	if propValue.Type != "" {
+		return true
 	}
 
-	// Value can be anything (including nil), but the structure must have type + value fields
-	// Properties with only a "type" and no "value" are not standard
-	return true
+	// Relaxed rule: treat masked secrets as standard even if type is empty
+	// Some API responses omit type for masked values ("******"), but we still need variables
+	if vStr, ok := propValue.Value.(string); ok {
+		if strings.TrimSpace(vStr) == "******" {
+			return true
+		}
+		// Also treat any non-empty string value as standard when type is missing
+		if vStr != "" {
+			return true
+		}
+	}
+
+	// Otherwise, not standard
+	return false
 }
 
 // GenerateVariableName creates a variable name for a connector property
