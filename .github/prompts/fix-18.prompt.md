@@ -1,0 +1,3 @@
+# Bug 18
+
+This one should be relatively straightforward. There is a bug in the tool for `connector_instance` resources in the property map. `type` should be switched to `omitEmpty` to match the API behavior. Update the code to reflect this change, and ensure that unit tests are created to cover this fix. Please follow TDD practices by writing the tests first, then implementing the fix, and finally validating that all tests pass.

@@ -8,9 +8,10 @@ import (
 // TestConnectorInstanceConversion tests the conversion of connector instances to Terraform HCL
 func TestConnectorInstanceConversion(t *testing.T) {
 	tests := []struct {
-		name     string
-		instJSON string
-		expected []string
+		name             string
+		instJSON         string
+		expected         []string
+		negativeExpected []string
 	}{
 		{
 			name: "Connector with complex properties",
@@ -54,6 +55,34 @@ func TestConnectorInstanceConversion(t *testing.T) {
 				`"value": "62f10a04-6c54-40c2-a97d-80a98522ff9a"`,
 				`"region": {`,
 				`"value": "NA"`,
+			},
+		},
+		{
+			name: "Connector property omits empty type",
+			instJSON: `{
+				"id": "prop-empty-type",
+				"environment": {"id": "env-123"},
+				"connector": {"id": "httpConnector"},
+				"name": "HTTP With Empty Type",
+				"properties": {
+					"endpoint": {
+						"type": "",
+						"value": "https://api.example.com"
+					}
+				}
+			}`,
+			expected: []string{
+				`resource "pingone_davinci_connector_instance" "pingcli__HTTP-0020-With-0020-Empty-0020-Type"`,
+				`properties = jsonencode({`,
+				`"endpoint": {`,
+				// Ensure value present
+				`"value": "https://api.example.com"`,
+			},
+			// Ensure type is omitted entirely when empty
+			negativeExpected: []string{
+				`"type": ""`,
+				`"type": "string"`,
+				`"type":`,
 			},
 		},
 		{
@@ -115,6 +144,12 @@ func TestConnectorInstanceConversion(t *testing.T) {
 			for _, expected := range tt.expected {
 				if !strings.Contains(result, expected) {
 					t.Errorf("ConvertConnectorInstance() missing expected element: %s\nGot:\n%s", expected, result)
+				}
+			}
+
+			for _, notExpected := range tt.negativeExpected {
+				if strings.Contains(result, notExpected) {
+					t.Errorf("ConvertConnectorInstance() should not contain: %s\nGot:\n%s", notExpected, result)
 				}
 			}
 

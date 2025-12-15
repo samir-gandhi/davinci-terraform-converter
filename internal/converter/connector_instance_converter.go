@@ -108,8 +108,10 @@ func writePropertiesBlockWithAutoVars(hcl *strings.Builder, properties map[strin
 		// Start property object
 		hcl.WriteString(fmt.Sprintf("      \"%s\": {\n", key))
 
-		// Write type field
-		hcl.WriteString(fmt.Sprintf("          \"type\": \"%s\",\n", prop.Type))
+		// Write type field only when non-empty to match API omitEmpty behavior
+		if strings.TrimSpace(prop.Type) != "" {
+			hcl.WriteString(fmt.Sprintf("          \"type\": \"%s\",\n", prop.Type))
+		}
 
 		// Write value field
 		value := prop.Value
@@ -334,8 +336,10 @@ func writePropertiesBlockWithVariables(hcl *strings.Builder, properties map[stri
 		// Start property object
 		hcl.WriteString(fmt.Sprintf("      \"%s\": {\n", key))
 
-		// Write type field
-		hcl.WriteString(fmt.Sprintf("          \"type\": \"%s\",\n", prop.Type))
+		// Write type field only when non-empty to match API omitEmpty behavior
+		if strings.TrimSpace(prop.Type) != "" {
+			hcl.WriteString(fmt.Sprintf("          \"type\": \"%s\",\n", prop.Type))
+		}
 
 		// Write value field
 		var formattedValue string
