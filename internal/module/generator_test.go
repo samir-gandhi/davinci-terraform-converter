@@ -3,6 +3,7 @@ package module
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -656,6 +657,18 @@ func TestGenerator_GenerateTFVarsTemplate_WithoutValues(t *testing.T) {
 
 	// Verify grouping comments
 	assert.Contains(t, contentStr, "# Variable Variables")
+
+	// Verify variables within the group are sorted alphabetically
+	varPos := strings.Index(contentStr, "# Variable Variables")
+	if varPos >= 0 {
+		section := contentStr[varPos:]
+		aIdx := strings.Index(section, "davinci_variable_company_name_value")
+		bIdx := strings.Index(section, "davinci_variable_enabled_value")
+		cIdx := strings.Index(section, "davinci_variable_port_value")
+		if !(aIdx >= 0 && bIdx >= 0 && cIdx >= 0 && aIdx < bIdx && bIdx < cIdx) {
+			t.Errorf("expected alphabetical order within Variable group: company_name < enabled < port; got positions: %d, %d, %d", aIdx, bIdx, cIdx)
+		}
+	}
 }
 
 // TestGenerator_GenerateTFVarsTemplate_WithValues verifies tfvars generation with actual values
@@ -747,6 +760,18 @@ func TestGenerator_GenerateTFVarsTemplate_WithValues(t *testing.T) {
 
 	// Verify grouping comments
 	assert.Contains(t, contentStr, "# Variable Variables")
+
+	// Verify alphabetical sorting within the Variable group
+	varPos := strings.Index(contentStr, "# Variable Variables")
+	if varPos >= 0 {
+		section := contentStr[varPos:]
+		aIdx := strings.Index(section, "davinci_variable_company_name_value")
+		bIdx := strings.Index(section, "davinci_variable_enabled_value")
+		cIdx := strings.Index(section, "davinci_variable_port_value")
+		if !(aIdx >= 0 && bIdx >= 0 && cIdx >= 0 && aIdx < bIdx && bIdx < cIdx) {
+			t.Errorf("expected alphabetical order within Variable group: company_name < enabled < port; got positions: %d, %d, %d", aIdx, bIdx, cIdx)
+		}
+	}
 }
 
 // TestGenerator_DefaultModuleName tests that the default module name "ping-export" is used in module.tf

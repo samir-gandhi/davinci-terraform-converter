@@ -382,16 +382,29 @@ func (g *Generator) generateModuleInput(v Variable) string {
 
 // generateImportsTF creates the imports.tf file in the root module
 func (g *Generator) generateImportsTF(importBlocks []ImportBlock) error {
-	var sb strings.Builder
+	var comments strings.Builder
+	var blocks strings.Builder
 
+	// First, emit all commented terraform import commands together
 	for _, ib := range importBlocks {
-		sb.WriteString("import {\n")
-		sb.WriteString(fmt.Sprintf("  to = %s\n", ib.To))
-		sb.WriteString(fmt.Sprintf("  id = %q\n", ib.ID))
-		sb.WriteString("}\n\n")
+		comments.WriteString(fmt.Sprintf("# terraform import %s %q\n", ib.To, ib.ID))
 	}
 
-	return g.writeFile(g.config.OutputDir, "imports.tf", sb.String())
+	// Then emit actual import blocks
+	for _, ib := range importBlocks {
+		blocks.WriteString("import {\n")
+		blocks.WriteString(fmt.Sprintf("  to = %s\n", ib.To))
+		blocks.WriteString(fmt.Sprintf("  id = %q\n", ib.ID))
+		blocks.WriteString("}\n\n")
+	}
+
+	// Combine: comments at top, a blank line, then blocks
+	final := comments.String()
+	if blocks.Len() > 0 {
+		final += "\n" + blocks.String()
+	}
+
+	return g.writeFile(g.config.OutputDir, "imports.tf", final)
 }
 
 // generateTFVarsFile creates the ping-export-terraform.auto.tfvars file
@@ -425,6 +438,10 @@ func (g *Generator) generateTFVarsFile(structure *ModuleStructure) error {
 		hdr := cases.Title(language.English).String(resourceType)
 		sb.WriteString(fmt.Sprintf("# %s Variables\n\n", hdr))
 
+		// Sort variables alphabetically within each resource type group
+		sort.Slice(vars, func(i, j int) bool {
+			return strings.ToLower(vars[i].Name) < strings.ToLower(vars[j].Name)
+		})
 		for _, v := range vars {
 			sb.WriteString(g.generateTFVarValue(v))
 		}

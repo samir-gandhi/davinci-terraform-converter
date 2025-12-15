@@ -169,11 +169,12 @@ func generateVariableHCL(variable VariableResponse, skipDependencies bool) strin
 	// 		}
 	// 	}
 	// }
+	// Determine if the variable has a meaningful value; secrets are never emitted
 	hasValue := variable.Value != nil && !isEmptyValue(variable.Value) && dt != "secret"
 	willWriteValue := false
 	if hasValue {
-		// Check if writeVariableValueBlock would actually write something
-		willWriteValue = canWriteValue(variable.DataType, variable.Value)
+		// Infer writability from actual value type, not data_type
+		willWriteValue = canWriteValueFromActual(variable.Value)
 	}
 
 	// Mutable must be true when no value is set (provider requirement)
@@ -218,7 +219,8 @@ func generateVariableHCL(variable VariableResponse, skipDependencies bool) strin
 	valueWritten := false
 	if hasValue {
 		hcl.WriteString("\n")
-		valueWritten = writeVariableValueBlock(&hcl, dt, variable.Value)
+		// Write value based on actual runtime type of value, independent of data_type
+		valueWritten = writeVariableValueBlockFromActual(&hcl, variable.Value)
 
 		// If no value was actually written, add TODO comment
 		if !valueWritten {
@@ -268,78 +270,55 @@ func isEmptyValue(value interface{}) bool {
 }
 
 // canWriteValue checks if writeVariableValueBlock would actually write content for this value
-func canWriteValue(dataType string, value interface{}) bool {
-	dt := strings.ToLower(dataType)
-	switch dt {
-	case "string":
-		str, ok := value.(string)
-		return ok && str != ""
-	case "number":
-		switch value.(type) {
-		case float64, int:
-			return true
-		}
+func canWriteValueFromActual(value interface{}) bool {
+	switch v := value.(type) {
+	case string:
+		return v != ""
+	case bool:
+		return true
+	case float64, int:
+		return true
+	case map[string]interface{}, []interface{}:
+		jsonBytes, err := json.Marshal(v)
+		return err == nil && len(jsonBytes) > 2
+	default:
 		return false
-	case "boolean":
-		_, ok := value.(bool)
-		return ok
-	case "object":
-		jsonBytes, err := json.Marshal(value)
-		return err == nil && len(jsonBytes) > 2 // More than just "{}"
-	case "secret":
-		return false // Never write secret values
 	}
-	return false
 }
 
 // writeVariableValueBlock writes the value block based on data type
 // Returns true if a value was written, false if nothing was written
-func writeVariableValueBlock(hcl *strings.Builder, dataType string, value interface{}) bool {
+func writeVariableValueBlockFromActual(hcl *strings.Builder, value interface{}) bool {
 	var valueContent strings.Builder
 	hasContent := false
 
-	dt := strings.ToLower(dataType)
-	switch dt {
-	case "string":
-		if str, ok := value.(string); ok && str != "" {
-			valueContent.WriteString(fmt.Sprintf("    string = \"%s\"\n", str))
+	switch v := value.(type) {
+	case string:
+		if v != "" {
+			valueContent.WriteString(fmt.Sprintf("    string = \"%s\"\n", v))
 			hasContent = true
 		}
-	case "secret":
-		if str, ok := value.(string); ok && str != "" {
-			valueContent.WriteString(fmt.Sprintf("    string = \"%s\"\n", str))
-			hasContent = true
+	case bool:
+		valueContent.WriteString(fmt.Sprintf("    bool = %t\n", v))
+		hasContent = true
+	case float64:
+		if v == float64(int64(v)) {
+			valueContent.WriteString(fmt.Sprintf("    float32 = %d\n", int64(v)))
+		} else {
+			valueContent.WriteString(fmt.Sprintf("    float32 = %f\n", v))
 		}
-	case "number":
-		switch v := value.(type) {
-		case float64:
-			// Check if it's an integer
-			if v == float64(int64(v)) {
-				valueContent.WriteString(fmt.Sprintf("    float32 = %d\n", int64(v)))
-			} else {
-				valueContent.WriteString(fmt.Sprintf("    float32 = %f\n", v))
-			}
-			hasContent = true
-		case int:
-			valueContent.WriteString(fmt.Sprintf("    float32 = %d\n", v))
-			hasContent = true
-		}
-	case "boolean":
-		if b, ok := value.(bool); ok {
-			valueContent.WriteString(fmt.Sprintf("    bool = %t\n", b))
-			hasContent = true
-		}
-	case "object":
-		// Marshal the object to JSON
-		jsonBytes, err := json.Marshal(value)
-		if err == nil && len(jsonBytes) > 2 { // More than just "{}"
-			// Use json_object attribute per provider schema
+		hasContent = true
+	case int:
+		valueContent.WriteString(fmt.Sprintf("    float32 = %d\n", v))
+		hasContent = true
+	case map[string]interface{}, []interface{}:
+		jsonBytes, err := json.Marshal(v)
+		if err == nil && len(jsonBytes) > 2 {
 			valueContent.WriteString(fmt.Sprintf("    json_object = %s\n", string(jsonBytes)))
 			hasContent = true
 		}
 	}
 
-	// Only write the value block if we have actual content
 	if hasContent {
 		hcl.WriteString("  value = {\n")
 		hcl.WriteString(valueContent.String())

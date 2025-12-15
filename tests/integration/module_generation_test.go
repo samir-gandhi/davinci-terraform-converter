@@ -171,6 +171,8 @@ func TestModuleGenerationWithImports(t *testing.T) {
 	assert.Contains(t, string(importsContent), "import {")
 	assert.Contains(t, string(importsContent), "to = module.davinci.pingone_davinci_flow.main")
 	assert.Contains(t, string(importsContent), "id = \"test-env-123:flow-id-789\"")
+	// New: verify commented terraform import command is present
+	assert.Contains(t, string(importsContent), "# terraform import module.davinci.pingone_davinci_flow.main \"test-env-123:flow-id-789\"")
 }
 
 // TestModuleGenerationCustomDirectory tests custom module directory name
