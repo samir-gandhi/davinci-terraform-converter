@@ -84,3 +84,27 @@ func TestConvertVariable_ValueTypingFromActualValue_Number123(t *testing.T) {
 }
 
 func intPtr(v int) *int { return &v }
+
+func TestGenerateVariableHCLWithVarReference_UsesActualTypeForKey(t *testing.T) {
+	// dataType is boolean but actual value is a string "false"
+	varResp := VariableResponse{
+		ID: "var-mismatch",
+		Environment: struct {
+			ID string `json:"id"`
+		}{ID: "env-1"},
+		Name:     "ciam_mobilePushOtpEnabled",
+		DataType: "boolean",
+		Context:  "company",
+		Value:    "false",
+		Mutable:  true,
+		Min:      intPtr(0),
+		Max:      intPtr(2000),
+	}
+
+	hcl := generateVariableHCLWithVarReference(varResp, false, "davinci_variable_ciam_mobilePushOtpEnabled_company_value")
+
+	// Expect the value key to be string, not bool
+	if !strings.Contains(hcl, "value = {\n    string = var.davinci_variable_ciam_mobilePushOtpEnabled_company_value\n  }") {
+		t.Errorf("expected string key for var reference, got:\n%s", hcl)
+	}
+}

@@ -83,7 +83,19 @@ func GetVariableEligibleAttributes(variableJSON []byte, resourceName string) ([]
 		}
 	}
 	hasValue := variable.Value != nil && !isEmptyValue(variable.Value)
-	isPrimitive := variable.DataType == "string" || variable.DataType == "number" || variable.DataType == "boolean"
+	// Primitive based on actual value type, not declared dataType
+	_, isString := variable.Value.(string)
+	_, isBool := variable.Value.(bool)
+	switch variable.Value.(type) {
+	case float64, int:
+		// numbers represented in JSON decode as float64
+	}
+	isNumber := false
+	switch variable.Value.(type) {
+	case float64, int:
+		isNumber = true
+	}
+	isPrimitive := isString || isBool || isNumber
 
 	// Only extract secrets when masked; non-masked secrets are not extracted
 	if (hasValue && isPrimitive) || maskedSecret {
@@ -92,12 +104,12 @@ func GetVariableEligibleAttributes(variableJSON []byte, resourceName string) ([]
 		if maskedSecret {
 			tfType = "string"
 		} else {
-			switch variable.DataType {
-			case "number":
+			// Infer Terraform type from actual value type
+			if isNumber {
 				tfType = "number"
-			case "boolean":
+			} else if isBool {
 				tfType = "bool"
-			default:
+			} else {
 				tfType = "string"
 			}
 		}
@@ -375,27 +387,33 @@ func generateVariableHCLWithVarReference(variable VariableResponse, skipDependen
 
 	if (hasValue) && varName != "" {
 		hcl.WriteString("\n")
-		// Use variable reference for the value block based on data type
-		switch variable.DataType {
-		case "string":
+		// Infer the key from the actual value's runtime type (not data_type)
+		switch v := variable.Value.(type) {
+		case string:
 			hcl.WriteString("  value = {\n")
 			hcl.WriteString(fmt.Sprintf("    string = var.%s\n", varName))
 			hcl.WriteString("  }\n")
-		case "number":
-			hcl.WriteString("  value = {\n")
-			hcl.WriteString(fmt.Sprintf("    float32 = var.%s\n", varName))
-			hcl.WriteString("  }\n")
-		case "boolean":
+		case bool:
 			hcl.WriteString("  value = {\n")
 			hcl.WriteString(fmt.Sprintf("    bool = var.%s\n", varName))
 			hcl.WriteString("  }\n")
-		case "object":
+		case float64:
+			hcl.WriteString("  value = {\n")
+			hcl.WriteString(fmt.Sprintf("    float32 = var.%s\n", varName))
+			hcl.WriteString("  }\n")
+		case int:
+			hcl.WriteString("  value = {\n")
+			hcl.WriteString(fmt.Sprintf("    float32 = var.%s\n", varName))
+			hcl.WriteString("  }\n")
+		case map[string]interface{}, []interface{}:
 			hcl.WriteString("  value = {\n")
 			hcl.WriteString(fmt.Sprintf("    json_object = var.%s\n", varName))
 			hcl.WriteString("  }\n")
-		case "secret":
+		default:
+			// Fallback to string typing for unknown types
+			_ = v
 			hcl.WriteString("  value = {\n")
-			hcl.WriteString(fmt.Sprintf("    secret_string = var.%s\n", varName))
+			hcl.WriteString(fmt.Sprintf("    string = var.%s\n", varName))
 			hcl.WriteString("  }\n")
 		}
 	}
