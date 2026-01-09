@@ -218,3 +218,119 @@ func TestConvertFlowToHCL_EmitsInputSchema(t *testing.T) {
 		t.Fatalf("expected input_schema block, got: %s", hcl)
 	}
 }
+
+func TestConvertFlowToHCL_EmitsIdUniqueInNodes(t *testing.T) {
+	flow := map[string]interface{}{
+		"name": "Example Flow",
+		"graphData": map[string]interface{}{
+			"elements": map[string]interface{}{
+				"nodes": []interface{}{
+					map[string]interface{}{
+						"data": map[string]interface{}{
+							"id":        "node-1",
+							"nodeType":  "CONNECTION",
+							"idUnique":  "abc123uniq",
+							"name":      "Node One",
+							"properties": map[string]interface{}{},
+						},
+						"position": map[string]interface{}{"x": 0.0, "y": 0.0},
+						"classes":  "",
+					},
+				},
+			},
+		},
+	}
+
+	hcl, err := ConvertFlowToHCL(flow, "var.environment_id", true, nil)
+	if err != nil {
+		t.Fatalf("ConvertFlowToHCL error: %v", err)
+	}
+
+	if !strings.Contains(hcl, "id_unique       = \"abc123uniq\"") {
+		t.Fatalf("expected id_unique to be emitted, got:\n%s", hcl)
+	}
+}
+
+func TestSettingsCSSMultiline_QuotedStringSingleEscapes(t *testing.T) {
+	flow := map[string]interface{}{
+		"name": "Example Flow",
+		"settings": map[string]interface{}{
+			"css": ".companyLogo {\n    /* Ping Logo  */\n    content: url(\"https://assets.pingone.com/ux/ui-library/5.0.2/images/logo-pingidentity.png\");\n    width: 65px;\n    height: 65px;\n}",
+		},
+	}
+
+	hcl, err := ConvertFlowToHCL(flow, "var.environment_id", true, nil)
+	if err != nil {
+		t.Fatalf("ConvertFlowToHCL error: %v", err)
+	}
+
+	// Expect quoted string (no heredoc) with single escapes
+	if strings.Contains(hcl, "<<-") {
+		t.Fatalf("unexpected heredoc for css, got:\n%s", hcl)
+	}
+	// Should contain single-escaped newlines and quotes
+	if !strings.Contains(hcl, "css") || !strings.Contains(hcl, "\\n") {
+		t.Fatalf("expected css to contain escaped newlines, got:\n%s", hcl)
+	}
+	// No double-escaping of newlines or quotes
+	if strings.Contains(hcl, "\\\\n") || strings.Contains(hcl, "\\\\\"") {
+		t.Fatalf("found double-escaped sequences in css output:\n%s", hcl)
+	}
+	// URL should appear with escaped quotes inside the string
+	if !strings.Contains(hcl, "content: url(\\\"https://assets.pingone.com/ux/ui-library/5.0.2/images/logo-pingidentity.png\\\");") {
+		t.Fatalf("expected escaped quotes in css URL, got:\n%s", hcl)
+	}
+}
+
+func TestSettingsIntermediateHTML_QuotedStringSingleEscapes(t *testing.T) {
+	html := "<div>\n  <span>Loading...</span>\n</div>"
+	flow := map[string]interface{}{
+		"name": "Example Flow",
+		"settings": map[string]interface{}{
+			"intermediateLoadingScreenHTML": html,
+		},
+	}
+
+	hcl, err := ConvertFlowToHCL(flow, "var.environment_id", true, nil)
+	if err != nil {
+		t.Fatalf("ConvertFlowToHCL error: %v", err)
+	}
+
+	if strings.Contains(hcl, "<<-") {
+		t.Fatalf("unexpected heredoc for intermediate_loading_screen_html, got:\n%s", hcl)
+	}
+	// Expect single-escaped newlines
+	if !strings.Contains(hcl, "intermediate_loading_screen_html") || !strings.Contains(hcl, "\\n") {
+		t.Fatalf("expected escaped newlines in html output, got:\n%s", hcl)
+	}
+	if strings.Contains(hcl, "\\\\n") {
+		t.Fatalf("found double-escaped newlines in html output:\n%s", hcl)
+	}
+	// Content should be present within quoted string (with escapes)
+	if !strings.Contains(hcl, "<span>Loading...</span>") {
+		t.Fatalf("expected html content inside quoted string, got:\n%s", hcl)
+	}
+}
+
+func TestSettingsCSP_RemainsQuoted(t *testing.T) {
+	csp := "worker-src 'self' blob:; script-src 'self' https://cdn.jsdelivr.net https://code.jquery.com 'unsafe-inline' 'unsafe-eval';"
+	flow := map[string]interface{}{
+		"name": "Example Flow",
+		"settings": map[string]interface{}{
+			"csp": csp,
+		},
+	}
+
+	hcl, err := ConvertFlowToHCL(flow, "var.environment_id", true, nil)
+	if err != nil {
+		t.Fatalf("ConvertFlowToHCL error: %v", err)
+	}
+
+	// Should be a simple quoted string, not heredoc
+	if strings.Contains(hcl, "csp = <<-") {
+		t.Fatalf("unexpected heredoc for csp, got:\n%s", hcl)
+	}
+	if !strings.Contains(hcl, "csp") || !strings.Contains(hcl, "\"worker-src 'self' blob:;") {
+		t.Fatalf("expected quoted csp string, got:\n%s", hcl)
+	}
+}

@@ -327,10 +327,10 @@ func (g *Generator) generateResourceFiles(resources ModuleResources) error {
 		}
 	}
 
-	// Generate pingone_davinci_flow_policy.tf
+	// Generate pingone_davinci_application_flow_policy.tf (correct filename)
 	if resources.FlowPoliciesHCL != "" {
 		sorted := utils.SortAllResourceBlocks(resources.FlowPoliciesHCL)
-		if err := g.writeFile(g.childModulePath(), "pingone_davinci_flow_policy.tf", sorted); err != nil {
+		if err := g.writeFile(g.childModulePath(), "pingone_davinci_application_flow_policy.tf", sorted); err != nil {
 			return err
 		}
 	}

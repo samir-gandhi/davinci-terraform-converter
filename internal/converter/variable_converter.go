@@ -388,6 +388,12 @@ func generateVariableHCLWithVarReference(variable VariableResponse, skipDependen
 	if (hasValue) && varName != "" {
 		hcl.WriteString("\n")
 		// Infer the key from the actual value's runtime type (not data_type)
+		// Special-case: secrets should use secret_string key per provider schema
+		if variable.DataType == "secret" {
+			hcl.WriteString("  value = {\n")
+			hcl.WriteString(fmt.Sprintf("    secret_string = var.%s\n", varName))
+			hcl.WriteString("  }\n")
+		} else {
 		switch v := variable.Value.(type) {
 		case string:
 			hcl.WriteString("  value = {\n")
@@ -415,6 +421,7 @@ func generateVariableHCLWithVarReference(variable VariableResponse, skipDependen
 			hcl.WriteString("  value = {\n")
 			hcl.WriteString(fmt.Sprintf("    string = var.%s\n", varName))
 			hcl.WriteString("  }\n")
+		}
 		}
 	}
 

@@ -7,6 +7,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+    "crypto/sha1"
 
 	"github.com/samir-gandhi/davinci-terraform-converter/internal/resolver"
 	"github.com/samir-gandhi/davinci-terraform-converter/internal/utils"
@@ -352,7 +353,14 @@ func writeSettingsBlock(hcl *strings.Builder, settings map[string]interface{}) e
 
 		switch v := value.(type) {
 		case string:
-			hcl.WriteString(fmt.Sprintf("    %-36s = %s\n", hclKey, quoteString(v)))
+			// Revert heredoc: emit quoted strings while avoiding double-escaping
+			// 1) Decode JSON-style escapes to raw characters (e.g., \n -> newline)
+			decoded := decodeJSONEscapes(v)
+			// 2) Prevent Terraform interpolation by escaping literal "${" as "$${"
+			safe := strings.ReplaceAll(decoded, "${", "$${")
+			// 3) Quote using strconv.Quote to produce single-escaped sequences
+			quoted := strconv.Quote(safe)
+			hcl.WriteString(fmt.Sprintf("    %-36s = %s\n", hclKey, quoted))
 		case float64:
 			hcl.WriteString(fmt.Sprintf("    %-36s = %d\n", hclKey, int(v)))
 		case bool:
@@ -497,6 +505,11 @@ func writeNodesBlock(hcl *strings.Builder, nodes []interface{}, skipDependencies
 			}
 			if nodeType := getString(data, "nodeType"); nodeType != "" {
 				hcl.WriteString(fmt.Sprintf("            node_type       = %s\n", quoteString(nodeType)))
+			}
+
+			// Optional: id_unique (from API field idUnique)
+			if idUnique := getString(data, "idUnique"); idUnique != "" {
+				hcl.WriteString(fmt.Sprintf("            id_unique       = %s\n", quoteString(idUnique)))
 			}
 
 			// Optional fields - connection_id needs special handling
@@ -851,6 +864,36 @@ func toSnakeCase(s string) string {
 	re := regexp.MustCompile(`[^\w]+`)
 	result := re.ReplaceAllString(s, "")
 	return strings.ToLower(result)
+}
+
+// chooseHeredocLabel generates a safe heredoc label that is unlikely to collide
+// with content lines. Uses a stable prefix and a short hash of the content.
+func chooseHeredocLabel(hclKey, content string) string {
+	base := strings.ToUpper(hclKey)
+	if base == "" {
+		base = "CONTENT"
+	}
+	sum := sha1.Sum([]byte(content))
+	label := fmt.Sprintf("TFHCL_%s_%x", base, sum[:4])
+	// If extremely unlikely collision, extend the hash length
+	if strings.Contains(content, "\n"+label+"\n") || strings.HasPrefix(content, label+"\n") || strings.HasSuffix(content, "\n"+label) {
+		label = fmt.Sprintf("TFHCL_%s_%x", base, sum[:6])
+	}
+	return label
+}
+
+// decodeJSONEscapes attempts to interpret the provided string as a JSON string
+// literal content and decodes common escape sequences (\n, \t, \r, \\ and \"),
+// returning the decoded string. If decoding fails, returns the original input.
+func decodeJSONEscapes(s string) string {
+	// Wrap in quotes to make it a valid JSON string literal for Unquote.
+	// Existing quotes in s should already be escaped (\"). If not, Unquote will fail.
+	wrapped := "\"" + s + "\""
+	unquoted, err := strconv.Unquote(wrapped)
+	if err != nil {
+		return s
+	}
+	return unquoted
 }
 
 // writeJSONAsHCLMap recursively writes a JSON object as an HCL map literal for use with jsonencode()

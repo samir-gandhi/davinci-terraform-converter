@@ -244,7 +244,7 @@ func TestModuleGenerationAllResourceTypes(t *testing.T) {
 	assert.FileExists(t, filepath.Join(childModulePath, "pingone_davinci_connector_instance.tf"))
 	assert.FileExists(t, filepath.Join(childModulePath, "pingone_davinci_variable.tf"))
 	assert.FileExists(t, filepath.Join(childModulePath, "pingone_davinci_application.tf"))
-	assert.FileExists(t, filepath.Join(childModulePath, "pingone_davinci_flow_policy.tf"))
+	assert.FileExists(t, filepath.Join(childModulePath, "pingone_davinci_application_flow_policy.tf"))
 
 	// Verify content of each file
 	flowsContent, err := os.ReadFile(filepath.Join(childModulePath, "pingone_davinci_flow.tf"))
@@ -263,7 +263,7 @@ func TestModuleGenerationAllResourceTypes(t *testing.T) {
 	require.NoError(t, err)
 	assert.Contains(t, string(applicationsContent), "pingone_davinci_application")
 
-	policiesContent, err := os.ReadFile(filepath.Join(childModulePath, "pingone_davinci_flow_policy.tf"))
+	policiesContent, err := os.ReadFile(filepath.Join(childModulePath, "pingone_davinci_application_flow_policy.tf"))
 	require.NoError(t, err)
 	assert.Contains(t, string(policiesContent), "pingone_davinci_application_flow_policy")
 }

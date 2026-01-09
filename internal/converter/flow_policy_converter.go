@@ -51,77 +51,59 @@ func ConvertFlowPolicyToTerraform(policy pingone.DaVinciFlowPolicyResponse, reso
 		hcl.WriteString(fmt.Sprintf("  status         = %q\n", string(*status)))
 	}
 
-	// Trigger - Always export to match provider schema defaults
-	// If API doesn't return trigger, use schema default values
-	hcl.WriteString("\n")
-	hcl.WriteString("  trigger = {\n")
-
-	// Type (default: "AUTHENTICATION")
-	triggerType := "AUTHENTICATION"
+	// Trigger - emit only if present in API (omitEmpty behavior)
 	if trigger, ok := policy.GetTriggerOk(); ok && trigger != nil {
+		hcl.WriteString("\n")
+		hcl.WriteString("  trigger = {\n")
+
+		// Type
 		if t, typeOk := trigger.GetTypeOk(); typeOk && t != nil {
-			triggerType = *t
+			hcl.WriteString(fmt.Sprintf("    type = %q\n", *t))
 		}
-	}
-	hcl.WriteString(fmt.Sprintf("    type = %q\n", triggerType))
 
-	// Configuration (always include with defaults if not present)
-	hcl.WriteString("\n")
-	hcl.WriteString("    configuration = {\n")
-
-	// MFA configuration (defaults: enabled=false, time=0, time_format="min")
-	mfaEnabled := false
-	mfaTime := float32(0)
-	mfaTimeFormat := "min"
-	if trigger, ok := policy.GetTriggerOk(); ok && trigger != nil {
+		// Configuration - only if present
 		if config, configOk := trigger.GetConfigurationOk(); configOk && config != nil {
+			hcl.WriteString("\n")
+			hcl.WriteString("    configuration = {\n")
+
+			// Removed defaults; emit mfa only when present
+			// MFA configuration
 			if mfa, mfaOk := config.GetMfaOk(); mfaOk {
+				hcl.WriteString("      mfa = {\n")
 				if enabled, enabledOk := mfa.GetEnabledOk(); enabledOk {
-					mfaEnabled = *enabled
+					hcl.WriteString(fmt.Sprintf("        enabled     = %t\n", *enabled))
 				}
 				if time, timeOk := mfa.GetTimeOk(); timeOk {
-					mfaTime = *time
+					hcl.WriteString(fmt.Sprintf("        time        = %d\n", int64(*time)))
 				}
 				if timeFormat, formatOk := mfa.GetTimeFormatOk(); formatOk && timeFormat != nil {
-					mfaTimeFormat = *timeFormat
+					hcl.WriteString(fmt.Sprintf("        time_format = %q\n", *timeFormat))
 				}
+				hcl.WriteString("      }\n")
 			}
-		}
-	}
-	hcl.WriteString("      mfa = {\n")
-	hcl.WriteString(fmt.Sprintf("        enabled     = %t\n", mfaEnabled))
-	hcl.WriteString(fmt.Sprintf("        time        = %d\n", int64(mfaTime)))
-	hcl.WriteString(fmt.Sprintf("        time_format = %q\n", mfaTimeFormat))
-	hcl.WriteString("      }\n")
 
-	// Password configuration (defaults: enabled=false, time=0, time_format="min")
-	pwdEnabled := false
-	pwdTime := float32(0)
-	pwdTimeFormat := "min"
-	if trigger, ok := policy.GetTriggerOk(); ok && trigger != nil {
-		if config, configOk := trigger.GetConfigurationOk(); configOk && config != nil {
+			// Removed defaults; emit pwd only when present
+			// Password configuration
 			if pwd, pwdOk := config.GetPwdOk(); pwdOk {
+				hcl.WriteString("\n")
+				hcl.WriteString("      pwd = {\n")
 				if enabled, enabledOk := pwd.GetEnabledOk(); enabledOk {
-					pwdEnabled = *enabled
+					hcl.WriteString(fmt.Sprintf("        enabled     = %t\n", *enabled))
 				}
 				if time, timeOk := pwd.GetTimeOk(); timeOk {
-					pwdTime = *time
+					hcl.WriteString(fmt.Sprintf("        time        = %d\n", int64(*time)))
 				}
 				if timeFormat, formatOk := pwd.GetTimeFormatOk(); formatOk && timeFormat != nil {
-					pwdTimeFormat = *timeFormat
+					hcl.WriteString(fmt.Sprintf("        time_format = %q\n", *timeFormat))
 				}
+				hcl.WriteString("      }\n")
 			}
-		}
-	}
-	hcl.WriteString("\n")
-	hcl.WriteString("      pwd = {\n")
-	hcl.WriteString(fmt.Sprintf("        enabled     = %t\n", pwdEnabled))
-	hcl.WriteString(fmt.Sprintf("        time        = %d\n", int64(pwdTime)))
-	hcl.WriteString(fmt.Sprintf("        time_format = %q\n", pwdTimeFormat))
-	hcl.WriteString("      }\n")
 
-	hcl.WriteString("    }\n")
-	hcl.WriteString("  }\n")
+			hcl.WriteString("    }\n")
+		}
+
+		hcl.WriteString("  }\n")
+	}
 
 	// Flow distributions
 	if distributions, ok := policy.GetFlowDistributionsOk(); ok && len(distributions) > 0 {
