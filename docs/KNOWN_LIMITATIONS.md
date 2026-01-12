@@ -37,7 +37,7 @@ The converter now uses the same resource name sanitization as pingcli's `ImportB
 **Priority**: Medium  
 **Category**: Test Maintenance
 
-### Description
+### Context and Cause (Import Drift)
 
 Several tests in `converter_test.go` still use old resource name expectations that don't match the updated pingcli-compatible sanitization format.
 
@@ -81,13 +81,14 @@ Update test expectations in `converter_test.go` to use:
 
 The `toSnakeCase()` function in `flow_converter.go` doesn't actually convert to snake_case. It lowercases the input and removes non-alphanumeric characters (except underscores).
 
-### Current Behavior
+### Context and Cause
 
 - `httpConnector` → `httpconnector` (not `http_connector`)
 - `pingOneSSOConnector` → `pingonessoconnector` (not `ping_one_sso_connector`)
-- `ping-one-connector` → `pingoneconnector` (removes hyphens)
+### Decision: Lifecycle Ignore (Flows)
 
-### Impact
+  
+  ```hcl
 
 - **Functional**: None (works correctly for its purpose)
 - **Readability**: Function name is misleading
@@ -100,19 +101,20 @@ Rename function to better reflect what it does:
 - `sanitizeConnectorId()` - purpose-oriented
 - Document clearly that it doesn't insert underscores between camelCase words
 
-**Estimated Effort**: 15-30 minutes
+### Effects (Import Drift)
 
 ---
 
 ## 3. Flow Variables Not Implemented
 
----
+### Context (Graph Data)
 
 ## 3. Flow Variables Not Implemented
 
-**Priority**: High  
+### Decision (Graph Data)
 **Category**: Missing Feature
-
+  
+  ```hcl
 ---
 
 ## 3. Flow Variables Not Implemented
@@ -121,7 +123,7 @@ Rename function to better reflect what it does:
 **Category**: Missing Feature
 
 ### Description
-
+### Effects (Graph Data)
 DaVinci flows can contain variables (flow-scoped, company-scoped, etc.) that are not currently converted to Terraform format.
 
 ### Impact
@@ -236,7 +238,7 @@ properties = jsonencode({
 - ❌ More complex generation logic
 - ❌ Alignment/indentation complexity
 
-### Current Decision
+### Decision: Lifecycle Ignore
 
 Using compact format based on assumption that generated Terraform code is not typically hand-edited. If this assumption changes, pretty-printing should be reconsidered.
 
@@ -266,7 +268,7 @@ settings = {
 
 Some tests expected 2-space alignment, converter uses natural alignment based on longest field name.
 
-### Impact
+### Effects
 
 - **Functional**: None
 - **Aesthetics**: Minor - alignment looks inconsistent in some cases
@@ -289,7 +291,72 @@ Using natural alignment (align to longest field name in block). This is the most
 | 4 | jsonencode compact format | Low | Low | 2-3h | Documented, Decision Made |
 | 5 | Settings alignment varies | Very Low | None | N/A | Documented, No Action Needed |
 
+
+## Provider-Managed Fields and Import Drift
+
+**Priority**: Medium  
+**Category**: Provider Behavior / Import Drift
+
+### Context
+
+After importing existing DaVinci flows, Terraform can report in-place updates on fields that the PingOne provider or backend manages. Typical attributes: `connectors`, `current_version`, `enabled`, `published_version`.
+
+### Cause
+
+- **Computed/Server-managed**: These values are determined by the service (e.g., publish/version counters, enabled flags, connector sets derived from `graphData`). They may change outside Terraform.
+- **State vs Config Mismatch**: Post-import, state reflects provider-managed values. Configuration may omit these or present differently, yielding no-op diffs.
+
+### Decision
+
+- The converter appends a lifecycle block on every `pingone_davinci_flow` resource:
+
+  ```hcl
+  lifecycle {
+    ignore_changes = [
+      connectors,
+      current_version,
+      enabled,
+      published_version
+    ]
+  }
+  ```
+
+- Terraform may emit "Redundant ignore_changes" warnings because some attributes are purely computed. This is acceptable; the block suppresses plan churn after import.
+
+### Effects
+
+- **Functional**: Prevents noisy diffs and in-place updates on provider-managed fields.
+- **Diagnostics**: Users may see validation warnings; safe to ignore.
+
+### Notes
+
+- If organizational policy requires eliminating warnings, remove purely computed attributes from `ignore_changes`. The converter keeps the full set to maximize drift suppression post-import.
+
 ---
+
+## Empty `graph_data.data` Inclusion
+
+**Priority**: Low  
+**Category**: Compatibility / Diff Suppression
+
+### Description
+
+When the API returns `"graphData": { "data": {} }`, the provider persists that empty object. Omitting it from HCL causes diffs during plan/apply.
+
+### Current Decision
+
+- The converter always includes the empty data object as:
+
+  ```hcl
+  graph_data = {
+    data = jsonencode({})
+    # ...
+  }
+  ```
+
+### Impact
+
+- **Functional**: Aligns generated HCL with provider state; avoids false-positive changes.
 
 ## Resolved Limitations
 

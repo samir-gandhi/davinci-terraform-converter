@@ -246,6 +246,16 @@ func ConvertFlowToHCL(flowData map[string]interface{}, environmentID string, ski
 		}
 	}
 
+	// Lifecycle: ignore provider-managed or computed attributes that cause plan churn post-import
+	hcl.WriteString("\n  lifecycle {\n")
+	hcl.WriteString("    ignore_changes = [\n")
+	hcl.WriteString("      connectors,\n")
+	hcl.WriteString("      current_version,\n")
+	hcl.WriteString("      enabled,\n")
+	hcl.WriteString("      published_version\n")
+	hcl.WriteString("    ]\n")
+	hcl.WriteString("  }\n")
+
 	hcl.WriteString("}\n")
 	return hcl.String(), nil
 }
@@ -266,6 +276,11 @@ func writeSettingsBlock(hcl *strings.Builder, settings map[string]interface{}) e
 	keys := make([]string, 0, len(settings))
 	for k := range settings {
 		keys = append(keys, k)
+	}
+	// Inject default logLevel = 4 if missing to match provider default
+	if _, ok := settings["logLevel"]; !ok {
+		settings["logLevel"] = float64(4)
+		keys = append(keys, "logLevel")
 	}
 	sort.Strings(keys)
 
@@ -306,6 +321,11 @@ func writeSettingsBlock(hcl *strings.Builder, settings map[string]interface{}) e
 
 		// Special handling for js_links - array of objects
 		if key == "jsLinks" {
+			// If present but null, render as empty list [] to avoid diffs
+			if value == nil {
+				hcl.WriteString("    js_links = []\n")
+				continue
+			}
 			if jsLinks, ok := value.([]interface{}); ok && len(jsLinks) > 0 {
 				hcl.WriteString("    js_links = [\n")
 				for i, linkInterface := range jsLinks {
@@ -348,6 +368,17 @@ func writeSettingsBlock(hcl *strings.Builder, settings map[string]interface{}) e
 				}
 				hcl.WriteString("    ]\n")
 			}
+			// If jsLinks is an empty array, render as [] (explicit empty list)
+			if jsLinks, ok := value.([]interface{}); ok && len(jsLinks) == 0 {
+				hcl.WriteString("    js_links = []\n")
+			}
+			continue
+		}
+
+		// TODO: This seems unnecessary given general handling. May be better to ignore null.
+		// Emit explicit nulls for other settings keys when present
+		if value == nil {
+			hcl.WriteString(fmt.Sprintf("    %-36s = null\n", hclKey))
 			continue
 		}
 

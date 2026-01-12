@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/samir-gandhi/davinci-terraform-converter/internal/api"
 	"github.com/samir-gandhi/davinci-terraform-converter/internal/converter"
@@ -32,10 +33,19 @@ func ExportConnectorInstancesForModule(ctx context.Context, client *api.Client, 
 		return "", nil, nil, nil, nil, fmt.Errorf("failed to re-fetch connector instances for JSON: %w", err)
 	}
 
+	// Apply the same skip filter to avoid referencing instances not registered in the graph
+	filtered := make([]api.ConnectorInstanceSummary, 0, len(instanceSummaries))
+	for _, s := range instanceSummaries {
+		if shouldSkipConnector(s) {
+			continue
+		}
+		filtered = append(filtered, s)
+	}
+
 	jsonMap := make(map[string][]byte)
 	namesMap := make(map[string]string)
 
-	for _, summary := range instanceSummaries {
+	for _, summary := range filtered {
 		// Get the actual resource name from the graph
 		actualName, err := graph.GetReferenceName("pingone_davinci_connector_instance", summary.InstanceID)
 		if err != nil {
@@ -72,12 +82,21 @@ func ExportConnectorInstancesWithImports(ctx context.Context, client *api.Client
 		return "", nil, nil, fmt.Errorf("failed to list connector instances: %w", err)
 	}
 
-	if len(instanceSummaries) == 0 {
+	// Filter out ignored connectors (e.g., skUserPool)
+	filtered := make([]api.ConnectorInstanceSummary, 0, len(instanceSummaries))
+	for _, s := range instanceSummaries {
+		if shouldSkipConnector(s) {
+			continue
+		}
+		filtered = append(filtered, s)
+	}
+
+	if len(filtered) == 0 {
 		return "# No connector instances found in environment\n", nil, nil, nil
 	}
 
 	// First pass: Register all connector instances in the dependency graph
-	for _, summary := range instanceSummaries {
+	for _, summary := range filtered {
 		sanitizedName := resolver.SanitizeName(summary.Name, nil)
 		graph.AddResource("pingone_davinci_connector_instance", summary.InstanceID, sanitizedName)
 	}
@@ -87,7 +106,7 @@ func ExportConnectorInstancesWithImports(ctx context.Context, client *api.Client
 	var importBlocks []RawImportBlock
 
 	// Second pass: Retrieve detailed connector instance data and convert each instance
-	for _, summary := range instanceSummaries {
+	for _, summary := range filtered {
 		// Get the actual resource name from the graph (includes deduplication suffix if needed)
 		actualName, err := graph.GetReferenceName("pingone_davinci_connector_instance", summary.InstanceID)
 		if err != nil {
@@ -152,6 +171,12 @@ func isSpecialConnectorID(instanceID string) bool {
 		}
 	}
 	return false
+}
+
+// shouldSkipConnector determines if a connector instance should be excluded from HCL generation
+// Current rule: skip connectors with ConnectorID "skUserPool".
+func shouldSkipConnector(summary api.ConnectorInstanceSummary) bool {
+	return strings.EqualFold(summary.ConnectorID, "skUserPool")
 }
 
 // convertInstanceDetailToJSON converts connector instance detail to JSON format expected by converter

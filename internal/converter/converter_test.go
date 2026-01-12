@@ -3,6 +3,7 @@
 package converter
 
 import (
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -320,6 +321,16 @@ func TestFlowOutputFormat(t *testing.T) {
 	}
 	if !strings.Contains(result, "elements = {") {
 		t.Error("Output missing elements block")
+	}
+
+	// Verify lifecycle ignore_changes block is present
+	if !strings.Contains(result, "lifecycle {") {
+		t.Error("Output missing lifecycle block")
+	}
+	for _, attr := range []string{"connectors", "current_version", "enabled", "published_version"} {
+		if !strings.Contains(result, attr) {
+			t.Errorf("Lifecycle ignore_changes missing attribute: %s", attr)
+		}
 	}
 }
 
@@ -930,6 +941,63 @@ func TestSettingsAttributeFormat(t *testing.T) {
 	if strings.Contains(result, "settings = {\n    {") || strings.Contains(result, "settings = {\n        {") {
 		t.Error("Convert() output has extra nested braces in settings block")
 		t.Logf("Full output:\n%s", result)
+	}
+}
+
+// TestSettingsJsLinksEmptyListPreserved ensures that when settings.jsLinks is null or empty,
+// the converter emits `js_links = []` to avoid diffs and preserve explicit emptiness.
+func TestSettingsJsLinksEmptyListPreserved(t *testing.T) {
+	flowJSON := []byte(`{
+		"name": "Flow With Null JsLinks",
+		"flowId": "flow-null-jslinks",
+		"flowStatus": "enabled",
+		"graphData": {
+			"elements": {"nodes": [], "edges": []}
+		},
+		"settings": {
+			"jsLinks": null,
+			"logLevel": 1
+		}
+	}`)
+
+	result, err := Convert(flowJSON)
+	if err != nil {
+		t.Fatalf("Convert() returned error: %v", err)
+	}
+
+	// Assert settings block exists and js_links is explicitly null
+	if !strings.Contains(result, "settings = {") {
+		t.Fatalf("Output missing settings block.\nGot:\n%s", result)
+	}
+	if !strings.Contains(result, "js_links = []") {
+		t.Errorf("js_links empty list not preserved.\nGot:\n%s", result)
+	}
+}
+
+// TestSettingsDefaultLogLevel ensures that when logLevel is absent, the converter
+// adds `log_level = 4` to match provider default.
+func TestSettingsDefaultLogLevel(t *testing.T) {
+	flowJSON := []byte(`{
+		"name": "Flow Without LogLevel",
+		"flowId": "flow-no-log",
+		"flowStatus": "enabled",
+		"graphData": {"elements": {"nodes": [], "edges": []}},
+		"settings": {
+			"csp": "default-src 'self'"
+		}
+	}`)
+
+	result, err := Convert(flowJSON)
+	if err != nil {
+		t.Fatalf("Convert() returned error: %v", err)
+	}
+
+	if !strings.Contains(result, "settings = {") {
+		t.Fatalf("Output missing settings block.\nGot:\n%s", result)
+	}
+	re := regexp.MustCompile(`log_level\s*=\s*4`)
+	if re.FindStringIndex(result) == nil {
+		t.Errorf("Default log_level = 4 not emitted when missing.\nGot:\n%s", result)
 	}
 }
 
