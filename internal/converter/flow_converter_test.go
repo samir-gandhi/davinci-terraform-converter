@@ -334,3 +334,45 @@ func TestSettingsCSP_RemainsQuoted(t *testing.T) {
 		t.Fatalf("expected quoted csp string, got:\n%s", hcl)
 	}
 }
+
+func TestProperties_DollarPreservationAndInterpolationEscape(t *testing.T) {
+	// Build a minimal flow graph with one node and properties map
+	props := map[string]interface{}{
+		"code": map[string]interface{}{
+			"value": "if (reason.includes(\"~!@#$$%^&*\")) { return true; } // and ${notAnInterpolation}",
+		},
+	}
+
+	flow := map[string]interface{}{
+		"name": "Example Flow",
+		"graphData": map[string]interface{}{
+			"elements": map[string]interface{}{
+				"nodes": []interface{}{
+					map[string]interface{}{
+						"data": map[string]interface{}{
+							"id":         "node-1",
+							"nodeType":   "CONNECTION",
+							"properties": props,
+						},
+						"position": map[string]interface{}{"x": 0.0, "y": 0.0},
+						"classes":  "",
+					},
+				},
+			},
+		},
+	}
+
+	hcl, err := ConvertFlowToHCL(flow, "var.environment_id", true, nil)
+	if err != nil {
+		t.Fatalf("ConvertFlowToHCL error: %v", err)
+	}
+
+	// Properties are emitted via jsonencode(map) -> ensure $$ preserved inside string content
+	if !strings.Contains(hcl, "~!@#$$%^") {
+		t.Fatalf("expected double-dollar to be preserved in properties code value, got:\n%s", hcl)
+	}
+	// Ensure interpolation is safely escaped: ${ -> $${ inside emitted HCL
+	if !strings.Contains(hcl, "$${notAnInterpolation}") {
+		t.Fatalf("expected ${ to be escaped as $${ in properties, got:\n%s", hcl)
+	}
+}

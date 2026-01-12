@@ -1,0 +1,27 @@
+{
+  "classes": "",
+  "data": {
+    "capability_name": "customFunction",
+    "connection_id": "de650ca45593b82c49064ead10b9fe17",
+    "connector_id": "functionsConnector",
+    "id": "otaeinedj8",
+    "id_unique": "nvi9enw4ff",
+    "label": "Functions",
+    "name": "Functions",
+    "node_type": "CONNECTION",
+    "properties": "{\"code\":{\"value\":\"// Write your code here\\n// Supported language: Javascript \\nmodule.exports = a = async ({params}) =\\u003e {\\n\\tlet result = \\\"\\\";\\n\\t// Parse the password policy requirements in the detailed error message and pass it back to the form to map the proper errors.\\n\\tif (params.errorDetails \\u0026\\u0026\\n  \\t\\tparams.errorDetails.details \\u0026\\u0026\\n  \\t\\tparams.errorDetails.details[0] \\u0026\\u0026\\n  \\t\\tparams.errorDetails.details[0].rawResponse \\u0026\\u0026\\n  \\t\\tparams.errorDetails.details[0].rawResponse.details \\u0026\\u0026\\n  \\t\\tparams.errorDetails.details[0].rawResponse.details[0].innerError) {\\n\\t\\tconst details = params.errorDetails.details[0].rawResponse.details[0].innerError;\\n\\t\\tresult = \\\"passwordPolicies:\\\";\\n\\t\\tfor (let key in details) {\\n\\t\\t\\tif (details.hasOwnProperty(key) \\u0026\\u0026 key !== \\\"unsatisfiedRequirements\\\") {\\n\\t\\t\\t\\tswitch (key) {\\n\\t\\t\\t\\t\\tcase \\\"minCharacters\\\":\\n\\t\\t\\t\\t\\t\\tconst reason = details[key];\\n\\n\\t\\t\\t\\t\\t\\tif (reason.includes(\\\"ZYXWVUTSRQPONMLKJIHGFEDCBA\\\")) {\\n\\t\\t\\t\\t\\t\\t\\tresult += \\\" minCharactersUppercase\\\";\\n\\t\\t\\t\\t\\t\\t}\\n\\t\\t\\t\\t\\t\\tif (reason.includes(\\\"~!@#$%^\\u0026*()-_=+[]{}|;:,.\\u003c\\u003e/?\\\")) {\\n\\t\\t\\t\\t\\t\\t\\tresult += \\\" minCharactersSpecialChar\\\";\\n\\t\\t\\t\\t\\t\\t}\\n\\t\\t\\t\\t\\t\\tif (reason.includes(\\\"0123456789\\\")) {\\n\\t\\t\\t\\t\\t\\t\\tresult += \\\" minCharactersNumeric\\\";\\n\\t\\t\\t\\t\\t\\t}\\n\\t\\t\\t\\t\\t\\tif (reason.includes(\\\"abcdefghijklmnopqrstuvwxyz\\\")) {\\n\\t\\t\\t\\t\\t\\t\\tresult += \\\" minCharactersLowercase\\\";\\n\\t\\t\\t\\t\\t\\t}\\n\\t\\t\\t\\t\\t\\tbreak;\\n\\t\\t\\t\\t\\tcase \\\"minUniqueCharacters\\\":\\n\\t\\t\\t\\t\\t\\tresult += \\\" minUniqueCharacters\\\";\\n\\t\\t\\t\\t\\t\\tbreak;\\n\\t\\t\\t\\t\\tcase \\\"excludesCommonlyUsed\\\":\\n\\t\\t\\t\\t\\t\\tresult += \\\" excludesCommonlyUsed\\\"\\n\\t\\t\\t\\t\\t\\tbreak;\\n\\t\\t\\t\\t\\tcase \\\"history\\\":\\n\\t\\t\\t\\t\\t\\tresult += \\\" history\\\"\\n\\t\\t\\t\\t\\t\\tbreak;\\n\\t\\t\\t\\t\\tcase \\\"length\\\":\\n\\t\\t\\t\\t\\t// Parse the length requirement\\n\\t\\t\\t\\t\\t\\tconst value = details[key];\\n\\t\\t\\t\\t\\t\\tconst index = value.indexOf(\\\"of\\\");\\n\\t\\t\\t\\t\\t\\tif (index !== -1 \\u0026\\u0026 index \\u003c value.length - 1) {\\n\\t\\t\\t\\t\\t\\t\\tlet lengthRestriction = value[index + 3];\\n\\t\\t\\t\\t\\t\\t\\tif (value[index + 4] !== \\\" \\\") {\\n\\t\\t\\t\\t\\t\\t\\t\\tlengthRestriction = lengthRestriction + value[index + 4];\\n\\t\\t\\t\\t\\t\\t\\t}\\n\\t\\t\\t\\t\\t\\t\\tif (value[index + 5] !== \\\" \\\" \\u0026\\u0026 value[index + 5] - '0' \\u003e= 0 \\u0026\\u0026 value[index + 5] - '0' \\u003c= 9) {\\n\\t\\t\\t\\t\\t\\t\\t\\tlengthRestriction = lengthRestriction + value[index + 5];\\n\\t\\t\\t\\t\\t\\t\\t}\\n\\t\\t\\t\\t\\t\\t\\tresult += \\\" length\\\" + lengthRestriction;\\n\\t\\t\\t\\t\\t\\t}\\n\\t\\t\\t\\t\\t\\tbreak;\\n\\t\\t\\t\\t\\tcase \\\"maxRepeatedCharacters\\\":\\n\\t\\t\\t\\t\\t\\tresult += \\\" maxRepeatedCharacters\\\";\\t\\n\\t\\t\\t\\t\\t\\tbreak;\\t\\n\\t\\t\\t\\t\\tdefault:\\n\\t\\t\\t\\t\\t\\tresult += details[key];\\t\\t\\t\\t\\t\\n\\n\\t\\t\\t\\t}\\n\\t\\t\\t}\\n\\t\\t}\\n\\t} else {\\n\\t\\tlet errorMessage = params.errorDetails.message;\\n\\t\\tlet index = errorMessage.indexOf(':');\\n\\t\\tif (index !== -1) result = errorMessage.substring(index + 2);\\n\\t\\telse result = errorMessage;\\n\\t}\\n\\n\\treturn {'updatedErrorMessage': result.replace('username', 'email address')}\\n}\"},\"nodeDescription\":{},\"nodeTitle\":{\"value\":\"Update error message\"},\"outputSchema\":{\"value\":\"{\\n\\t\\\"output\\\": {\\n\\t\\t\\\"type\\\": \\\"object\\\",\\n\\t\\t\\\"properties\\\": {\\n\\t\\t\\t\\\"updatedErrorMessage\\\": {\\n\\t\\t\\t\\t\\\"type\\\": \\\"string\\\"\\n\\t\\t\\t}\\n\\t\\t}\\n\\t}\\n}\"},\"variableInputList\":{\"value\":[{\"name\":\"errorDetails\",\"preferredDataType\":\"object\",\"value\":\"[\\n  {\\n    \\\"children\\\": [\\n      {\\n        \\\"text\\\": \\\"\\\"\\n      },\\n      {\\n        \\\"text\\\": \\\"\\\"\\n      },\\n      {\\n        \\\"type\\\": \\\"link\\\",\\n        \\\"src\\\": \\\"variable.svg\\\",\\n        \\\"url\\\": \\\"ciam_errorMessage\\\",\\n        \\\"data\\\": \\\"{{global.variables.ciam_errorMessage}}\\\",\\n        \\\"tooltip\\\": \\\"{{global.variables.ciam_errorMessage}}\\\",\\n        \\\"children\\\": [\\n          {\\n            \\\"text\\\": \\\"ciam_errorMessage\\\"\\n          }\\n        ]\\n      },\\n      {\\n        \\\"text\\\": \\\"\\\"\\n      }\\n    ]\\n  }\\n]\"}]}}",
+    "status": "configured",
+    "type": "trigger"
+  },
+  "grabbable": true,
+  "group": "nodes",
+  "locked": false,
+  "pannable": false,
+  "position": {
+    "x": 6840.986279320385,
+    "y": 829.8901388028007
+  },
+  "removed": false,
+  "selectable": true,
+  "selected": false
+}

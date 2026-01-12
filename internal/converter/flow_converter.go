@@ -945,10 +945,10 @@ func writeJSONAsHCLMap(hcl *strings.Builder, value interface{}, indent int) {
 	case string:
 		// Use Go's strconv.Quote for proper JSON-compatible string escaping
 		// This handles all special characters including quotes, newlines, Unicode, etc.
-		// Additionally, escape $ as $$ to prevent Terraform from treating ${} as interpolations
+		// Only escape Terraform interpolation sequences: replace "${" with "$${"
+		// Do NOT alter standalone "$" or existing "$$" to preserve content fidelity.
 		quoted := strconv.Quote(v)
-		// Replace all $ with $$ inside the string (but not the surrounding quotes)
-		escaped := strings.ReplaceAll(quoted, "$", "$$")
+		escaped := strings.ReplaceAll(quoted, "${", "$${")
 		hcl.WriteString(escaped)
 
 	case float64:
