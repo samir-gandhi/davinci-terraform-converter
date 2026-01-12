@@ -62,3 +62,29 @@ func TestGraphData_PanRendererAndFlags(t *testing.T) {
 		}
 	}
 }
+
+// Phase 4b: Ensure graph_data.data empty object is included as jsonencode({})
+func TestGraphData_DataEmptyObjectIncluded(t *testing.T) {
+	flowData := map[string]interface{}{
+		"name": "test-flow",
+		"graphData": map[string]interface{}{
+			// Explicit empty object returned by API
+			"data": map[string]interface{}{},
+			"elements": map[string]interface{}{
+				"nodes": []interface{}{},
+				"edges": []interface{}{},
+			},
+		},
+	}
+
+	hcl, err := ConvertFlowToHCL(flowData, "var.pingone_environment_id", false, nil)
+	if err != nil {
+		t.Fatalf("ConvertFlowToHCL returned error: %v", err)
+	}
+
+	// Expect exact one-line rendering for empty data object
+	expected := "data = jsonencode({})"
+	if !strings.Contains(hcl, expected) {
+		t.Errorf("HCL should include empty data object as %q\nHCL:\n%s", expected, hcl)
+	}
+}

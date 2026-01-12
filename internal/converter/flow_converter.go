@@ -1,13 +1,13 @@
 package converter
 
 import (
+	"crypto/sha1"
 	"encoding/json"
 	"fmt"
 	"regexp"
 	"sort"
 	"strconv"
 	"strings"
-    "crypto/sha1"
 
 	"github.com/samir-gandhi/davinci-terraform-converter/internal/resolver"
 	"github.com/samir-gandhi/davinci-terraform-converter/internal/utils"
@@ -385,6 +385,19 @@ func writeSettingsBlock(hcl *strings.Builder, settings map[string]interface{}) e
 // writeGraphDataBlock writes the graph_data nested block
 func writeGraphDataBlock(hcl *strings.Builder, graphData map[string]interface{}, skipDependencies bool, graph *resolver.DependencyGraph) error {
 	hcl.WriteString("  graph_data = {\n")
+
+	// Data object - include even if empty object {}
+	if data, ok := graphData["data"].(map[string]interface{}); ok {
+		// Special-case: empty object should render as jsonencode({}) on one line
+		if len(data) == 0 {
+			hcl.WriteString("    data = jsonencode({})\n")
+		} else {
+			hcl.WriteString("    data = jsonencode(")
+			// Use readable HCL map formatting inside jsonencode
+			writeJSONAsHCLMap(hcl, data, 4)
+			hcl.WriteString(")\n")
+		}
+	}
 
 	// Elements (nodes and edges) - most complex part
 	if elements, ok := graphData["elements"].(map[string]interface{}); ok {
