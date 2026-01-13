@@ -28,6 +28,7 @@ type FlowDetail struct {
 	Color               string                 // Flow color (API field)
 	InputSchema         []interface{}          // Top-level input schema array
 	InputSchemaCompiled map[string]interface{} // Compiled input schema
+	Trigger             map[string]interface{} // Flow trigger configuration
 	// Add other relevant fields as needed
 }
 
@@ -196,6 +197,11 @@ func (c *Client) GetFlow(ctx context.Context, flowID string) (*FlowDetail, error
 
 	if isc, ok := rawResponse["inputSchemaCompiled"].(map[string]interface{}); ok {
 		detail.InputSchemaCompiled = isc
+	}
+
+	// Trigger object
+	if trg, ok := rawResponse["trigger"].(map[string]interface{}); ok {
+		detail.Trigger = trg
 	}
 
 	return detail, nil

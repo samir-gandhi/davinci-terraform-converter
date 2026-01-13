@@ -126,6 +126,11 @@ func convertFlowDetailToMap(flow *api.FlowDetail) (map[string]interface{}, error
 		flowMap["inputSchema"] = flow.InputSchema
 	}
 
+	// Include trigger when available
+	if flow.Trigger != nil {
+		flowMap["trigger"] = flow.Trigger
+	}
+
 	return flowMap, nil
 }
 

@@ -68,6 +68,9 @@ func TestConvertFlowDetailToMap(t *testing.T) {
 					"nodes": []interface{}{},
 				},
 			},
+			Trigger: map[string]interface{}{
+				"type": "AUTHENTICATION",
+			},
 		}
 
 		result, err := convertFlowDetailToMap(flow)
@@ -78,6 +81,10 @@ func TestConvertFlowDetailToMap(t *testing.T) {
 		assert.Equal(t, "A test flow", result["description"])
 		assert.Equal(t, "flow-123", result["flowId"])
 		assert.NotNil(t, result["graphData"])
+		// Trigger should be propagated
+		trg, ok := result["trigger"].(map[string]interface{})
+		require.True(t, ok)
+		assert.Equal(t, "AUTHENTICATION", trg["type"])
 	})
 
 	t.Run("Converts flow detail without graph data", func(t *testing.T) {
