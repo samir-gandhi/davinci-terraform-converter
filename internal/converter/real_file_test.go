@@ -39,7 +39,7 @@ func TestRealMultiFlowFile(t *testing.T) {
 		`name        = "PingOne Sign On with Sessions"`,
 		`graph_data = {`,
 		`elements = {`,
-		`nodes = [`,
+		`nodes = {`,
 		`settings = {`,
 	}
 
@@ -59,7 +59,7 @@ func TestRealMultiFlowFile(t *testing.T) {
 		`name        = "PingOne Sign On with Registration, Password Reset and Recovery"`,
 		`graph_data = {`,
 		`elements = {`,
-		`nodes = [`,
+		`nodes = {`,
 	}
 
 	for _, expected := range expectedFlow2Elements {

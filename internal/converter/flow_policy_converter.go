@@ -24,20 +24,20 @@ func ConvertFlowPolicyToTerraform(policy pingone.DaVinciFlowPolicyResponse, reso
 
 	// Application ID - use graph for reference if available
 	if skipDeps {
-		hcl.WriteString(fmt.Sprintf("  da_vinci_application_id = %q\n", applicationID))
+		hcl.WriteString(fmt.Sprintf("  davinci_application_id = %q\n", applicationID))
 	} else {
 		if graph != nil {
 			appRef, err := resolver.GenerateTerraformReference(graph, "pingone_davinci_application", applicationID, "id")
 			if err != nil {
 				// Fallback to TODO placeholder if application not found in graph
-				hcl.WriteString(fmt.Sprintf("  da_vinci_application_id = \"\" # TODO: %s\n", err.Error()))
+				hcl.WriteString(fmt.Sprintf("  davinci_application_id = \"\" # TODO: %s\n", err.Error()))
 			} else {
-				hcl.WriteString(fmt.Sprintf("  da_vinci_application_id = %s\n", appRef))
+				hcl.WriteString(fmt.Sprintf("  davinci_application_id = %s\n", appRef))
 			}
 		} else {
 			// Fallback to legacy sanitized name
 			appResourceName := sanitizeResourceName(applicationID)
-			hcl.WriteString(fmt.Sprintf("  da_vinci_application_id = pingone_davinci_application.%s.id\n", appResourceName))
+			hcl.WriteString(fmt.Sprintf("  davinci_application_id = pingone_davinci_application.%s.id\n", appResourceName))
 		}
 	}
 

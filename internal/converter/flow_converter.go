@@ -527,9 +527,9 @@ func writeGraphDataBlock(hcl *strings.Builder, graphData map[string]interface{},
 	return nil
 }
 
-// writeNodesBlock writes the nodes array within elements
+// writeNodesBlock writes the nodes map within elements
 func writeNodesBlock(hcl *strings.Builder, nodes []interface{}, skipDependencies bool, graph *resolver.DependencyGraph) error {
-	hcl.WriteString("      nodes = [\n")
+	hcl.WriteString("      nodes = {\n")
 
 	for i, nodeInterface := range nodes {
 		node, ok := nodeInterface.(map[string]interface{})
@@ -537,9 +537,21 @@ func writeNodesBlock(hcl *strings.Builder, nodes []interface{}, skipDependencies
 			continue
 		}
 
-		hcl.WriteString("        {\n")
-
 		// Node data block - required
+		var nodeKey string
+		if data, ok := node["data"].(map[string]interface{}); ok {
+			if id := getString(data, "id"); id != "" {
+				nodeKey = id
+			}
+		}
+		
+		if nodeKey == "" {
+			// Fallback if ID is missing (should not happen for valid flows)
+			nodeKey = fmt.Sprintf("node_%d", i)
+		}
+
+		hcl.WriteString(fmt.Sprintf("        %s = {\n", quoteString(nodeKey)))
+
 		if data, ok := node["data"].(map[string]interface{}); ok {
 			hcl.WriteString("          data = {\n")
 
@@ -647,26 +659,21 @@ func writeNodesBlock(hcl *strings.Builder, nodes []interface{}, skipDependencies
 		classes := getString(node, "classes")
 		hcl.WriteString(fmt.Sprintf("          classes    = %s\n", quoteString(classes)))
 
-		hcl.WriteString("        }")
-		// Add comma for all but last element
-		if i < len(nodes)-1 {
-			hcl.WriteString(",")
-		}
-		hcl.WriteString("\n")
+		hcl.WriteString("        }\n")
 	}
 
-	hcl.WriteString("      ]\n")
+	hcl.WriteString("      }\n")
 	return nil
 }
 
-// writeEdgesBlock writes the edges array within elements
+// writeEdgesBlock writes the edges map within elements
 func writeEdgesBlock(hcl *strings.Builder, edges []interface{}) error {
 	if len(edges) == 0 {
-		hcl.WriteString("      edges = []\n")
+		hcl.WriteString("      edges = {}\n")
 		return nil
 	}
 
-	hcl.WriteString("      edges = [\n")
+	hcl.WriteString("      edges = {\n")
 
 	for i, edgeInterface := range edges {
 		edge, ok := edgeInterface.(map[string]interface{})
@@ -674,9 +681,23 @@ func writeEdgesBlock(hcl *strings.Builder, edges []interface{}) error {
 			continue
 		}
 
-		hcl.WriteString("        {\n")
-
 		// Edge data block - required
+		var edgeKey string
+		if data, ok := edge["data"].(map[string]interface{}); ok {
+			id := getString(data, "id")
+			if id != "" {
+				// Provider uses only the edge id as the map key
+				edgeKey = id
+			}
+		}
+
+		if edgeKey == "" {
+			// Fallback if ID is missing
+			edgeKey = fmt.Sprintf("edge_%d", i)
+		}
+
+		hcl.WriteString(fmt.Sprintf("        %s = {\n", quoteString(edgeKey)))
+
 		if data, ok := edge["data"].(map[string]interface{}); ok {
 			hcl.WriteString("          data = {\n")
 
@@ -732,15 +753,10 @@ func writeEdgesBlock(hcl *strings.Builder, edges []interface{}) error {
 		classes := getString(edge, "classes")
 		hcl.WriteString(fmt.Sprintf("          classes    = %s\n", quoteString(classes)))
 
-		hcl.WriteString("        }")
-		// Add comma for all but last element
-		if i < len(edges)-1 {
-			hcl.WriteString(",")
-		}
-		hcl.WriteString("\n")
+		hcl.WriteString("        }\n")
 	}
 
-	hcl.WriteString("      ]\n")
+	hcl.WriteString("      }\n")
 	return nil
 }
 

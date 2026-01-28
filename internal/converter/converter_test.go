@@ -87,7 +87,8 @@ func TestFlowWithSingleNode(t *testing.T) {
 	expectedElements := []string{
 		`graph_data = {`,
 		`elements = {`,
-		`nodes = [`,
+		`nodes = {`,
+		`"node1" = {`,
 		`id              = "node1"`,
 		`node_type       = "CONNECTION"`,
 		`connection_id   = pingone_davinci_connector_instance.httpconnector_conn-123-abc.id`,
@@ -150,11 +151,14 @@ func TestFlowWithNodesAndEdges(t *testing.T) {
 
 	// Verify nodes and edges sections with HCL format
 	expectedElements := []string{
-		`nodes = [`,
+		`nodes = {`,
+		`"node1" = {`,
 		`id              = "node1"`,
+		`"node2" = {`,
 		`id              = "node2"`,
 		`node_type       = "EVAL"`,
-		`edges = [`,
+		`edges = {`,
+		`"edge1|node1|node2" = {`,
 		`id     = "edge1"`,
 		`source = "node1"`,
 		`target = "node2"`,
@@ -680,8 +684,8 @@ func TestCompleteFlowWithAllAttributes(t *testing.T) {
 		`description = "A complete flow with all attributes"`,
 		`graph_data = {`,
 		`elements = {`,
-		`nodes = [`,
-		`edges = [`,
+		`nodes = {`,
+		`edges = {`,
 		`settings = {`,
 	}
 
@@ -1272,8 +1276,8 @@ func TestCompleteFlowConversion(t *testing.T) {
 	graphDataChecks := []string{
 		`graph_data = {`,
 		`elements = {`,
-		`nodes = [`,
-		`edges = [`,
+		`nodes = {`,
+		`edges = {`,
 		`id              = "node1"`,
 		`node_type       = "CONNECTION"`,
 		`connector_id    = "httpConnector"`,

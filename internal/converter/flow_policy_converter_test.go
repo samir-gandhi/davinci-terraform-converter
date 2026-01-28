@@ -43,6 +43,7 @@ func TestFlowPolicyConversion_OmitsEmptyTrigger(t *testing.T) {
     expected := []string{
         "resource \"pingone_davinci_application_flow_policy\" \"dm_main_flow\"",
         "environment_id = var.pingone_environment_id",
+        "davinci_application_id =", // Verify updated field name is present
         "name           = \"OOTB - Device Management - Main Flow\"",
         "status         = \"enabled\"",
         "flow_distributions = [",

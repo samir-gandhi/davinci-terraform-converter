@@ -243,9 +243,9 @@ func TestFlowConversion_NoEdges(t *testing.T) {
 	result, err := converter.ConvertFlowToHCL(flowData, "var.pingone_environment_id", false, nil)
 	require.NoError(t, err)
 
-	// Should contain nodes but empty edges array
-	assert.Contains(t, result, "nodes = [")
-	assert.Contains(t, result, "edges = []")
+	// Should contain nodes but empty edges map
+	assert.Contains(t, result, "nodes = {")
+	assert.Contains(t, result, "edges = {}")
 }
 
 // TestFlowConversion_MinimalFlow tests conversion of minimal flow with only required fields

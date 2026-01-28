@@ -44,11 +44,12 @@ func NewClient(ctx context.Context, authEnvironmentID, targetEnvironmentID, regi
 	// Create service configuration with OAuth credentials
 	// Use authEnvironmentID for token acquisition
 	serviceCfg := config.NewConfiguration().
-		WithAuthEnvironmentID(authEnvironmentID).
-		WithTopLevelDomain(getRegionDomain(region)).
+		WithEnvironmentID(authEnvironmentID).
+		WithTopLevelDomain(config.TopLevelDomain(getRegionDomain(region))).
 		WithClientID(clientID).
 		WithClientSecret(clientSecret).
-		WithGrantType(oauth2.GrantTypeClientCredentials)
+		WithGrantType(oauth2.GrantTypeClientCredentials).
+		WithStorageType(config.StorageTypeNone)
 
 	// Initialize PingOne API client
 	cfg := pingone.NewConfiguration(serviceCfg)
