@@ -131,6 +131,12 @@ func convertFlowDetailToMap(flow *api.FlowDetail) (map[string]interface{}, error
 		flowMap["trigger"] = flow.Trigger
 	}
 
+	// Include provider-managed fields used by auxiliary resources
+	flowMap["enabled"] = flow.Enabled
+	if flow.PublishedVersion != nil {
+		flowMap["publishedVersion"] = *flow.PublishedVersion
+	}
+
 	return flowMap, nil
 }
 

@@ -71,6 +71,8 @@ func TestConvertFlowDetailToMap(t *testing.T) {
 			Trigger: map[string]interface{}{
 				"type": "AUTHENTICATION",
 			},
+			Enabled:          true,
+			PublishedVersion: func() *int { v := 7; return &v }(),
 		}
 
 		result, err := convertFlowDetailToMap(flow)
@@ -85,6 +87,10 @@ func TestConvertFlowDetailToMap(t *testing.T) {
 		trg, ok := result["trigger"].(map[string]interface{})
 		require.True(t, ok)
 		assert.Equal(t, "AUTHENTICATION", trg["type"])
+
+		// Provider-managed fields should be propagated
+		assert.Equal(t, true, result["enabled"])
+		assert.Equal(t, 7, result["publishedVersion"])
 	})
 
 	t.Run("Converts flow detail without graph data", func(t *testing.T) {

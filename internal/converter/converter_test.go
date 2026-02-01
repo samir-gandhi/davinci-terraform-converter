@@ -46,6 +46,77 @@ func TestSimpleFlowConversion(t *testing.T) {
 	}
 }
 
+// Test generating flow_enabled and flow_deploy resources from export payload (flowStatus, publishedVersion)
+func TestAuxResourcesFromExport(t *testing.T) {
+	flowJSON := []byte(`{
+		"name": "Aux Test Flow",
+		"description": "Aux resources test",
+		"flowId": "flow-aux-1",
+		"flowStatus": "enabled",
+		"publishedVersion": 5,
+		"graphData": {"elements": {"nodes": [], "edges": []}}
+	}`)
+
+	// skipDependencies=false: references to flow resource
+	resultRef, err := ConvertWithOptions(flowJSON, false)
+	if err != nil {
+		t.Fatalf("ConvertWithOptions(false) returned error: %v", err)
+	}
+	// Flow enabled resource
+	if !strings.Contains(resultRef, `resource "pingone_davinci_flow_enabled" "pingcli__Aux-0020-Test-0020-Flow"`) {
+		t.Errorf("missing flow_enabled resource in reference mode\nGot:\n%s", resultRef)
+	}
+	if !strings.Contains(resultRef, `enabled        = pingone_davinci_flow.pingcli__Aux-0020-Test-0020-Flow.enabled`) {
+		t.Errorf("expected enabled reference in flow_enabled resource\nGot:\n%s", resultRef)
+	}
+	// Flow deploy resource
+	if !strings.Contains(resultRef, `resource "pingone_davinci_flow_deploy" "pingcli__Aux-0020-Test-0020-Flow"`) {
+		t.Errorf("missing flow_deploy resource in reference mode\nGot:\n%s", resultRef)
+	}
+	if !strings.Contains(resultRef, `"deployed_version" = pingone_davinci_flow.pingcli__Aux-0020-Test-0020-Flow.published_version`) {
+		t.Errorf("expected published_version reference in flow_deploy\nGot:\n%s", resultRef)
+	}
+
+	// skipDependencies=true: hardcoded values
+	resultHard, err := ConvertWithOptions(flowJSON, true)
+	if err != nil {
+		t.Fatalf("ConvertWithOptions(true) returned error: %v", err)
+	}
+	if !strings.Contains(resultHard, `resource "pingone_davinci_flow_enabled" "pingcli__Aux-0020-Test-0020-Flow"`) {
+		t.Errorf("missing flow_enabled resource in hardcode mode\nGot:\n%s", resultHard)
+	}
+	if !strings.Contains(resultHard, `flow_id        = "flow-aux-1"`) {
+		t.Errorf("expected hardcoded flow_id in flow_enabled\nGot:\n%s", resultHard)
+	}
+	if !strings.Contains(resultHard, `enabled        = true`) {
+		t.Errorf("expected enabled=true in flow_enabled (from flowStatus)\nGot:\n%s", resultHard)
+	}
+	if !strings.Contains(resultHard, `resource "pingone_davinci_flow_deploy" "pingcli__Aux-0020-Test-0020-Flow"`) {
+		t.Errorf("missing flow_deploy resource in hardcode mode\nGot:\n%s", resultHard)
+	}
+	if !strings.Contains(resultHard, `"deployed_version" = 5`) {
+		t.Errorf("expected hardcoded deployed_version=5 in flow_deploy\nGot:\n%s", resultHard)
+	}
+}
+
+// Test conflict detection between flowStatus and enabled fields
+func TestFlowEnabledConflict(t *testing.T) {
+	flowJSON := []byte(`{
+		"name": "Conflict Flow",
+		"flowId": "flow-conf-1",
+		"flowStatus": "enabled",
+		"enabled": false
+	}`)
+
+	_, err := ConvertWithOptions(flowJSON, false)
+	if err == nil {
+		t.Fatalf("expected error due to conflicting enabled fields, got nil")
+	}
+	if !regexp.MustCompile("flow enabled conflict").MatchString(err.Error()) {
+		t.Errorf("unexpected error: %v", err)
+	}
+}
+
 // TestFlowWithSingleNode tests converting a flow with one node (connection).
 func TestFlowWithSingleNode(t *testing.T) {
 	flowJSON := []byte(`{
@@ -158,7 +229,7 @@ func TestFlowWithNodesAndEdges(t *testing.T) {
 		`id              = "node2"`,
 		`node_type       = "EVAL"`,
 		`edges = {`,
-		`"edge1|node1|node2" = {`,
+		`"edge1" = {`,
 		`id     = "edge1"`,
 		`source = "node1"`,
 		`target = "node2"`,

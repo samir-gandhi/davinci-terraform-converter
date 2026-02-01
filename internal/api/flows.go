@@ -29,6 +29,9 @@ type FlowDetail struct {
 	InputSchema         []interface{}          // Top-level input schema array
 	InputSchemaCompiled map[string]interface{} // Compiled input schema
 	Trigger             map[string]interface{} // Flow trigger configuration
+	// Provider-managed fields useful for auxiliary resources
+	Enabled           bool        // Flow enabled status (API responses)
+	PublishedVersion  *int        // Published version number (API responses)
 	// Add other relevant fields as needed
 }
 
@@ -202,6 +205,17 @@ func (c *Client) GetFlow(ctx context.Context, flowID string) (*FlowDetail, error
 	// Trigger object
 	if trg, ok := rawResponse["trigger"].(map[string]interface{}); ok {
 		detail.Trigger = trg
+	}
+
+	// Enabled flag (API field)
+	if en, ok := rawResponse["enabled"].(bool); ok {
+		detail.Enabled = en
+	}
+
+	// Published version (API field). JSON numbers decode as float64; coerce to int.
+	if pv, ok := rawResponse["publishedVersion"].(float64); ok {
+		iv := int(pv)
+		detail.PublishedVersion = &iv
 	}
 
 	return detail, nil

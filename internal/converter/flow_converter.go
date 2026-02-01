@@ -257,6 +257,85 @@ func ConvertFlowToHCL(flowData map[string]interface{}, environmentID string, ski
 	hcl.WriteString("  }\n")
 
 	hcl.WriteString("}\n")
+
+	// Generate auxiliary resources: pingone_davinci_flow_enabled and pingone_davinci_flow_deploy
+	// Use same resource name to keep a consistent grouping.
+
+	// Resolve flow enabled status with conflict detection between export ('flowStatus') and API ('enabled').
+	enabledVal, enabledHasVal, err := resolveEnabled(flowData)
+	if err != nil {
+		return "", err
+	}
+
+	// Flow ID for hardcoded path when skipDependencies is true
+	hardFlowID := getString(flowData, "flowId")
+	if hardFlowID == "" {
+		// Some API payloads use 'id'
+		hardFlowID = getString(flowData, "id")
+	}
+
+	// 1) flow_enabled resource
+	hcl.WriteString("\n")
+	hcl.WriteString(fmt.Sprintf("resource \"pingone_davinci_flow_enabled\" \"%s\" {\n", resourceName))
+	if strings.HasPrefix(environmentID, "var.") {
+		hcl.WriteString(fmt.Sprintf("  environment_id = %s\n", environmentID))
+	} else {
+		hcl.WriteString(fmt.Sprintf("  environment_id = %q\n", environmentID))
+	}
+	if !skipDependencies {
+		hcl.WriteString(fmt.Sprintf("  flow_id        = pingone_davinci_flow.%s.id\n", resourceName))
+		// Prefer dependency reference to provider-computed attribute when not skipping dependencies
+		hcl.WriteString(fmt.Sprintf("  enabled        = pingone_davinci_flow.%s.enabled\n", resourceName))
+	} else {
+		// Hardcode values when skipping dependencies
+		if hardFlowID != "" {
+			hcl.WriteString(fmt.Sprintf("  flow_id        = %q\n", hardFlowID))
+		} else {
+			// Fallback to dependency reference if flow ID is unavailable in payload
+			hcl.WriteString(fmt.Sprintf("  flow_id        = pingone_davinci_flow.%s.id\n", resourceName))
+		}
+		if enabledHasVal {
+			hcl.WriteString(fmt.Sprintf("  enabled        = %t\n", enabledVal))
+		} else {
+			// Fallback to dependency reference if enabled cannot be resolved from payload
+			hcl.WriteString(fmt.Sprintf("  enabled        = pingone_davinci_flow.%s.enabled\n", resourceName))
+		}
+	}
+	hcl.WriteString("}\n")
+
+	// 2) flow_deploy resource
+	hcl.WriteString("\n")
+	hcl.WriteString(fmt.Sprintf("resource \"pingone_davinci_flow_deploy\" \"%s\" {\n", resourceName))
+	if strings.HasPrefix(environmentID, "var.") {
+		hcl.WriteString(fmt.Sprintf("  environment_id = %s\n", environmentID))
+	} else {
+		hcl.WriteString(fmt.Sprintf("  environment_id = %q\n", environmentID))
+	}
+	if !skipDependencies {
+		hcl.WriteString(fmt.Sprintf("  flow_id        = pingone_davinci_flow.%s.id\n", resourceName))
+		hcl.WriteString("  deploy_trigger_values = {\n")
+		hcl.WriteString(fmt.Sprintf("    \"deployed_version\" = pingone_davinci_flow.%s.published_version\n", resourceName))
+		hcl.WriteString("  }\n")
+	} else {
+		if hardFlowID != "" {
+			hcl.WriteString(fmt.Sprintf("  flow_id        = %q\n", hardFlowID))
+		} else {
+			hcl.WriteString(fmt.Sprintf("  flow_id        = pingone_davinci_flow.%s.id\n", resourceName))
+		}
+		hcl.WriteString("  deploy_trigger_values = {\n")
+		// publishedVersion may be provided in payload; coerce to integer when possible.
+		if pv, ok := flowData["publishedVersion"].(float64); ok {
+			hcl.WriteString(fmt.Sprintf("    \"deployed_version\" = %d\n", int(pv)))
+		} else if pvi, ok := flowData["publishedVersion"].(int); ok {
+			hcl.WriteString(fmt.Sprintf("    \"deployed_version\" = %d\n", pvi))
+		} else {
+			// Fallback to dependency reference when payload lacks publishedVersion
+			hcl.WriteString(fmt.Sprintf("    \"deployed_version\" = pingone_davinci_flow.%s.published_version\n", resourceName))
+		}
+		hcl.WriteString("  }\n")
+	}
+	hcl.WriteString("}\n")
+
 	return hcl.String(), nil
 }
 
@@ -266,6 +345,43 @@ func toBool(v interface{}) bool {
 		return b
 	}
 	return false
+}
+
+// resolveEnabled determines the flow enabled state from either export ('flowStatus') or API ('enabled').
+// Returns (value, hasValue, error). Error is returned when both fields exist and contradict.
+func resolveEnabled(flowData map[string]interface{}) (bool, bool, error) {
+	var hasStatus, hasEnabled bool
+	var statusEnabled, apiEnabled bool
+
+	if fs := getString(flowData, "flowStatus"); fs != "" {
+		hasStatus = true
+		switch strings.ToLower(fs) {
+		case "enabled":
+			statusEnabled = true
+		case "disabled":
+			statusEnabled = false
+		default:
+			// Unknown status; treat as no value
+			hasStatus = false
+		}
+	}
+
+	if en, ok := flowData["enabled"].(bool); ok {
+		hasEnabled = true
+		apiEnabled = en
+	}
+
+	if hasStatus && hasEnabled && statusEnabled != apiEnabled {
+		return false, false, fmt.Errorf("flow enabled conflict: flowStatus=%t enabled=%t", statusEnabled, apiEnabled)
+	}
+
+	if hasEnabled {
+		return apiEnabled, true, nil
+	}
+	if hasStatus {
+		return statusEnabled, true, nil
+	}
+	return false, false, nil
 }
 
 // writeSettingsBlock writes the settings nested block
