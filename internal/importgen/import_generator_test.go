@@ -73,6 +73,26 @@ func TestGenerateImportBlock_Flow(t *testing.T) {
 	assert.Equal(t, expected, result)
 }
 
+func TestGenerateImportBlock_FlowEnabled(t *testing.T) {
+	gen := NewImportBlockGenerator()
+
+	result, err := gen.GenerateImportBlock(
+		"pingone_davinci_flow_enabled",
+		"signin_flow",
+		"flow-abc123",
+		"env-def456",
+	)
+
+	require.NoError(t, err)
+
+	expected := `import {
+  to = pingone_davinci_flow_enabled.signin_flow
+  id = "env-def456/flow-abc123"
+}`
+
+	assert.Equal(t, expected, result)
+}
+
 func TestGenerateImportBlock_Application(t *testing.T) {
 	gen := NewImportBlockGenerator()
 
@@ -237,6 +257,7 @@ func TestValidateResourceType_SupportedTypes(t *testing.T) {
 		"pingone_davinci_variable",
 		"pingone_davinci_connector_instance",
 		"pingone_davinci_flow",
+		"pingone_davinci_flow_enabled",
 		"pingone_davinci_application",
 		"pingone_davinci_application_flow_policy",
 		"pingone_davinci_application_flow_policy_assignment",
@@ -262,10 +283,11 @@ func TestGetSupportedResourceTypes(t *testing.T) {
 
 	types := gen.GetSupportedResourceTypes()
 
-	assert.Len(t, types, 6)
+	assert.Len(t, types, 7)
 	assert.Contains(t, types, "pingone_davinci_variable")
 	assert.Contains(t, types, "pingone_davinci_connector_instance")
 	assert.Contains(t, types, "pingone_davinci_flow")
+	assert.Contains(t, types, "pingone_davinci_flow_enabled")
 	assert.Contains(t, types, "pingone_davinci_application")
 	assert.Contains(t, types, "pingone_davinci_application_flow_policy")
 	assert.Contains(t, types, "pingone_davinci_application_flow_policy_assignment")
@@ -359,6 +381,15 @@ func TestBuildImportID_AllResourceTypes(t *testing.T) {
 		{
 			name:         "Flow",
 			resourceType: "pingone_davinci_flow",
+			envID:        "env-123",
+			resourceID:   "flow-456",
+			metadata:     nil,
+			expectedID:   "env-123/flow-456",
+			expectError:  false,
+		},
+		{
+			name:         "Flow Enabled",
+			resourceType: "pingone_davinci_flow_enabled",
 			envID:        "env-123",
 			resourceID:   "flow-456",
 			metadata:     nil,

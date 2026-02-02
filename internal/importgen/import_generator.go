@@ -97,6 +97,10 @@ func (g *ImportBlockGenerator) buildImportID(
 		// Format: <environment_id>/<flow_id>
 		return fmt.Sprintf("%s/%s", environmentID, resourceID), nil
 
+	case "pingone_davinci_flow_enabled":
+		// Format: <environment_id>/<flow_id>
+		return fmt.Sprintf("%s/%s", environmentID, resourceID), nil
+
 	case "pingone_davinci_application":
 		// Format: <environment_id>/<application_id>
 		return fmt.Sprintf("%s/%s", environmentID, resourceID), nil
@@ -131,6 +135,7 @@ func (g *ImportBlockGenerator) ValidateResourceType(resourceType string) bool {
 		"pingone_davinci_variable",
 		"pingone_davinci_connector_instance",
 		"pingone_davinci_flow",
+		"pingone_davinci_flow_enabled",
 		"pingone_davinci_application",
 		"pingone_davinci_application_flow_policy",
 		"pingone_davinci_application_flow_policy_assignment",
@@ -150,6 +155,7 @@ func (g *ImportBlockGenerator) GetSupportedResourceTypes() []string {
 		"pingone_davinci_variable",
 		"pingone_davinci_connector_instance",
 		"pingone_davinci_flow",
+		"pingone_davinci_flow_enabled",
 		"pingone_davinci_application",
 		"pingone_davinci_application_flow_policy",
 		"pingone_davinci_application_flow_policy_assignment",

@@ -60,6 +60,13 @@ func ExportFlowsWithImports(ctx context.Context, client *api.Client, skipDeps bo
 				ResourceName: actualName,
 				ImportID:     importIDStr,
 			})
+
+			// Also include import block for the auxiliary flow_enabled resource
+			importBlocks = append(importBlocks, RawImportBlock{
+				ResourceType: "pingone_davinci_flow_enabled",
+				ResourceName: actualName,
+				ImportID:     importIDStr,
+			})
 		}
 
 		flowDetail, err := client.GetFlow(ctx, summary.FlowID)
