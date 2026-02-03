@@ -102,9 +102,9 @@ func TestExportEnvironmentFromAPI(t *testing.T) {
 			t.Error("Expected environment_id variable")
 		}
 
-		// Should use var.pingone_environment_id in resources
-		if !strings.Contains(hcl, "var.pingone_environment_id") {
-			t.Error("Expected var.pingone_environment_id references")
+		// Should use var.pingone_environment_id in resources when resources exist
+		if strings.Contains(hcl, "resource \"pingone_davinci_") && !strings.Contains(hcl, "var.pingone_environment_id") {
+			t.Error("Expected var.pingone_environment_id references when resources are present")
 		}
 
 		// Verify structure is present (resources may or may not exist in environment)

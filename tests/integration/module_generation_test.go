@@ -66,13 +66,13 @@ func TestModuleGenerationBasic(t *testing.T) {
 	assert.FileExists(t, filepath.Join(childModulePath, "pingone_davinci_connector_instance.tf"))
 
 	// Verify root module file exists
-	assert.FileExists(t, filepath.Join(tmpDir, "module.tf"))
+	assert.FileExists(t, filepath.Join(tmpDir, "ping-export-module.tf"))
 
 	// Verify imports.tf does NOT exist (IncludeImports = false)
-	assert.NoFileExists(t, filepath.Join(tmpDir, "imports.tf"))
+	assert.NoFileExists(t, filepath.Join(tmpDir, "ping-export-imports.tf"))
 
 	// Verify module.tf content uses variable references
-	moduleContent, err := os.ReadFile(filepath.Join(tmpDir, "module.tf"))
+	moduleContent, err := os.ReadFile(filepath.Join(tmpDir, "ping-export-module.tf"))
 	require.NoError(t, err)
 	assert.Contains(t, string(moduleContent), "module \"ping-export\"") // Default module name
 	assert.Contains(t, string(moduleContent), "source = \"./davinci-module\"")
@@ -120,7 +120,7 @@ func TestModuleGenerationWithValues(t *testing.T) {
 	require.NoError(t, err)
 
 	// Verify module.tf uses variable references
-	moduleContent, err := os.ReadFile(filepath.Join(tmpDir, "module.tf"))
+	moduleContent, err := os.ReadFile(filepath.Join(tmpDir, "ping-export-module.tf"))
 	require.NoError(t, err)
 	assert.Contains(t, string(moduleContent), "pingone_environment_id = var.pingone_environment_id")
 	assert.Contains(t, string(moduleContent), "davinci_variable_company_name_value = var.davinci_variable_company_name_value")
@@ -163,10 +163,10 @@ func TestModuleGenerationWithImports(t *testing.T) {
 	require.NoError(t, err)
 
 	// Verify imports.tf exists
-	assert.FileExists(t, filepath.Join(tmpDir, "imports.tf"))
+	assert.FileExists(t, filepath.Join(tmpDir, "ping-export-imports.tf"))
 
 	// Verify imports.tf content
-	importsContent, err := os.ReadFile(filepath.Join(tmpDir, "imports.tf"))
+	importsContent, err := os.ReadFile(filepath.Join(tmpDir, "ping-export-imports.tf"))
 	require.NoError(t, err)
 	assert.Contains(t, string(importsContent), "import {")
 	assert.Contains(t, string(importsContent), "to = module.davinci.pingone_davinci_flow.main")
@@ -204,7 +204,7 @@ func TestModuleGenerationCustomDirectory(t *testing.T) {
 	assert.DirExists(t, customDirPath)
 
 	// Verify module.tf references custom directory
-	moduleContent, err := os.ReadFile(filepath.Join(tmpDir, "module.tf"))
+	moduleContent, err := os.ReadFile(filepath.Join(tmpDir, "ping-export-module.tf"))
 	require.NoError(t, err)
 	assert.Contains(t, string(moduleContent), "source = \"./custom-module-dir\"")
 }
@@ -338,7 +338,7 @@ func TestModuleGenerationSecretHandling(t *testing.T) {
 	require.NoError(t, err)
 
 	// Verify module.tf uses variable reference
-	moduleContent, err := os.ReadFile(filepath.Join(tmpDir, "module.tf"))
+	moduleContent, err := os.ReadFile(filepath.Join(tmpDir, "ping-export-module.tf"))
 	require.NoError(t, err)
 	assert.Contains(t, string(moduleContent), "davinci_connection_http_secret_key = var.davinci_connection_http_secret_key")
 

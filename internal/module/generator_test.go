@@ -257,8 +257,8 @@ func TestGeneratorModuleTF(t *testing.T) {
 			err := generator.generateModuleTF(structure)
 			require.NoError(t, err)
 
-			// Verify file was created
-			modulePath := filepath.Join(tmpDir, "module.tf")
+			// Verify file was created (prefixed by default ModuleName)
+			modulePath := filepath.Join(tmpDir, "ping-export-module.tf")
 			content, err := os.ReadFile(modulePath)
 			require.NoError(t, err)
 			contentStr := string(content)
@@ -341,7 +341,7 @@ func TestGeneratorImportsTF(t *testing.T) {
 	require.NoError(t, err)
 
 	// Verify file was created
-	importsPath := filepath.Join(tmpDir, "imports.tf")
+	importsPath := filepath.Join(tmpDir, "ping-export-imports.tf")
 	content, err := os.ReadFile(importsPath)
 	require.NoError(t, err)
 
@@ -410,8 +410,8 @@ func TestFullModuleGeneration(t *testing.T) {
 	assert.FileExists(t, filepath.Join(childModulePath, "pingone_davinci_connector_instance.tf"))
 
 	// Check root module files
-	assert.FileExists(t, filepath.Join(tmpDir, "module.tf"))
-	assert.FileExists(t, filepath.Join(tmpDir, "imports.tf"))
+	assert.FileExists(t, filepath.Join(tmpDir, "ping-export-module.tf"))
+	assert.FileExists(t, filepath.Join(tmpDir, "ping-export-imports.tf"))
 }
 
 // TestGenerator_GenerateRootVariablesTF verifies that root module variables.tf is generated correctly
@@ -460,7 +460,7 @@ func TestGenerator_GenerateRootVariablesTF(t *testing.T) {
 	require.NoError(t, err)
 
 	// Verify file exists
-	rootVariablesPath := filepath.Join(tmpDir, "variables.tf")
+	rootVariablesPath := filepath.Join(tmpDir, "ping-export-variables.tf")
 	require.FileExists(t, rootVariablesPath)
 
 	// Read and verify content
@@ -548,7 +548,7 @@ func TestGenerator_GenerateModuleTF_UsesVariableReferences(t *testing.T) {
 			require.NoError(t, err)
 
 			// Read and verify content
-			moduleTFPath := filepath.Join(tmpDir, "module.tf")
+			moduleTFPath := filepath.Join(tmpDir, "ping-export-module.tf")
 			require.FileExists(t, moduleTFPath)
 			content, err := os.ReadFile(moduleTFPath)
 			require.NoError(t, err)
@@ -799,7 +799,7 @@ func TestGenerator_DefaultModuleName(t *testing.T) {
 	require.NoError(t, err)
 
 	// Read module.tf
-	moduleContent, err := os.ReadFile(filepath.Join(tmpDir, "module.tf"))
+	moduleContent, err := os.ReadFile(filepath.Join(tmpDir, "ping-export-module.tf"))
 	require.NoError(t, err)
 	contentStr := string(moduleContent)
 
@@ -836,7 +836,7 @@ func TestGenerator_CustomModuleName(t *testing.T) {
 	require.NoError(t, err)
 
 	// Read module.tf
-	moduleContent, err := os.ReadFile(filepath.Join(tmpDir, "module.tf"))
+	moduleContent, err := os.ReadFile(filepath.Join(tmpDir, "my_flows-module.tf"))
 	require.NoError(t, err)
 	contentStr := string(moduleContent)
 
@@ -887,7 +887,7 @@ func TestGenerator_ImportBlocksUseModuleName(t *testing.T) {
 	require.NoError(t, err)
 
 	// Read imports.tf
-	importsContent, err := os.ReadFile(filepath.Join(tmpDir, "imports.tf"))
+	importsContent, err := os.ReadFile(filepath.Join(tmpDir, "my_module-imports.tf"))
 	require.NoError(t, err)
 	importsStr := string(importsContent)
 
@@ -897,7 +897,7 @@ func TestGenerator_ImportBlocksUseModuleName(t *testing.T) {
 	assert.NotContains(t, importsStr, "module.my-folder")
 
 	// Read module.tf to verify it uses the correct module name
-	moduleContent, err := os.ReadFile(filepath.Join(tmpDir, "module.tf"))
+	moduleContent, err := os.ReadFile(filepath.Join(tmpDir, "my_module-module.tf"))
 	require.NoError(t, err)
 	moduleStr := string(moduleContent)
 

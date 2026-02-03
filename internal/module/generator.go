@@ -199,7 +199,8 @@ func (g *Generator) generateRootVariablesTF(variables []Variable) error {
 		}
 	}
 
-	return g.writeFile(g.config.OutputDir, "variables.tf", sb.String())
+	// Root variables file is prefixed by module name
+	return g.writeFile(g.config.OutputDir, fmt.Sprintf("%s-variables.tf", g.config.ModuleName), sb.String())
 }
 
 // generateRootVariableBlock generates a single variable block for the root module
@@ -371,7 +372,8 @@ func (g *Generator) generateModuleTF(structure *ModuleStructure) error {
 
 	sb.WriteString("}\n")
 
-	return g.writeFile(g.config.OutputDir, "module.tf", sb.String())
+	// Root file name is prefixed by module name
+	return g.writeFile(g.config.OutputDir, fmt.Sprintf("%s-module.tf", g.config.ModuleName), sb.String())
 }
 
 // generateModuleInput generates a single module input line
@@ -404,7 +406,8 @@ func (g *Generator) generateImportsTF(importBlocks []ImportBlock) error {
 		final += "\n" + blocks.String()
 	}
 
-	return g.writeFile(g.config.OutputDir, "imports.tf", final)
+	// Root file name is prefixed by module name
+	return g.writeFile(g.config.OutputDir, fmt.Sprintf("%s-imports.tf", g.config.ModuleName), final)
 }
 
 // generateTFVarsFile creates the ping-export-terraform.auto.tfvars file
@@ -449,7 +452,8 @@ func (g *Generator) generateTFVarsFile(structure *ModuleStructure) error {
 		sb.WriteString("\n")
 	}
 
-	return g.writeFile(g.config.OutputDir, "ping-export-terraform.auto.tfvars", sb.String())
+	// Root tfvars file is prefixed by module name
+	return g.writeFile(g.config.OutputDir, fmt.Sprintf("%s-terraform.auto.tfvars", g.config.ModuleName), sb.String())
 }
 
 // generateTFVarValue generates a single tfvar value line

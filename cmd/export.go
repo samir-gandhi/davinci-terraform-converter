@@ -127,7 +127,7 @@ func (c *ExportCommand) Run(args []string, logger grpc.Logger) error {
 	// Module generation flags
 	moduleMode := flags.Bool("module", true, "Generate Terraform module structure (default: true)")
 	moduleDir := flags.String("module-dir", "ping-export-module", "Name of the child module directory")
-	moduleName := flags.String("module-name", "ping-export", "Terraform module name used in module.tf and import blocks")
+	moduleName := flags.String("module-name", "ping-export", "Used to define Terraform module and prefix generated content (default \"ping-export\")")
 	includeImports := flags.Bool("include-imports", false, "Generate import blocks in root module")
 	includeValues := flags.Bool("include-values", false, "Populate variable values in module.tf from export")
 
